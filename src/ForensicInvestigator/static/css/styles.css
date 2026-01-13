@@ -1748,8 +1748,55 @@ body {
 }
 
 .evidence-type {
-    font-size: 0.75rem;
-    color: var(--text-muted);
+    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-weight: 500;
+    text-transform: capitalize;
+    display: inline-block;
+}
+
+/* Physique - Bleu */
+.evidence-type.physique,
+.evidence-type.physical {
+    background: #3b82f6;
+    color: white;
+}
+
+/* Testimoniale - Vert */
+.evidence-type.testimoniale,
+.evidence-type.testimonial {
+    background: #22c55e;
+    color: white;
+}
+
+/* Documentaire - Orange */
+.evidence-type.documentaire,
+.evidence-type.documentary {
+    background: #f59e0b;
+    color: #1a1a2e;
+}
+
+/* Numérique - Violet */
+.evidence-type.numerique,
+.evidence-type.numérique,
+.evidence-type.digital {
+    background: #8b5cf6;
+    color: white;
+}
+
+/* Forensique - Rouge */
+.evidence-type.forensique,
+.evidence-type.forensic {
+    background: #ef4444;
+    color: white;
+}
+
+/* Autres / Défaut - Gris */
+.evidence-type.autre,
+.evidence-type.other {
+    background: #6b7280;
+    color: white;
 }
 
 .evidence-reliability {

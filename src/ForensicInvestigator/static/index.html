@@ -101,6 +101,18 @@
                 </div>
 
                 <div class="help-section">
+                    <h3><span class="material-icons">code</span> N4L (Narrative 4 Logic)</h3>
+                    <p>Langage de description des <strong>relations narratives</strong> pour une modélisation formelle.</p>
+                    <ul>
+                        <li><strong>Syntaxe</strong> : <code>Entité -[relation]-> Cible</code></li>
+                        <li><strong>Contextes</strong> : Regroupez les relations par thème.</li>
+                        <li><strong>Parser</strong> : Transformez le texte en graphe visuel.</li>
+                        <li><strong>Import/Export</strong> : Chargez ou sauvegardez vos fichiers .n4l.</li>
+                        <li><strong>Exemple</strong> : <code>Jean -[connaît]-> Marie</code></li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
                     <h3><span class="material-icons">people</span> Entités</h3>
                     <p>Gestion des <strong>personnes, lieux, objets et organisations</strong> impliqués dans l'affaire.</p>
                     <ul>
@@ -157,18 +169,6 @@
                         <li><strong>Générer (IA)</strong> : L'IA propose des hypothèses basées sur les données.</li>
                         <li><strong>Contradictions</strong> : Détection automatique des incohérences.</li>
                         <li><strong>Questions</strong> : Suggestions de pistes à explorer (méthode PEACE).</li>
-                    </ul>
-                </div>
-
-                <div class="help-section">
-                    <h3><span class="material-icons">code</span> N4L (Narrative 4 Logic)</h3>
-                    <p>Langage de description des <strong>relations narratives</strong> pour une modélisation formelle.</p>
-                    <ul>
-                        <li><strong>Syntaxe</strong> : <code>Entité -[relation]-> Cible</code></li>
-                        <li><strong>Contextes</strong> : Regroupez les relations par thème.</li>
-                        <li><strong>Parser</strong> : Transformez le texte en graphe visuel.</li>
-                        <li><strong>Import/Export</strong> : Chargez ou sauvegardez vos fichiers .n4l.</li>
-                        <li><strong>Exemple</strong> : <code>Jean -[connaît]-> Marie</code></li>
                     </ul>
                 </div>
 
@@ -543,6 +543,10 @@
                 <span class="material-icons">dashboard</span>
                 Tableau de bord
             </button>
+    <button class="nav-btn" data-view="n4l" data-tooltip="Éditer le code N4L source de l'affaire (format texte)" data-tooltip-pos="bottom">
+                <span class="material-icons">code</span>
+                N4L
+            </button>
             <button class="nav-btn" data-view="entities" data-tooltip="Gérer les personnes, organisations et lieux de l'affaire" data-tooltip-pos="bottom">
                 <span class="material-icons">people</span>
                 Entités
@@ -559,10 +563,6 @@
                 <span class="material-icons">psychology</span>
                 Hypothèses
             </button>
-            <button class="nav-btn" data-view="n4l" data-tooltip="Éditer le code N4L source de l'affaire (format texte)" data-tooltip-pos="bottom">
-                <span class="material-icons">code</span>
-                N4L
-            </button>
             <button class="nav-btn" data-view="cross-case" data-tooltip="Rechercher des connexions entre plusieurs affaires" data-tooltip-pos="bottom">
                 <span class="material-icons">hub</span>
                 Connexions
@@ -575,10 +575,6 @@
                 <span class="material-icons">search</span>
                 Investigation
             </button>
-            <button class="nav-btn" data-view="graph-analysis" data-tooltip="Analyse avancée du graphe : centralité, clusters, patterns" data-tooltip-pos="bottom">
-                <span class="material-icons">analytics</span>
-                Analyse Graphe
-            </button>
             <button class="nav-btn" data-view="geo-map" data-tooltip="Carte géographique : lieux, trajets et zones de présence" data-tooltip-pos="bottom">
                 <span class="material-icons">map</span>
                 Carte
@@ -586,6 +582,10 @@
             <button class="nav-btn" data-view="notebook" data-tooltip="Carnet d'investigation : notes, annotations et conclusions" data-tooltip-pos="bottom">
                 <span class="material-icons">menu_book</span>
                 Notebook
+            </button>
+            <button class="nav-btn" data-view="graph-analysis" data-tooltip="Analyse avancée du graphe : centralité, clusters, patterns" data-tooltip-pos="bottom">
+                <span class="material-icons">analytics</span>
+                Analyse Graphe
             </button>
             <button class="nav-btn" data-view="config" data-tooltip="Paramètres de l'application et clés API" data-tooltip-pos="bottom">
                 <span class="material-icons">settings</span>
@@ -699,7 +699,12 @@
                         </div>
                         <div class="panel-description">
                             <span class="material-icons">info</span>
-                            Visualisation des liens entre entités, preuves et événements. <strong>Chemins</strong> découvre les connexions entre deux entités. <strong>Analyser</strong> génère une analyse IA globale.
+                            Visualisation des liens entre entités, preuves et événements.
+                            <strong>Inférences</strong> suggère des liens manquants.
+                            <strong>Recherche</strong> filtre les nœuds du graphe.
+                            <strong>Chemins</strong> découvre les connexions entre deux entités.
+                            <strong>Réseaux Sociaux</strong> analyse les clusters relationnels.
+                            <strong>Analyser</strong> génère une analyse IA globale.
                         </div>
                         <div class="panel-content">
                             <div id="graph-container"></div>
@@ -965,7 +970,9 @@
                         </div>
                         <div class="panel-description">
                             <span class="material-icons">info</span>
-                            <strong>N4L (Narrative 4 Logic)</strong> est un langage de description de relations. Syntaxe : <code>Entité -[relation]-> Cible</code>. Cliquez sur <strong>Parser</strong> pour visualiser le graphe.
+                            <strong>N4L (Narrative 4 Logic)</strong> est un langage de description de relations. Syntaxe : <code>Entité -[relation]-> Cible</code>.
+                            <strong>Parser</strong> visualise le graphe.
+                            <strong>Glissez un fichier .txt</strong> ou cliquez sur <strong>Importer</strong> pour convertir du texte en N4L via IA.
                         </div>
                         <div class="panel-content">
                             <textarea class="form-textarea" id="n4l-editor" style="min-height: 400px; font-family: monospace;"></textarea>

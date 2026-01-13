@@ -337,20 +337,83 @@ const EvidenceModule = {
     toggleEvidenceFilterMenu(e) {
         e.stopPropagation();
         const menu = document.getElementById('evidence-filter-menu');
-        if (menu) {
-            menu.classList.toggle('active');
+        if (!menu) return;
+
+        // Initialize event listeners if not already done
+        if (!menu.dataset.initialized) {
+            menu.dataset.initialized = 'true';
+
+            // Prevent menu from closing when clicking inside
+            menu.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+
+            // Add "Tous" option at the beginning if not exists
+            if (!menu.querySelector('[data-type="all"]')) {
+                const allItem = document.createElement('label');
+                allItem.className = 'filter-item filter-all';
+                allItem.dataset.type = 'all';
+                allItem.innerHTML = '<input type="checkbox" checked> Tous';
+                const divider = document.createElement('div');
+                divider.className = 'filter-divider';
+                menu.insertBefore(divider, menu.firstChild);
+                menu.insertBefore(allItem, menu.firstChild);
+
+                // Handle "Tous" checkbox
+                allItem.addEventListener('click', (e) => {
+                    const allCheckbox = allItem.querySelector('input');
+                    if (e.target !== allCheckbox) allCheckbox.checked = !allCheckbox.checked;
+
+                    // Toggle all other checkboxes
+                    const otherCheckboxes = menu.querySelectorAll('.filter-item:not([data-type="all"]) input');
+                    otherCheckboxes.forEach(cb => cb.checked = allCheckbox.checked);
+
+                    this.applyEvidenceFilter();
+                });
+            }
+
+            // Handle individual type checkboxes
+            menu.querySelectorAll('.filter-item:not([data-type="all"])').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    const checkbox = item.querySelector('input');
+                    if (e.target !== checkbox) checkbox.checked = !checkbox.checked;
+
+                    // Update "Tous" checkbox state
+                    this.updateEvidenceAllCheckbox();
+                    this.applyEvidenceFilter();
+                });
+            });
         }
 
-        const closeHandler = (event) => {
-            if (!event.target.closest('#evidence-filter-dropdown')) {
-                menu.classList.remove('active');
-                document.removeEventListener('click', closeHandler);
-            }
-        };
+        menu.classList.toggle('active');
 
-        setTimeout(() => {
-            document.addEventListener('click', closeHandler);
-        }, 0);
+        // Close menu when clicking outside
+        if (menu.classList.contains('active')) {
+            const closeHandler = (event) => {
+                if (!event.target.closest('#evidence-filter-dropdown')) {
+                    menu.classList.remove('active');
+                    document.removeEventListener('click', closeHandler);
+                }
+            };
+            setTimeout(() => {
+                document.addEventListener('click', closeHandler);
+            }, 0);
+        }
+    },
+
+    updateEvidenceAllCheckbox() {
+        const menu = document.getElementById('evidence-filter-menu');
+        if (!menu) return;
+
+        const allCheckbox = menu.querySelector('.filter-item[data-type="all"] input');
+        if (!allCheckbox) return;
+
+        const otherCheckboxes = menu.querySelectorAll('.filter-item:not([data-type="all"]) input');
+        const allChecked = Array.from(otherCheckboxes).every(cb => cb.checked);
+        const noneChecked = Array.from(otherCheckboxes).every(cb => !cb.checked);
+
+        allCheckbox.checked = allChecked;
+        allCheckbox.indeterminate = !allChecked && !noneChecked;
     },
 
     applyEvidenceFilter() {
@@ -358,7 +421,7 @@ const EvidenceModule = {
         if (!menu) return;
 
         const activeTypes = [];
-        menu.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+        menu.querySelectorAll('.filter-item:not([data-type="all"]) input').forEach(checkbox => {
             if (checkbox.checked) {
                 activeTypes.push(checkbox.value.toLowerCase());
             }
