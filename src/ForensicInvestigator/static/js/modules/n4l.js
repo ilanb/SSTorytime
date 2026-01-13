@@ -124,6 +124,11 @@ const N4LModule = {
             this.handleN4LGraphRightClick(params);
         });
 
+        // Setup context menu actions (if not already done by graph.js)
+        if (typeof this.setupContextMenuActions === 'function') {
+            this.setupContextMenuActions();
+        }
+
         this.addN4LLegend(container);
     },
 

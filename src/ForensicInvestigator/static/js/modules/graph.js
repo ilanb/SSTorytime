@@ -598,23 +598,23 @@ const GraphModule = {
                 }
                 break;
             case 'show-details':
-                this.showNodeDetails(this.contextMenuNodeId);
+                this.showNodeDetails(this.contextMenuNodeId, isN4L);
                 break;
             case 'exclude-node':
-                this.excludeNodeFromSearch(this.contextMenuNodeId);
+                this.excludeNodeFromSearch(this.contextMenuNodeId, isN4L);
                 break;
             // SSTorytime actions
             case 'orbits-analysis':
-                this.launchOrbitsAnalysis(this.contextMenuNodeId);
+                this.launchOrbitsAnalysis(this.contextMenuNodeId, isN4L);
                 break;
             case 'dirac-from-node':
-                this.launchDiracFromNode(this.contextMenuNodeId);
+                this.launchDiracFromNode(this.contextMenuNodeId, isN4L);
                 break;
             case 'contrawave-start':
-                this.launchContrawaveFromNode(this.contextMenuNodeId);
+                this.launchContrawaveFromNode(this.contextMenuNodeId, isN4L);
                 break;
             case 'betweenness-highlight':
-                this.showNodeBetweenness(this.contextMenuNodeId);
+                this.showNodeBetweenness(this.contextMenuNodeId, isN4L);
                 break;
         }
         this.contextMenuGraphType = null;
@@ -631,7 +631,11 @@ const GraphModule = {
         }
     },
 
-    launchOrbitsAnalysis(nodeId) {
+    launchOrbitsAnalysis(nodeId, isN4L = false) {
+        const nodes = isN4L ? this.n4lGraphNodes : this.graphNodes;
+        const node = nodes?.get(nodeId);
+        const nodeLabel = node?.label || nodeId;
+
         // Navigate to Graph Analysis view first
         this.navigateToGraphAnalysis();
 
@@ -646,10 +650,24 @@ const GraphModule = {
                     orbitsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
 
-                // Set the orbit center node
+                // Set the orbit center node - use label for N4L
                 const select = document.getElementById('orbit-center-node');
                 if (select) {
-                    select.value = nodeId;
+                    // Try to find matching option by label or id
+                    const options = Array.from(select.options);
+                    const match = options.find(o => o.value === nodeId || o.textContent.includes(nodeLabel));
+                    if (match) {
+                        select.value = match.value;
+                    } else {
+                        // For N4L, add a temporary option
+                        if (isN4L) {
+                            const opt = document.createElement('option');
+                            opt.value = nodeLabel;
+                            opt.textContent = `[N4L] ${nodeLabel}`;
+                            select.appendChild(opt);
+                            select.value = nodeLabel;
+                        }
+                    }
                 }
 
                 // Execute orbits analysis
@@ -660,14 +678,15 @@ const GraphModule = {
                         document.getElementById('btn-orbits')?.click();
                     }
                 }, 200);
-                this.showToast('Analyse des orbites lancée', 'info');
+                this.showToast(`Analyse des orbites: ${nodeLabel}`, 'info');
             }, 100);
         }, 100);
     },
 
-    launchDiracFromNode(nodeId) {
+    launchDiracFromNode(nodeId, isN4L = false) {
         // Get node label
-        const node = this.graphNodes?.get(nodeId);
+        const nodes = isN4L ? this.n4lGraphNodes : this.graphNodes;
+        const node = nodes?.get(nodeId);
         const nodeLabel = node?.label || nodeId;
         const shortName = nodeLabel.split(' ')[0]; // First word
 
@@ -696,7 +715,11 @@ const GraphModule = {
         }, 100);
     },
 
-    launchContrawaveFromNode(nodeId) {
+    launchContrawaveFromNode(nodeId, isN4L = false) {
+        const nodes = isN4L ? this.n4lGraphNodes : this.graphNodes;
+        const node = nodes?.get(nodeId);
+        const nodeLabel = node?.label || nodeId;
+
         // Navigate to Graph Analysis view first
         this.navigateToGraphAnalysis();
 
@@ -713,16 +736,38 @@ const GraphModule = {
 
                 const startSelect = document.getElementById('contrawave-start-nodes');
                 if (startSelect) {
+                    // Try to find matching option
+                    let found = false;
                     Array.from(startSelect.options).forEach(opt => {
-                        opt.selected = (opt.value === nodeId);
+                        if (opt.value === nodeId || opt.textContent.includes(nodeLabel)) {
+                            opt.selected = true;
+                            found = true;
+                        } else {
+                            opt.selected = false;
+                        }
                     });
+
+                    // For N4L, add a temporary option if not found
+                    if (!found && isN4L) {
+                        const opt = document.createElement('option');
+                        opt.value = nodeLabel;
+                        opt.textContent = `[N4L] ${nodeLabel}`;
+                        opt.selected = true;
+                        startSelect.appendChild(opt);
+                    }
                 }
-                this.showToast('Sélectionnez les nœuds de destination pour Contrawave', 'info');
+                this.showToast(`Contrawave: départ depuis ${nodeLabel}`, 'info');
             }, 100);
         }, 100);
     },
 
-    async showNodeBetweenness(nodeId) {
+    async showNodeBetweenness(nodeId, isN4L = false) {
+        if (isN4L) {
+            // For N4L, calculate betweenness locally
+            this.showN4LNodeBetweenness(nodeId);
+            return;
+        }
+
         if (!this.currentCase) return;
 
         try {
@@ -762,27 +807,68 @@ const GraphModule = {
         }
     },
 
-    focusAndHighlightNode(nodeId, color = '#9333ea') {
-        if (!this.graph || !this.graphNodes) return;
+    showN4LNodeBetweenness(nodeId) {
+        // Calculate simple degree centrality for N4L graph
+        const edges = this.n4lGraphEdges?.get() || [];
+        const nodes = this.n4lGraphNodes?.get() || [];
+        const node = nodes.find(n => n.id === nodeId);
+
+        if (!node) {
+            this.showToast('Nœud non trouvé', 'warning');
+            return;
+        }
+
+        // Count connections
+        const inDegree = edges.filter(e => e.to === nodeId).length;
+        const outDegree = edges.filter(e => e.from === nodeId).length;
+        const totalDegree = inDegree + outDegree;
+
+        // Calculate relative centrality
+        const maxPossible = (nodes.length - 1) * 2;
+        const centrality = maxPossible > 0 ? (totalDegree / maxPossible * 100).toFixed(1) : 0;
+
+        // Rank among all nodes
+        const degrees = nodes.map(n => {
+            const inD = edges.filter(e => e.to === n.id).length;
+            const outD = edges.filter(e => e.from === n.id).length;
+            return { id: n.id, degree: inD + outD };
+        }).sort((a, b) => b.degree - a.degree);
+
+        const rank = degrees.findIndex(d => d.id === nodeId) + 1;
+
+        this.showToast(
+            `Centralité: ${centrality}% (${totalDegree} connexions, rang #${rank}/${nodes.length})`,
+            'success'
+        );
+
+        // Highlight the node
+        this.focusAndHighlightNode(nodeId, '#9333ea', true);
+    },
+
+    focusAndHighlightNode(nodeId, color = '#9333ea', isN4L = false) {
+        const graph = isN4L ? this.n4lGraph : this.graph;
+        const graphNodes = isN4L ? this.n4lGraphNodes : this.graphNodes;
+
+        if (!graph || !graphNodes) return;
 
         // Focus on the node
-        this.graph.focus(nodeId, {
+        graph.focus(nodeId, {
             scale: 1.5,
             animation: { duration: 500, easingFunction: 'easeInOutQuad' }
         });
 
         // Temporarily change node color
-        const node = this.graphNodes.get(nodeId);
+        const node = graphNodes.get(nodeId);
         if (node) {
             const originalColor = node.color;
-            this.graphNodes.update({
+            graphNodes.update({
                 id: nodeId,
                 color: { background: color, border: color }
             });
 
             // Reset after 3 seconds
             setTimeout(() => {
-                this.graphNodes.update({
+                graphNodes.update({
                     id: nodeId,
                     color: originalColor
                 });
@@ -793,16 +879,70 @@ const GraphModule = {
     // ============================================
     // Node Details
     // ============================================
-    showNodeDetails(nodeId) {
-        const node = this.graphNodes?.get(nodeId);
+    showNodeDetails(nodeId, isN4L = false) {
+        const nodes = isN4L ? this.n4lGraphNodes : this.graphNodes;
+        const node = nodes?.get(nodeId);
         if (!node) return;
 
-        const entity = this.currentCase?.entities?.find(e => e.id === nodeId);
-        if (entity) {
-            this.showEntityDetails(entity);
+        if (isN4L) {
+            // For N4L graph, show node info in a modal
+            this.showN4LNodeDetails(nodeId, node);
         } else {
-            this.focusGraphNode(nodeId);
+            const entity = this.currentCase?.entities?.find(e => e.id === nodeId);
+            if (entity) {
+                this.showEntityDetails(entity);
+            } else {
+                this.focusGraphNode(nodeId);
+            }
         }
+    },
+
+    showN4LNodeDetails(nodeId, node) {
+        // Get edges connected to this node
+        const edges = this.n4lGraphEdges?.get() || [];
+        const connectedEdges = edges.filter(e => e.from === nodeId || e.to === nodeId);
+
+        const incomingEdges = connectedEdges.filter(e => e.to === nodeId);
+        const outgoingEdges = connectedEdges.filter(e => e.from === nodeId);
+
+        const allNodes = this.n4lGraphNodes?.get() || [];
+        const nodeMap = {};
+        allNodes.forEach(n => { nodeMap[n.id] = n; });
+
+        const incomingHtml = incomingEdges.length > 0
+            ? incomingEdges.map(e => {
+                const fromNode = nodeMap[e.from];
+                return `<div class="relation-item"><span class="relation-target">${fromNode?.label || e.from}</span> <span class="relation-label">→ ${e.label || ''}</span></div>`;
+            }).join('')
+            : '<div class="empty">Aucune</div>';
+
+        const outgoingHtml = outgoingEdges.length > 0
+            ? outgoingEdges.map(e => {
+                const toNode = nodeMap[e.to];
+                return `<div class="relation-item"><span class="relation-label">${e.label || ''} →</span> <span class="relation-target">${toNode?.label || e.to}</span></div>`;
+            }).join('')
+            : '<div class="empty">Aucune</div>';
+
+        const content = `
+            <div class="entity-details">
+                <div class="detail-section">
+                    <h4><span class="material-icons">hub</span> Nœud N4L</h4>
+                    <div class="detail-row"><span class="detail-label">Label:</span><span class="detail-value">${node.label || nodeId}</span></div>
+                    <div class="detail-row"><span class="detail-label">ID:</span><span class="detail-value">${nodeId}</span></div>
+                    ${node.title ? `<div class="detail-row"><span class="detail-label">Info:</span><span class="detail-value">${node.title}</span></div>` : ''}
+                </div>
+                <div class="detail-section">
+                    <h4><span class="material-icons">arrow_back</span> Relations entrantes (${incomingEdges.length})</h4>
+                    ${incomingHtml}
+                </div>
+                <div class="detail-section">
+                    <h4><span class="material-icons">arrow_forward</span> Relations sortantes (${outgoingEdges.length})</h4>
+                    ${outgoingHtml}
+                </div>
+            </div>
+        `;
+
+        this.showModal('Détails du nœud', content);
     },
 
     showEntityDetails(entity) {
@@ -1128,14 +1268,25 @@ const GraphModule = {
     // ============================================
     // Exclude Node from Search
     // ============================================
-    excludeNodeFromSearch(nodeId) {
-        const node = this.graphNodes?.get(nodeId);
+    excludeNodeFromSearch(nodeId, isN4L = false) {
+        const nodes = isN4L ? this.n4lGraphNodes : this.graphNodes;
+        const node = nodes?.get(nodeId);
         if (!node) return;
 
-        if (!this.excludedNodes) this.excludedNodes = [];
-        if (!this.excludedNodes.includes(nodeId)) {
-            this.excludedNodes.push(nodeId);
-            this.showToast(`${node.label} exclu de la recherche`);
+        if (isN4L) {
+            if (!this.excludedN4LNodes) this.excludedN4LNodes = [];
+            if (!this.excludedN4LNodes.includes(nodeId)) {
+                this.excludedN4LNodes.push(nodeId);
+                // Visually hide the node
+                this.n4lGraphNodes?.update({ id: nodeId, hidden: true });
+                this.showToast(`${node.label} masqué du graphe N4L`);
+            }
+        } else {
+            if (!this.excludedNodes) this.excludedNodes = [];
+            if (!this.excludedNodes.includes(nodeId)) {
+                this.excludedNodes.push(nodeId);
+                this.showToast(`${node.label} exclu de la recherche`);
+            }
         }
     },
 
