@@ -862,9 +862,10 @@ const EntitiesModule = {
             menu.id = 'filter-menu';
             menu.className = 'filter-menu';
             menu.innerHTML = `
-                <div class="filter-item" data-role="all">
+                <div class="filter-item filter-all" data-role="all">
                     <input type="checkbox" checked> Tous
                 </div>
+                <div class="filter-divider"></div>
                 <div class="filter-item" data-role="victime">
                     <input type="checkbox" checked> Victimes
                 </div>
@@ -881,18 +882,58 @@ const EntitiesModule = {
             btn.parentElement.style.position = 'relative';
             btn.parentElement.appendChild(menu);
 
-            menu.querySelectorAll('.filter-item').forEach(item => {
+            // Prevent menu from closing when clicking inside
+            menu.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+
+            // Handle "Tous" checkbox specially
+            const allItem = menu.querySelector('.filter-item[data-role="all"]');
+            allItem.addEventListener('click', (e) => {
+                const allCheckbox = allItem.querySelector('input');
+                if (e.target !== allCheckbox) allCheckbox.checked = !allCheckbox.checked;
+
+                // Toggle all other checkboxes
+                const otherCheckboxes = menu.querySelectorAll('.filter-item:not([data-role="all"]) input');
+                otherCheckboxes.forEach(cb => cb.checked = allCheckbox.checked);
+
+                this.applyEntityFilters();
+            });
+
+            // Handle individual role checkboxes
+            menu.querySelectorAll('.filter-item:not([data-role="all"])').forEach(item => {
                 item.addEventListener('click', (e) => {
                     const checkbox = item.querySelector('input');
                     if (e.target !== checkbox) checkbox.checked = !checkbox.checked;
+
+                    // Update "Tous" checkbox state
+                    this.updateAllCheckboxState();
                     this.applyEntityFilters();
                 });
             });
 
-            document.addEventListener('click', () => menu.classList.remove('active'));
+            // Close menu when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!menu.contains(e.target) && e.target !== btn) {
+                    menu.classList.remove('active');
+                }
+            });
         }
 
         menu.classList.toggle('active');
+    },
+
+    updateAllCheckboxState() {
+        const menu = document.getElementById('filter-menu');
+        if (!menu) return;
+
+        const allCheckbox = menu.querySelector('.filter-item[data-role="all"] input');
+        const otherCheckboxes = menu.querySelectorAll('.filter-item:not([data-role="all"]) input');
+        const allChecked = Array.from(otherCheckboxes).every(cb => cb.checked);
+        const noneChecked = Array.from(otherCheckboxes).every(cb => !cb.checked);
+
+        allCheckbox.checked = allChecked;
+        allCheckbox.indeterminate = !allChecked && !noneChecked;
     },
 
     applyEntityFilters() {

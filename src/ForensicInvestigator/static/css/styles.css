@@ -1617,18 +1617,63 @@ body {
     color: white;
     text-transform: uppercase;
     letter-spacing: 0.5px;
+    font-weight: 600;
 }
 
-.entity-badge.victim {
-    background: var(--primary-dark);
+/* Victime - Rouge */
+.entity-badge.victim,
+.entity-badge.victime {
+    background: #ef4444;
+    color: white;
 }
 
+/* Suspect - Orange */
 .entity-badge.suspect {
-    background: var(--primary-light);
+    background: #f59e0b;
+    color: #1a1a2e;
 }
 
-.entity-badge.witness {
-    background: var(--text-muted);
+/* Témoin - Vert */
+.entity-badge.witness,
+.entity-badge.temoin,
+.entity-badge.témoin {
+    background: #22c55e;
+    color: white;
+}
+
+/* Preuve - Violet */
+.entity-badge.preuve,
+.entity-badge.evidence {
+    background: #8b5cf6;
+    color: white;
+}
+
+/* Lieu - Bleu */
+.entity-badge.lieu,
+.entity-badge.location {
+    background: #3b82f6;
+    color: white;
+}
+
+/* Objet - Cyan */
+.entity-badge.objet,
+.entity-badge.object {
+    background: #06b6d4;
+    color: white;
+}
+
+/* Événement - Rose */
+.entity-badge.evenement,
+.entity-badge.event {
+    background: #ec4899;
+    color: white;
+}
+
+/* Autres / Défaut - Gris */
+.entity-badge.autre,
+.entity-badge.other {
+    background: #6b7280;
+    color: white;
 }
 
 /* Entity attributes */
@@ -4355,6 +4400,20 @@ body.has-fullscreen-panel .fullscreen-panel {
 
 .filter-item input[type="checkbox"] {
     accent-color: var(--primary);
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+.filter-item.filter-all {
+    font-weight: 600;
+    color: var(--primary);
+}
+
+.filter-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 0.25rem 0;
 }
 
 /* Confirmation dialog styles */
