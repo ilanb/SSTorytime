@@ -911,15 +911,15 @@
                                         </div>
                                     </div>
                                 </div>
-                                <button class="btn btn-sm btn-secondary" id="btn-generate-hypotheses">
+                                <button class="btn btn-sm btn-secondary" id="btn-generate-hypotheses" data-tooltip="Analyser les preuves et entités pour proposer des hypothèses pertinentes">
                                     <span class="material-icons">auto_awesome</span>
                                     Générer (IA)
                                 </button>
-                                <button class="btn btn-sm btn-secondary" id="btn-detect-contradictions">
+                                <button class="btn btn-sm btn-secondary" id="btn-detect-contradictions" data-tooltip="Détecter automatiquement les incohérences entre hypothèses et preuves">
                                     <span class="material-icons">compare_arrows</span>
                                     Contradictions
                                 </button>
-                                <button class="btn btn-sm btn-secondary" id="btn-generate-questions">
+                                <button class="btn btn-sm btn-secondary" id="btn-generate-questions" data-tooltip="Générer des questions d'investigation selon la méthode PEACE">
                                     <span class="material-icons">help_outline</span>
                                     Questions (IA)
                                 </button>
@@ -931,7 +931,7 @@
                         </div>
                         <div class="panel-description">
                             <span class="material-icons">info</span>
-                            <strong>Pistes d'enquête</strong> avec niveau de confiance. <strong>Générer (IA)</strong> propose des hypothèses. <strong>Contradictions</strong> détecte les incohérences. <strong>Questions (IA)</strong> génère des questions selon la méthode PEACE.
+                            <strong>Pistes d'enquête</strong> avec niveau de confiance (0-100%). <strong>Générer (IA)</strong> analyse les preuves et entités pour proposer des hypothèses pertinentes. <strong>Contradictions</strong> détecte automatiquement les incohérences entre hypothèses et preuves. <strong>Questions (IA)</strong> génère des questions d'investigation selon la méthode PEACE (Planning, Engage, Account, Closure, Evaluate). Cliquez sur une hypothèse pour voir ses questions à explorer.
                         </div>
                         <div class="panel-content" id="hypotheses-list">
                             <!-- Hypotheses loaded here -->
@@ -975,9 +975,14 @@
                     <div class="panel" id="panel-n4l-graph">
                         <div class="panel-header">
                             <span class="panel-title">Prévisualisation du Graphe</span>
-                            <button class="btn btn-sm btn-icon" onclick="app.togglePanel('panel-n4l-graph')" data-tooltip="Masquer ou agrandir le graphe" data-tooltip-pos="bottom">
-                                <span class="material-icons">chevron_right</span>
-                            </button>
+                            <div class="panel-header-actions">
+                                <button class="btn btn-sm btn-ghost" id="btn-fullscreen-n4l" onclick="app.toggleN4LFullscreen()" data-tooltip="Plein écran" data-tooltip-pos="bottom">
+                                    <span class="material-icons">fullscreen</span>
+                                </button>
+                                <button class="btn btn-sm btn-icon" onclick="app.togglePanel('panel-n4l-graph')" data-tooltip="Masquer ou agrandir le graphe" data-tooltip-pos="bottom">
+                                    <span class="material-icons">chevron_right</span>
+                                </button>
+                            </div>
                         </div>
                         <div class="panel-description">
                             <span class="material-icons">info</span>

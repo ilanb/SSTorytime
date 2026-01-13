@@ -72,7 +72,7 @@ const HypothesesModule = {
                     <div class="hypothesis-evidence supporting">
                         <span class="evidence-label"><span class="material-icons">check_circle</span> Preuves à l'appui:</span>
                         <div class="evidence-tags">
-                            ${supportingEvidence.map(ev => `<span class="evidence-tag supporting">${ev.name}</span>`).join('')}
+                            ${supportingEvidence.map(ev => `<span class="evidence-tag supporting clickable" onclick="app.goToSearchResult('evidence', '${ev.id}')" data-tooltip="Voir cette preuve">${ev.name}</span>`).join('')}
                         </div>
                     </div>
                 ` : ''}
@@ -81,13 +81,13 @@ const HypothesesModule = {
                     <div class="hypothesis-evidence contradicting">
                         <span class="evidence-label"><span class="material-icons">cancel</span> Preuves contradictoires:</span>
                         <div class="evidence-tags">
-                            ${contradictingEvidence.map(ev => `<span class="evidence-tag contradicting">${ev.name}</span>`).join('')}
+                            ${contradictingEvidence.map(ev => `<span class="evidence-tag contradicting clickable" onclick="app.goToSearchResult('evidence', '${ev.id}')" data-tooltip="Voir cette preuve">${ev.name}</span>`).join('')}
                         </div>
                     </div>
                 ` : ''}
 
                 ${h.questions && h.questions.length > 0 ? `
-                    <div class="hypothesis-questions">
+                    <div class="hypothesis-questions" onclick="app.showHypothesisQuestions('${h.id}')" style="cursor: pointer;" data-tooltip="Cliquer pour voir les questions">
                         <span class="material-icons">help_outline</span>
                         <span>${h.questions.length} question(s) à explorer</span>
                     </div>
@@ -282,6 +282,34 @@ const HypothesesModule = {
                 console.error('Error adding hypothesis:', error);
             }
         });
+    },
+
+    // ============================================
+    // Show Hypothesis Questions
+    // ============================================
+    showHypothesisQuestions(hypothesisId) {
+        const hypothesis = this.currentCase?.hypotheses?.find(h => h.id === hypothesisId);
+        if (!hypothesis || !hypothesis.questions || hypothesis.questions.length === 0) {
+            this.showToast('Aucune question pour cette hypothèse', 'info');
+            return;
+        }
+
+        const questionsHtml = hypothesis.questions.map((q, i) => `
+            <div class="question-item">
+                <span class="question-number">${i + 1}</span>
+                <span class="question-text">${this.escapeHtml ? this.escapeHtml(q) : q}</span>
+            </div>
+        `).join('');
+
+        this.showModal(`Questions à explorer: ${hypothesis.title}`, `
+            <div class="modal-explanation">
+                <span class="material-icons">help_outline</span>
+                <p><strong>Questions ouvertes</strong> - Ces questions ont été identifiées pour approfondir l'investigation de cette hypothèse.</p>
+            </div>
+            <div class="questions-list">
+                ${questionsHtml}
+            </div>
+        `, null, false);
     },
 
     // ============================================

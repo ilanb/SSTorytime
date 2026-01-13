@@ -95,7 +95,10 @@ const N4LModule = {
             },
             physics: {
                 stabilization: { iterations: 100 },
-                barnesHut: { gravitationalConstant: -2000 }
+                barnesHut: {
+                    gravitationalConstant: -2000,
+                    springLength: 200
+                }
             },
             interaction: {
                 hover: true,
@@ -122,7 +125,6 @@ const N4LModule = {
         });
 
         this.addN4LLegend(container);
-        this.addN4LResetButton(container);
     },
 
     // ============================================
@@ -135,70 +137,487 @@ const N4LModule = {
         const nodeCount = result.graph?.nodes?.length || 0;
         const edgeCount = result.graph?.edges?.length || 0;
         const contextCount = result.contexts?.length || 0;
+        const aliasCount = result.aliases ? Object.keys(result.aliases).length : 0;
+        const sequenceCount = result.sequences?.length || 0;
+
+        // Store current filter state
+        this.n4lActiveContextFilter = this.n4lActiveContextFilter || null;
 
         let metadataHtml = `
-            <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap;">
-                <span class="stat-badge" style="background: var(--primary); color: white; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.7rem;">
-                    ${nodeCount} entités
-                </span>
-                <span class="stat-badge" style="background: var(--primary); color: white; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.7rem;">
-                    ${edgeCount} relations
-                </span>
-                <span class="stat-badge" style="background: var(--primary); color: white; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.7rem;">
-                    ${contextCount} contextes
-                </span>
-                <button onclick="app.resetN4LFilter()" style="background: #6b7280; color: white; border: none; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.7rem; cursor: pointer;">
-                    ↺ Reset
-                </button>
+            <!-- Info Banner -->
+            <div class="n4l-info-banner">
+                <span class="material-icons">info</span>
+                <div>
+                    <strong>Graphe N4L interactif</strong> - Visualisation de la structure sémantique de l'affaire.
+                    Cliquez sur un <em>contexte</em> pour filtrer le graphe, sur un <em>nœud</em> pour voir ses connexions,
+                    ou utilisez le clic droit pour plus d'options.
+                </div>
+            </div>
+
+            <!-- Stats Row -->
+            <div class="n4l-stats-row">
+                <div class="n4l-stat-item">
+                    <span class="material-icons">hub</span>
+                    <span class="n4l-stat-value">${nodeCount}</span>
+                    <span class="n4l-stat-label">entités</span>
+                </div>
+                <div class="n4l-stat-item">
+                    <span class="material-icons">sync_alt</span>
+                    <span class="n4l-stat-value">${edgeCount}</span>
+                    <span class="n4l-stat-label">relations</span>
+                </div>
+                <div class="n4l-stat-item">
+                    <span class="material-icons">layers</span>
+                    <span class="n4l-stat-value">${contextCount}</span>
+                    <span class="n4l-stat-label">contextes</span>
+                </div>
+                ${aliasCount > 0 ? `
+                <div class="n4l-stat-item">
+                    <span class="material-icons">alternate_email</span>
+                    <span class="n4l-stat-value">${aliasCount}</span>
+                    <span class="n4l-stat-label">alias</span>
+                </div>
+                ` : ''}
+                ${sequenceCount > 0 ? `
+                <div class="n4l-stat-item">
+                    <span class="material-icons">timeline</span>
+                    <span class="n4l-stat-value">${sequenceCount}</span>
+                    <span class="n4l-stat-label">séquences</span>
+                </div>
+                ` : ''}
             </div>
         `;
 
+        // Contexts Section with Filters
         if (result.contexts && result.contexts.length > 0) {
             metadataHtml += `
-                <div style="margin-bottom: 0.5rem;">
-                    <strong style="color: var(--primary); font-size: 0.75rem;">Contextes:</strong>
-                    <div style="display: flex; gap: 0.25rem; flex-wrap: wrap; margin-top: 0.15rem;">
-                        ${result.contexts.map(ctx => `<span class="context-tag" style="background: #e0f2fe; color: #0369a1; padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.7rem; cursor: pointer;" onclick="app.filterByContext('${ctx}')">${ctx}</span>`).join('')}
+                <div class="n4l-section">
+                    <div class="n4l-section-header">
+                        <span class="material-icons">filter_list</span>
+                        <span>Filtrer par contexte</span>
+                        <button class="n4l-reset-btn ${this.n4lActiveContextFilter ? '' : 'hidden'}" onclick="app.resetN4LFilter()" title="Réinitialiser le filtre">
+                            <span class="material-icons">refresh</span> Reset
+                        </button>
+                    </div>
+                    <div class="n4l-context-grid">
+                        ${result.contexts.map(ctx => {
+                            const isActive = this.n4lActiveContextFilter === ctx;
+                            const icon = this.getContextIcon(ctx);
+                            return `
+                                <button class="n4l-context-btn ${isActive ? 'active' : ''}" onclick="app.filterByContext('${ctx}')">
+                                    <span class="material-icons">${icon}</span>
+                                    <span>${ctx}</span>
+                                </button>
+                            `;
+                        }).join('')}
                     </div>
                 </div>
             `;
         }
 
-        if (result.aliases && Object.keys(result.aliases).length > 0) {
-            const aliasCount = Object.keys(result.aliases).length;
-            metadataHtml += `
-                <div style="margin-bottom: 0.5rem;">
-                    <strong style="color: var(--primary); font-size: 0.75rem;">Alias (${aliasCount}):</strong>
-                    <span style="font-family: monospace; font-size: 0.7rem; margin-left: 0.25rem;">
-                        ${Object.entries(result.aliases).slice(0, 5).map(([k, v]) => `@${k}`).join(', ')}${aliasCount > 5 ? '...' : ''}
-                    </span>
-                </div>
-            `;
-        }
-
+        // Sequences Section (collapsible)
         if (result.sequences && result.sequences.length > 0) {
             metadataHtml += `
-                <div style="margin-bottom: 0.5rem;">
-                    <strong style="color: var(--primary); font-size: 0.75rem;">Séquences:</strong>
-                    ${result.sequences.map((seq, i) => `
-                        <div style="margin-top: 0.15rem; padding: 0.25rem 0.5rem; background: #fef3c7; border-radius: 4px; font-size: 0.65rem; overflow-x: auto; white-space: nowrap;">
-                            <span style="color: #92400e;">${i + 1}:</span> ${seq.slice(0, 6).join(' → ')}${seq.length > 6 ? '...' : ''}
-                        </div>
-                    `).join('')}
+                <div class="n4l-section">
+                    <div class="n4l-section-header n4l-collapsible" onclick="app.toggleN4LSection(this)">
+                        <span class="material-icons">timeline</span>
+                        <span>Chronologie (${result.sequences.length} séquence${result.sequences.length > 1 ? 's' : ''})</span>
+                        <span class="material-icons n4l-expand-icon">expand_more</span>
+                    </div>
+                    <div class="n4l-section-content n4l-collapsed">
+                        ${result.sequences.map((seq, i) => `
+                            <div class="n4l-sequence-block" data-seq-index="${i}">
+                                <div class="n4l-sequence-item" onclick="app.highlightN4LSequence(${i})">
+                                    <div class="n4l-sequence-header">
+                                        <span class="n4l-sequence-number">${i + 1}</span>
+                                        <span class="n4l-sequence-count">${seq.length} étapes</span>
+                                    </div>
+                                    <div class="n4l-sequence-preview">
+                                        ${seq.slice(0, 4).join(' → ')}${seq.length > 4 ? ' → ...' : ''}
+                                    </div>
+                                </div>
+                                <div class="n4l-sequence-nav" id="seq-nav-${i}" style="display: none;">
+                                    <div class="n4l-sequence-nav-header">
+                                        <button class="n4l-nav-btn" onclick="event.stopPropagation(); app.navigateSequence(${i}, -1)" title="Étape précédente">
+                                            <span class="material-icons">skip_previous</span>
+                                        </button>
+                                        <span class="n4l-nav-indicator">
+                                            <span class="n4l-nav-current" id="seq-current-${i}">1</span> / ${seq.length}
+                                        </span>
+                                        <button class="n4l-nav-btn" onclick="event.stopPropagation(); app.navigateSequence(${i}, 1)" title="Étape suivante">
+                                            <span class="material-icons">skip_next</span>
+                                        </button>
+                                        <button class="n4l-nav-btn n4l-nav-play" onclick="event.stopPropagation(); app.playSequence(${i})" title="Lecture automatique" id="seq-play-${i}">
+                                            <span class="material-icons">play_arrow</span>
+                                        </button>
+                                        <button class="n4l-nav-btn" onclick="event.stopPropagation(); app.stopSequenceNav(${i})" title="Fermer">
+                                            <span class="material-icons">close</span>
+                                        </button>
+                                    </div>
+                                    <div class="n4l-sequence-current-label" id="seq-label-${i}"></div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
                 </div>
             `;
         }
 
+        // Aliases Section (collapsible)
+        if (result.aliases && Object.keys(result.aliases).length > 0) {
+            const aliases = Object.entries(result.aliases);
+            const escapeHtml = (str) => String(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+            // Helper to extract display name from alias value
+            const getDisplayName = (value) => {
+                let v = Array.isArray(value) ? value[0] : value;
+                if (!v) return '';
+                // Remove type info in parentheses, e.g., "Casino de Deauville (type) lieu" -> "Casino de Deauville"
+                return v.split('(')[0].trim();
+            };
+            metadataHtml += `
+                <div class="n4l-section">
+                    <div class="n4l-section-header n4l-collapsible" onclick="app.toggleN4LSection(this)">
+                        <span class="material-icons">alternate_email</span>
+                        <span>Alias (${aliases.length})</span>
+                        <span class="material-icons n4l-expand-icon">expand_more</span>
+                    </div>
+                    <div class="n4l-section-content n4l-collapsed">
+                        <div class="n4l-alias-grid">
+                            ${aliases.slice(0, 20).map(([key, value]) => {
+                                const displayName = getDisplayName(value);
+                                return `
+                                <div class="n4l-alias-item" data-alias-key="${escapeHtml(key)}" title="@${key}">
+                                    <span class="n4l-alias-key">${escapeHtml(displayName)}</span>
+                                </div>
+                            `;
+                            }).join('')}
+                            ${aliases.length > 20 ? `<div class="n4l-alias-more">+${aliases.length - 20} autres...</div>` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // TODOs Section
         if (result.todo_items && result.todo_items.length > 0) {
             metadataHtml += `
-                <div style="margin-bottom: 0.5rem;">
-                    <strong style="color: #dc2626; font-size: 0.75rem;">TODOs (${result.todo_items.length}):</strong>
-                    <span style="font-size: 0.7rem; color: #dc2626;"> ${result.todo_items.slice(0, 3).join(', ')}${result.todo_items.length > 3 ? '...' : ''}</span>
+                <div class="n4l-section n4l-todo-section">
+                    <div class="n4l-section-header">
+                        <span class="material-icons">warning</span>
+                        <span>Points à vérifier (${result.todo_items.length})</span>
+                    </div>
+                    <div class="n4l-todo-list">
+                        ${result.todo_items.map(item => `
+                            <div class="n4l-todo-item">
+                                <span class="material-icons">radio_button_unchecked</span>
+                                <span>${item}</span>
+                            </div>
+                        `).join('')}
+                    </div>
                 </div>
             `;
         }
 
         metadataContainer.innerHTML = metadataHtml;
+
+        // Add click handler with event delegation for alias items
+        const aliasGrid = metadataContainer.querySelector('.n4l-alias-grid');
+        if (aliasGrid) {
+            aliasGrid.onclick = (e) => {
+                const aliasItem = e.target.closest('.n4l-alias-item');
+                if (aliasItem) {
+                    const aliasKey = aliasItem.getAttribute('data-alias-key');
+                    console.log('Alias clicked:', aliasKey);
+                    if (aliasKey) {
+                        this.focusN4LAlias(aliasKey);
+                    }
+                }
+            };
+        }
+    },
+
+    // Get icon for context type
+    getContextIcon(context) {
+        const icons = {
+            'victimes': 'person_off',
+            'suspects': 'person_search',
+            'témoins': 'record_voice_over',
+            'lieux': 'place',
+            'objets': 'category',
+            'preuves': 'verified',
+            'indices': 'search',
+            'chronologie': 'schedule',
+            'hypothèses': 'lightbulb',
+            'pistes': 'explore',
+            'réseau': 'share',
+            'relations': 'people'
+        };
+
+        const lowerCtx = context.toLowerCase();
+        for (const [key, icon] of Object.entries(icons)) {
+            if (lowerCtx.includes(key)) return icon;
+        }
+        return 'label';
+    },
+
+    // Toggle collapsible section
+    toggleN4LSection(header) {
+        const content = header.nextElementSibling;
+        const icon = header.querySelector('.n4l-expand-icon');
+
+        if (content.classList.contains('n4l-collapsed')) {
+            content.classList.remove('n4l-collapsed');
+            icon.textContent = 'expand_less';
+        } else {
+            content.classList.add('n4l-collapsed');
+            icon.textContent = 'expand_more';
+        }
+    },
+
+    // Highlight sequence on graph and show navigation
+    highlightN4LSequence(seqIndex) {
+        if (!this.lastN4LParse?.sequences || !this.n4lGraph) return;
+
+        const sequence = this.lastN4LParse.sequences[seqIndex];
+        if (!sequence) return;
+
+        // Find nodes matching sequence labels
+        const seqNodeIds = [];
+        const allNodes = this.n4lGraphNodes?.get() || [];
+
+        sequence.forEach(label => {
+            const node = allNodes.find(n => n.label === label || n.label.includes(label));
+            if (node) seqNodeIds.push(node.id);
+        });
+
+        if (seqNodeIds.length === 0) {
+            this.showToast('Séquence non trouvée sur le graphe');
+            return;
+        }
+
+        // Store sequence navigation state
+        this.currentSequenceIndex = seqIndex;
+        this.currentSequenceNodeIds = seqNodeIds;
+        this.currentSequenceStep = 0;
+        this.sequencePlayInterval = null;
+
+        // Highlight all nodes in sequence
+        const seqNodeSet = new Set(seqNodeIds);
+        const nodeUpdates = allNodes.map(node => {
+            const inSeq = seqNodeSet.has(node.id);
+            return {
+                id: node.id,
+                color: inSeq ? { background: '#f59e0b', border: '#d97706' } : { background: '#e2e8f0', border: '#cbd5e0' },
+                opacity: inSeq ? 1 : 0.3,
+                borderWidth: inSeq ? 3 : 1
+            };
+        });
+        this.n4lGraphNodes?.update(nodeUpdates);
+
+        // Show navigation controls
+        const navEl = document.getElementById(`seq-nav-${seqIndex}`);
+        if (navEl) {
+            navEl.style.display = 'block';
+        }
+
+        // Navigate to first node
+        this.navigateToSequenceStep(seqIndex, 0);
+
+        this.showToast(`Chronologie: ${seqNodeIds.length} étapes`);
+    },
+
+    // Navigate within sequence
+    navigateSequence(seqIndex, direction) {
+        if (!this.currentSequenceNodeIds || this.currentSequenceIndex !== seqIndex) return;
+
+        const newStep = this.currentSequenceStep + direction;
+        if (newStep < 0 || newStep >= this.currentSequenceNodeIds.length) {
+            // Loop around
+            const loopedStep = newStep < 0 ? this.currentSequenceNodeIds.length - 1 : 0;
+            this.navigateToSequenceStep(seqIndex, loopedStep);
+        } else {
+            this.navigateToSequenceStep(seqIndex, newStep);
+        }
+    },
+
+    // Navigate to specific step
+    navigateToSequenceStep(seqIndex, step) {
+        if (!this.currentSequenceNodeIds) return;
+
+        this.currentSequenceStep = step;
+        const nodeId = this.currentSequenceNodeIds[step];
+
+        // Update all nodes - highlight current step, show sequence nodes, hide others
+        const allNodes = this.n4lGraphNodes?.get() || [];
+        const seqNodeSet = new Set(this.currentSequenceNodeIds);
+
+        const nodeUpdates = allNodes.map(node => {
+            const isCurrentStep = node.id === nodeId;
+            const inSeq = seqNodeSet.has(node.id);
+
+            if (isCurrentStep) {
+                return {
+                    id: node.id,
+                    hidden: false,
+                    color: { background: '#dc2626', border: '#991b1b' },
+                    opacity: 1,
+                    borderWidth: 5
+                };
+            } else if (inSeq) {
+                return {
+                    id: node.id,
+                    hidden: false,
+                    color: { background: '#f59e0b', border: '#d97706' },
+                    opacity: 0.7,
+                    borderWidth: 2
+                };
+            } else {
+                return {
+                    id: node.id,
+                    hidden: true
+                };
+            }
+        });
+        this.n4lGraphNodes?.update(nodeUpdates);
+
+        // Also hide edges not connected to sequence nodes
+        const allEdges = this.n4lGraphEdges?.get() || [];
+        const edgeUpdates = allEdges.map(edge => {
+            const fromInSeq = seqNodeSet.has(edge.from);
+            const toInSeq = seqNodeSet.has(edge.to);
+            return {
+                id: edge.id,
+                hidden: !(fromInSeq && toInSeq)
+            };
+        });
+        this.n4lGraphEdges?.update(edgeUpdates);
+
+        // Focus on current node
+        this.n4lGraph.focus(nodeId, { scale: 1.2, animation: { duration: 300 } });
+
+        // Update UI
+        const currentEl = document.getElementById(`seq-current-${seqIndex}`);
+        if (currentEl) currentEl.textContent = step + 1;
+
+        const labelEl = document.getElementById(`seq-label-${seqIndex}`);
+        if (labelEl) {
+            const node = allNodes.find(n => n.id === nodeId);
+            labelEl.textContent = node ? node.label : nodeId;
+        }
+    },
+
+    // Auto-play sequence
+    playSequence(seqIndex) {
+        if (this.sequencePlayInterval) {
+            this.pauseSequence(seqIndex);
+            return;
+        }
+
+        const playBtn = document.getElementById(`seq-play-${seqIndex}`);
+        if (playBtn) {
+            playBtn.querySelector('.material-icons').textContent = 'pause';
+        }
+
+        this.sequencePlayInterval = setInterval(() => {
+            const nextStep = this.currentSequenceStep + 1;
+            if (nextStep >= this.currentSequenceNodeIds.length) {
+                this.pauseSequence(seqIndex);
+                this.navigateToSequenceStep(seqIndex, 0);
+            } else {
+                this.navigateToSequenceStep(seqIndex, nextStep);
+            }
+        }, 1500);
+    },
+
+    // Pause sequence playback
+    pauseSequence(seqIndex) {
+        if (this.sequencePlayInterval) {
+            clearInterval(this.sequencePlayInterval);
+            this.sequencePlayInterval = null;
+        }
+
+        const playBtn = document.getElementById(`seq-play-${seqIndex}`);
+        if (playBtn) {
+            playBtn.querySelector('.material-icons').textContent = 'play_arrow';
+        }
+    },
+
+    // Stop and close sequence navigation
+    stopSequenceNav(seqIndex) {
+        this.pauseSequence(seqIndex);
+
+        // Hide navigation
+        const navEl = document.getElementById(`seq-nav-${seqIndex}`);
+        if (navEl) {
+            navEl.style.display = 'none';
+        }
+
+        // Show all nodes again
+        const allNodes = this.n4lGraphNodes?.get() || [];
+        const nodeUpdates = allNodes.map(node => ({
+            id: node.id,
+            hidden: false
+        }));
+        this.n4lGraphNodes?.update(nodeUpdates);
+
+        // Show all edges again
+        const allEdges = this.n4lGraphEdges?.get() || [];
+        const edgeUpdates = allEdges.map(edge => ({
+            id: edge.id,
+            hidden: false
+        }));
+        this.n4lGraphEdges?.update(edgeUpdates);
+
+        // Reset graph colors
+        this.resetN4LGraphFocus();
+
+        // Clear state
+        this.currentSequenceIndex = null;
+        this.currentSequenceNodeIds = null;
+        this.currentSequenceStep = 0;
+    },
+
+    // Focus on alias node
+    focusN4LAlias(aliasKey) {
+        if (!this.lastN4LParse?.aliases || !this.n4lGraph) {
+            this.showToast('Graphe non disponible', 'warning');
+            return;
+        }
+
+        let aliasValue = this.lastN4LParse.aliases[aliasKey];
+
+        // Handle array values (alias can be an array)
+        if (Array.isArray(aliasValue)) {
+            aliasValue = aliasValue[0];
+        }
+
+        if (!aliasValue) {
+            this.showToast(`Alias @${aliasKey} non défini`, 'warning');
+            return;
+        }
+
+        // Extract the main label (before any parentheses with type info)
+        // e.g., "Casino de Deauville (type) lieu" -> "Casino de Deauville"
+        const mainLabel = aliasValue.split('(')[0].trim();
+
+        const allNodes = this.n4lGraphNodes?.get() || [];
+
+        // Try multiple matching strategies
+        let node = allNodes.find(n => n.id === aliasKey);
+        if (!node) node = allNodes.find(n => n.id === aliasValue);
+        if (!node) node = allNodes.find(n => n.label === aliasValue);
+        if (!node) node = allNodes.find(n => n.label === mainLabel);
+        if (!node) node = allNodes.find(n => n.label && n.label.includes(mainLabel));
+        if (!node) node = allNodes.find(n => n.id && n.id.includes(aliasKey));
+        if (!node) node = allNodes.find(n => n.id === `@${aliasKey}`);
+
+        if (node) {
+            this.focusN4LGraphNode(node.id);
+            this.n4lGraph.focus(node.id, { scale: 1.5, animation: true });
+            this.showToast(`Focus: ${node.label || aliasKey}`);
+        } else {
+            this.showToast(`Alias @${aliasKey} non trouvé`, 'warning');
+        }
     },
 
     // ============================================
@@ -206,6 +625,11 @@ const N4LModule = {
     // ============================================
     resetN4LFilter() {
         if (!this.n4lGraph) return;
+
+        // Reset filter state
+        this.n4lActiveContextFilter = null;
+
+        // Reset all nodes
         const allNodes = this.n4lGraph.body.data.nodes.getIds();
         const nodeUpdates = allNodes.map(id => ({
             id,
@@ -213,11 +637,29 @@ const N4LModule = {
             opacity: 1
         }));
         this.n4lGraph.body.data.nodes.update(nodeUpdates);
+
+        // Also reset node colors
+        this.resetN4LGraphFocus();
+
+        // Refresh metadata display to update button states
+        if (this.lastN4LParse) {
+            this.showN4LMetadata(this.lastN4LParse);
+        }
+
         this.showToast('Filtre réinitialisé');
     },
 
     filterByContext(context) {
         if (!this.lastN4LParse || !this.n4lGraph) return;
+
+        // Toggle filter if clicking same context
+        if (this.n4lActiveContextFilter === context) {
+            this.resetN4LFilter();
+            return;
+        }
+
+        // Set active filter
+        this.n4lActiveContextFilter = context;
 
         const result = this.lastN4LParse;
         const filteredEdges = result.graph.edges.filter(e =>
@@ -238,7 +680,10 @@ const N4LModule = {
         }));
         this.n4lGraph.body.data.nodes.update(nodeUpdates);
 
-        this.showToast(`Filtré sur le contexte: ${context} (${involvedNodes.size} entités)`);
+        // Refresh metadata display to update button states
+        this.showN4LMetadata(this.lastN4LParse);
+
+        this.showToast(`Filtré: ${context} (${involvedNodes.size} entités)`);
     },
 
     // ============================================
@@ -384,15 +829,6 @@ const N4LModule = {
         `;
         container.style.position = 'relative';
         container.appendChild(legend);
-    },
-
-    addN4LResetButton(container) {
-        const resetBtn = document.createElement('button');
-        resetBtn.className = 'btn btn-sm btn-secondary graph-reset-btn';
-        resetBtn.innerHTML = '<span class="material-icons" style="font-size: 1rem;">restart_alt</span> Reset';
-        resetBtn.style.cssText = 'position: absolute; bottom: 10px; left: 10px; z-index: 10;';
-        resetBtn.onclick = () => this.resetN4LGraphFocus();
-        container.appendChild(resetBtn);
     },
 
     // ============================================
@@ -824,6 +1260,37 @@ const N4LModule = {
             { case_id: this.currentCase?.id, message: `Analyse ce chemin N4L: ${pathLabels.join(' → ')}` },
             document.getElementById('n4l-path-analysis')
         );
+    },
+
+    // ============================================
+    // Toggle N4L Fullscreen
+    // ============================================
+    toggleN4LFullscreen() {
+        const panel = document.getElementById('panel-n4l-graph');
+        const btn = document.getElementById('btn-fullscreen-n4l');
+        const icon = btn?.querySelector('.material-icons');
+
+        if (!panel) return;
+
+        if (panel.classList.contains('fullscreen-panel')) {
+            // Exit fullscreen
+            panel.classList.remove('fullscreen-panel');
+            if (icon) icon.textContent = 'fullscreen';
+            if (btn) btn.setAttribute('data-tooltip', 'Plein écran');
+        } else {
+            // Enter fullscreen
+            panel.classList.add('fullscreen-panel');
+            if (icon) icon.textContent = 'fullscreen_exit';
+            if (btn) btn.setAttribute('data-tooltip', 'Quitter le plein écran');
+        }
+
+        // Redraw graph after transition
+        setTimeout(() => {
+            if (this.n4lGraph) {
+                this.n4lGraph.redraw();
+                this.n4lGraph.fit();
+            }
+        }, 350);
     }
 };
 
