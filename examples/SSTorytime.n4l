@@ -35,9 +35,9 @@
 
   %SSTorytime takes a %"Promise Theory" approach.
 
-  Context has two roles in knowledge: promise theoretically it has a '+' donor role when catgorizing information through notes. It also has a "-" acceptance or filtering role when searching. Both of these are represented by the ":: ... ::" lines in N4L. 
+  Context has two roles in knowledge: promise theoretically it has a '+' donor role when categorizing information through notes. It also has a "-" acceptance or filtering role when searching. Both of these are represented by the ":: ... ::" lines in N4L. 
 
-  When we are laying out new informaton, we use the context tags/tokens like a section heading. This is the "+" promise.
+  When we are laying out new information, we use the context tags/tokens like a section heading. This is the "+" promise.
 
   When we are searching, we use context tags as a filter to reduce the scope of a search. This is the "-" promise.
 
@@ -47,10 +47,10 @@
 
 Sometimes you might see chapters that you didn't select showing up in searches. This is probably a result of certain words and phrases belonging to more than one chapter, and thus bridging chapters that you didn't intend. This possibility for bridging is intentional, as it allows %"lateral thinking", which is an important source of discovery.
 
- What role should times play? Precise times are irrelevant because they never repeat. Coarse grains of time like "monday morning" do repeat and may be relevant in finding intended information. But how do we record the time? Is it the time at which information
+ What role should times play? Precise times are irrelevant because they never repeat. Coarse grains of time like "Monday morning" do repeat and may be relevant in finding intended information. But how do we record the time? Is it the time at which information
 was written, uploaded, or when something actually happened? The technology can't guess this for you, because it needs to be intentional. The ambient time isn't necessarily relevant.
 
- SSTorytime shows you the ambient time in a coarse grained form after every search, so that you can copy and paste this into context tags if you want to be able to use it later. If you make a search without any search terms, you will see any items that are labelled in a matching time. So, if you have specific %to-do/%todo / to do lists for specific times, these will pop up by themselves.
+ SSTorytime shows you the ambient time in a coarse grained form after every search, so that you can copy and paste this into context tags if you want to be able to use it later. If you make a search without any search terms, you will see any items that are labelled in a matching time. So, if you have specific %"to-do"/%todo / to do lists for specific times, these will pop up by themselves.
 
  -:: _sequence_ ::
 
@@ -64,6 +64,7 @@ was written, uploaded, or when something actually happened? The technology can't
 
  You can start narrow with a very specific term by quoting longer strings including spaces, but this assumes you know what is already there. Then you can gradually reduce the number of constraints by ADDING contexts and search terms.
 
+ "NCCS criteria" (means) Node, Chapter, Context, Sequence: searches will select nodes that match all these criteria in one go
 
  ###############################################
 
@@ -102,7 +103,7 @@ was written, uploaded, or when something actually happened? The technology can't
   context (means) a collection of signals that identify a scenario, like a scene description language
   factoid (means) a nugget of meaningful information contributing to knowledge
 
-  a text source of document (consists) paragraphs (consists) sentences (consists) punctuated fragments (consists) %n-grams
+  a text source of document (consists) paragraphs (consists) sentences (consists) punctuated fragments (consists) %"n-grams"
 
   punctuated fragments (used for) ranking the %intentionality or importance of text
   sentences   (used for) %factoids and partial %knowledge (ex) factoid
@@ -197,90 +198,98 @@ END;"    (ex)  A recursive search in SQL
 
  +::data types::
 
- PoSST     (for) establishing a connection to the SST library service
- Node      (for) representing core aspects of a single graph node
- NodePtr   (for) unique key referring to a node and pointing to its data
- Link      (for) representing a graph link, with arrow and destination node and weight
- ArrowPtr  (for) A unique key for a type of link arrow and its properties
- PageMap   (for) representing the original N4L intended layout of notes
+ PoSST     (use-for) establishing a connection to the SST library service
+ Node      (use-for) representing core aspects of a single graph node
 
- -::data types::
- +::database upload functions::
+   "   (def)  'type Node struct {
 
-"CreateDBNode(ctx PoSST, n Node) Node" (for) establishing a node structure in postgres
-"UploadNodeToDB(ctx PoSST, org Node)"  (for) uploading an existing Node in memory to postgres
-"UploadArrowToDB(ctx PoSST,arrow ArrowPtr)" (for) uploading an arrow definition from memory to postgres
-"UploadInverseArrowToDB(ctx PoSST,arrow ArrowPtr)" (for) uploading an inverse arrow definition
-"UploadPageMapEvent(ctx PoSST, line PageMap)" (for) uploading a PageMap structure from memory to postgres
+	L         int     // length of text string
+	S         string  // text string itself
 
-"IdempDBAddLink(ctx PoSST,from Node,link Link,to Node)" (for) entry point for adding a link to a node in postgres
-"CreateDBNodeArrowNode(ctx PoSST, org NodePtr, dst Link, sttype int) bool" (for) adding a NodeArrowNode secondary/derived structure to postgres
+	Seq       bool    // true if this node begins an intended sequence, otherwise ambiguous
+	Chap      string  // section/chapter name in which this was added
+	NPtr      NodePtr // Pointer to self index
 
- -::database upload functions::
- +::database retrieve structural parts, retrieving::
+	I [ST_TOP][]Link  // link incidence list, by STindex - these are the "vectors" +/-
+  	                  // NOTE: carefully how STindex offsets represent negative SSTtypes
+}'
 
+ NodePtr   (use-for) unique key referring to a node and pointing to its data
 
-"GetDBChaptersMatchingName(ctx PoSST,src string) []string" (for) retrieving chapter names
-"GetDBContextsMatchingName(ctx PoSST,src string) []string" (for) retrieving context elements/dictionary with Node.S matching src string
-"GetDBNodePtrMatchingName(ctx PoSST,src,chap string) []NodePtr" (for) retrieving a NodePtr to nodes with Node.S matching src string, node.Chap matching chap
-"GetDBNodeByNodePtr(ctx PoSST,db_nptr NodePtr) Node" (for) retrieving a full Node structure from a NodePtr reference
-"GetDBNodeArrowNodeMatchingArrowPtrs(ctx PoSST,chap string,cn []string,arrows []ArrowPtr) []NodeArrowNode" (for) retrieving a NodeArrowNode record in a given chapter and context by arrow type
-"GetDBNodeContextsMatchingArrow(ctx PoSST,searchtext string,chap string,cn []string,arrow []ArrowPtr,page int) []QNodePtr" (for) retrieving contextualized node pointers involved in arrow criteria
-"GetNodesStartingStoriesForArrow(ctx PoSST,arrow string) []NodePtr" (for) retrieving singleton nodes starting paths with a particular arrow
-    " (see) "GetDBSingletonBySTType(ctx PoSST,sttypes []int,chap string,cn []string) ([]NodePtr,[]NodePtr)"
-    " (see) "GetNCCNodesStartingStoriesForArrow(ctx PoSST,arrow string,chapter string,context []string) []NodePtr"
-"GetNCCNodesStartingStoriesForArrow(ctx PoSST,arrow string,chapter string,context []string) []NodePtr" (for) retrieving singleton nodes starting paths with a particular arrow and matching context and chapter 
-    " (see) "GetDBSingletonBySTType(ctx PoSST,sttypes []int,chap string,cn []string) ([]NodePtr,[]NodePtr)"
-    " (see) "GetNodesStartingStoriesForArrow(ctx PoSST,arrow string) []NodePtr"
-"GetDBSingletonBySTType(ctx PoSST,sttypes []int,chap string,cn []string) ([]NodePtr,[]NodePtr)" (for) retrieving a list of nodes that are sources or sinks in chapters and contexts of the graph with respect to a given link meta SSType
-    "  (see) "GetNCCNodesStartingStoriesForArrow(ctx PoSST,arrow string,chapter string,context []string) []NodePtr"
-    "  (see) "GetNodesStartingStoriesForArrow(ctx PoSST,arrow string) []NodePtr"
+    "      (def)  'type NodePtr struct {
 
-"GetDBArrowsWithArrowName(ctx PoSST,s string) ArrowPtr"       (for) retrieving all arrow details matching exact name
-    " (see) "GetDBArrowByName(ctx PoSST,name string) ArrowPtr" 
-"GetDBArrowsMatchingArrowName(ctx PoSST,s string) []ArrowPtr" (for) retrieving list of all arrow details matching name
-"GetDBArrowByName(ctx PoSST,name string) ArrowPtr"   (for) retrieving all arrow details matching name from arrow directory 
-     " (see) "GetDBArrowsWithArrowName(ctx PoSST,s string) ArrowPtr"
-"GetDBArrowByPtr(ctx PoSST,arrowptr ArrowPtr) ArrowDirectory"
-"GetDBPageMap(ctx PoSST,chap string,cn []string,page int) []PageMap" (for) retrieving a PageMap matching chapter, context and logical page number (note) pages are currently 60 items long
-"GetFwdConeAsNodes(ctx PoSST, start NodePtr, sttype,depth int) []NodePtr" (for) retrieving the future cone set of Nodes from a given NodePtr, returned as NodePtr for orbit description
-"GetFwdConeAsLinks(ctx PoSST, start NodePtr, sttype,depth int) []Link" (for) retrieving the future cone set of Nodes from a given NodePtr, returned as Link structures for path description
-"GetFwdPathsAsLinks(ctx PoSST, start NodePtr, sttype,depth int) ([][]Link,int)" (for) retrieving the future cone set of Links from a given NodePtr as an array of paths, i.e. a double array of Link
-"GetEntireConePathsAsLinks(ctx PoSST,orientation string,start NodePtr,depth int) ([][]Link,int)" (for) retrieving the cone set of Nodes from a given NodePtr in all directions, returned as Link structures for path description
-"GetEntireNCConePathsAsLinks(ctx PoSST,orientation string,start NodePtr,depth int,chapter string,context []string) ([][]Link,int)" (for) retrieving the cone set of Nodes from a given NodePtr in all directions, returned as Link structures for path description and filtered by chapter and context, specifying direction fwd/bwd/any
-"GetEntireNCSuperConePathsAsLinks(ctx PoSST,orientation string,start []NodePtr,depth int,chapter string,context []string) ([][]Link,int)" (for) retrieving the cone set of Nodes from a given multinode start set of NodePtr in all directions, returned as Link structures for path description, filtered by chapter and context, specifying direction fwd/bwd/any
+	Class int            // Text size-class, used mainly in memory
+	CPtr  ClassedNodePtr // index of within name class lane
+}'
 
- -::database retrieve structural parts::
- +::path integral:::
+ Link      (use-for) representing a graph link, with arrow and destination node and weight
 
-"GetPathsAndSymmetries(ctx PoSST,start_set,end_set []NodePtr,chapter string,context []string,maxdepth int) [][]Link" (for) retrieve solution paths between a starting set and and final set like +'<final|start>' in generalized way
-"GetPathTransverseSuperNodes(ctx PoSST,solutions [][]Link,maxdepth int) [][]NodePtr" (for) establish the nodes that play idential roles in a set of paths from +'<final|start>' to see which nodes are redundant
+   "       (def) 'type Link struct {  // A link is a type of arrow, with context
+                    // and maybe with a weightfor package math
+	Arr ArrowPtr         // type of arrow, presorted
+	Wgt float32          // numerical weight of this link
+	Ctx ContextPtr       // context for this pathway
+	Dst NodePtr          // adjacent event/item/node
+}'
 
-  -::path integral:::
-  +::adjacency matrix representation, graph vector support::
+ ArrowPtr  (use-for) A unique key for a type of link arrow and its properties
+ PageMap   (use-for) representing the original N4L intended layout of notes
 
-"GetDBAdjacentNodePtrBySTType(ctx PoSST,sttypes []int,chap string,cn []string) ([][]float32,[]NodePtr)" (for) retrieving the graph adjacenccy matrix as a square matrix of float32 link weights and an index to NodePointer lookup directory
+     "     (def) 'type PageMap struct {  // Thereis additional intent in the layout
 
- -::path integral:::
- +::orbits::
+	Chapter string
+	Alias   string
+	Context ContextPtr
+	Line    int
+	Path    []Link
+}'
 
-"GetNodeOrbit(ctx PoSST,nptr NodePtr,exclude_vector string) [ST_TOP][]Orbit" (for) retrieving the nearest neighbours of a NodePtr to maximum radius of three layers
-"PrintNodeOrbit(ctx PoSST, nptr NodePtr,width int)" (for) printing a Node orbit in human readable form on the console, calling GetNodeOrbit
-"PrintLinkOrbit(notes [ST_TOP][]Orbit,sttype int)" (for) printing an orbit in human readable form
-"PrintLinkPath(ctx PoSST, cone [][]Link, p int, prefix string,chapter string,context []string)" (for) printing a Link array of paths in human readable form
+ :: golang API, database upload functions, self-managed NPtr  ::
 
+"CreateDBNode(ctx PoSST, n Node) Node" (use-for) establishing a node in postgres without auto %NPtr assignment
+"UploadNodeToDB(ctx PoSST, org Node)"  (use-for) uploading an existing Node in memory to postgres
+"UploadArrowToDB(ctx PoSST,arrow ArrowPtr)" (use-for) uploading an arrow definition from memory to postgres
+"UploadInverseArrowToDB(ctx PoSST,arrow ArrowPtr)" (use-for) uploading an inverse arrow definition
+"UploadPageMapEvent(ctx PoSST, line PageMap)" (use-for) uploading a PageMap structure from memory to postgres
 
+ :: database upload functions, DB-managed NPtr  ::
 
+"IdempDBAddNode(ctx PoSST,n Node) Node" (use-for) appending a node when you don't want to manage the NPtr values.
+"IdempDBAddLink(ctx PoSST,from Node,link Link,to Node)" (use-for) entry point for adding a link to a node in postgres
 
+"CreateDBNodeArrowNode(ctx PoSST, org NodePtr, dst Link, sttype int) bool" (use-for) adding a NodeArrowNode secondary/derived structure to postgres
 
+ :: golang API, searching functions ::
 
+"GetDBNodePtrMatchingName(ctx PoSST,name,chap string) []NodePtr"  (use-for) finding a list of %NPtr matching a substring by name
+"GetDBNodePtrMatchingNCCS(ctx PoSST,nm,chap string,cn []string,arrow []ArrowPtr,seq bool,limit int) []NodePtr"  (use-for) Comprehensive search by %"NCCS criteria"
+"GetDBChaptersMatchingName(ctx PoSST,src string) []string"  (use-for) obtaining a list of chapters matching by name
+"GetDBContextByName(ctx PoSST,src string) (string,ContextPtr)"  (use-for) obtaining context sets that match by string name
+"GetDBContextByPtr(ctx PoSST,ptr ContextPtr) (string,ContextPtr)"  (use-for) obtaining the context set with given index pointer
+"GetSTtypesFromArrows(arrows []ArrowPtr) []int"  (use-for) obtaining the generic semantic spacetime type for a given a list of arrow pointers
+"GetDBSingletonBySTType(ctx PoSST,sttypes []int,chap string,cn []string) ([]NodePtr,[]NodePtr)"  (use-for) find nodes that are sources or sinks for a specific STType
+"SelectStoriesByArrow(ctx PoSST,nodeptrs []NodePtr, arrowptrs []ArrowPtr, sttypes []int, limit int) []NodePtr"  (use-for) finding nodes that are sources for story sequences matching the arrow types
 
+"GetDBArrowsWithArrowName(ctx PoSST,s string) (ArrowPtr,int)"  (use-for) obtaining an arrowpointer and STType matching a precise name
+"GetDBArrowsMatchingArrowName(ctx PoSST,s string) []ArrowPtr" (use-for) obtaining a list of arrowpointers matching the approximate name
+"GetDBArrowByName(ctx PoSST,name string) ArrowPtr"  (use-for) obtaining an arrowpointer for precise arrowname - redundant
+"GetDBArrowByPtr(ctx PoSST,arrowptr ArrowPtr) ArrowDirectory" (use-for) obtains an arrow directory entry for a given arrow pointer
+"GetDBArrowBySTType(ctx PoSST,sttype int) []ArrowDirectory" (use-for) obtains the arrow directory for a given STtype
+"GetDBPageMap(ctx PoSST,chap string,cn []string,page int) []PageMap"  (use-for) obtains a page from the named chapter as a page map
 
+ :: golang API, causal cones ::
 
+"GetFwdConeAsNodes(ctx PoSST, start NodePtr, sttype,depth int,limit int) []NodePtr"  (use-for) obtains the orbit around a starting node as a set of nodes to given depth
+"GetFwdPathsAsLinks(ctx PoSST, start NodePtr, sttype,depth int, maxlimit int) ([][]Link,int)"  (use-for) obtains all possible paths from a node along STtype links
+"GetEntireNCSuperConePathsAsLinks(ctx PoSST,orientation string,start []NodePtr,depth int,chapter string,context []string,limit int) ([][]Link,int)" (use-for) obtains all possible paths from a starting node, with orientation "fwd,bwd,any" as link arrays matching the chapter and context criteria
 
+ :: search language ::
 
+"SolveNodePtrs(ctx PoSST,nodenames []string,search SearchParameters,arr []ArrowPtr,limit int) []NodePtr"  (use-for) finding a set of matching NPtrs satisfying the search parameters compiled by a search command
 
+ :: themes ::
 
+ You can select colour themes in the web browser by typing \theme and a colour style. Currently supported: light, dark, slate, spaceblue/astronomy/blue and red.
 
 
 

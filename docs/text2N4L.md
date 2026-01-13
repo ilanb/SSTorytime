@@ -7,8 +7,13 @@ be difficult.
 
 The `text2N4L` command reads a plain text `filename.txt` like the examples in `examples/example_data`
 and turns it into a prototype N4Lfile automatically, based on a model of deconstructing narrative
-language (a Tiny Language Model). Nothing is uploaded into the database. You can use `N4L-db` to do that
+language (a Tiny Language Model). Nothing is uploaded into the database. You can use `N4L` to do that
 later. This give you the opportunity to edit and rework, add to and delete from the proposal.
+
+**Note**: while this sounds like a nice idea, it can be quite expensive in terms of memory. Scanning
+even a fraction of a book can produce a lot of text and cross referencing, so unicode encoding time combined
+with the the upload time to the database diverges quite quickly. A book, like *Moby Dick* or Darwin's *Origin of Species*
+will likely take several hours to upload.
 
 By default, the tool selects only a 50% fraction of the sentences that have been measired for their
 significance or their level of `intent'. 

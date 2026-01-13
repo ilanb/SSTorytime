@@ -1,0 +1,320 @@
+# Dossier d'enquête - Affaire Victor Moreau
+# Fichier créé le 30/08/2025
+# Dernière mise à jour: 01/09/2025
+-----------------------------------------------------------
+
+:: Métadonnées de l'enquête ::
+
+Affaire Moreau (type) Homicide
+    "          (statut) En cours
+    "          (priorité) Haute
+    "          (enquêteur principal) Détective Dubois
+    "          (date ouverture) 30/08/2025
+
+Classification (niveau) Confidentiel
+Juridiction (territoire) Paris 7e arrondissement
+
+-----------------------------------------------------------
+
+:: Personnages et Relations ::
+
+::: Victime :::
+
+Victor Moreau (âge) 67 ans
+    "         (profession) Antiquaire renommé
+    "         (domicile) Manoir rue de Varenne
+    "         (état civil) Veuf depuis 2019
+    "         (fortune estimée) 12 millions d'euros
+    "         (décédé le) 29/08/2025 vers 20h30
+    "         (cause décès suspectée) Empoisonnement
+
+Victor Moreau (propriétaire de) Galerie Moreau Antiquités
+    "         (collectionne) Livres rares du XVIIIe siècle
+    "         (membre de) Cercle des Bibliophiles Parisiens
+    "         (conflits avec) Elodie Dubois
+    "         (conflits avec) Jean Moreau
+    "         (proche de) Madame Chen
+
+::: Suspects principaux :::
+
+Jean Moreau (âge) 35 ans
+    "       (profession) Sans emploi fixe
+    "       (relation) Neveu de Victor Moreau
+    "       (mobile) Héritage de 8 millions d'euros
+    "       (historique) Dettes de jeu importantes
+    "       (alibi déclaré) Cinéma UGC Bercy 19h-22h
+    "       (dernière visite manoir) 27/08/2025
+    "       (tension avec) Victor Moreau depuis 2023
+
+Jean Moreau (doit) 150.000 euros -> Casino de Deauville
+    "       (fréquente) Bar Le Diplomate
+    "       (conduit) BMW série 3 noire immatriculée AB-123-CD
+    "       (téléphone) Dernier appel à Victor le 29/08 à 18h45
+
+Elodie Dubois (âge) 42 ans
+    "         (profession) Associée d'affaires
+    "         (relation) Ex-associée de Victor Moreau
+    "         (mobile) Vengeance suite escroquerie présumée
+    "         (perte financière) 2 millions d'euros en 2024
+    "         (alibi déclaré) Dîner de charité Hôtel Crillon
+    "         (procédure judiciaire) En cours contre Victor
+
+Elodie Dubois (accuse) Victor Moreau -> de fraude
+    "         (représentée par) Maître Lefebvre
+    "         (dernière confrontation) 25/08/2025 au tribunal
+    "         (menaces proférées) "Il paiera pour ce qu'il m'a fait"
+
+::: Témoins :::
+
+Madame Chen (âge) 45 ans
+    "        (profession) Gouvernante du manoir
+    "        (ancienneté) 15 ans de service
+    "        (présente) Le soir du crime jusqu'à 19h
+    "        (témoignage) A servi le thé à 19h15
+    "        (observation) Victor semblait nerveux
+
+Robert Duval (âge) 58 ans
+    "        (profession) Jardinier
+    "        (présent) Jusqu'à 18h le 29/08
+    "        (observation) Fenêtre bibliothèque déjà ouverte à 17h30
+    "        (remarque) Traces de pas inhabituelles près des rosiers
+
+Dr. Sarah Martin (profession) Médecin légiste
+    "            (rapport préliminaire) Décès entre 20h et 21h
+    "            (substance détectée) Alcaloïde non identifié
+    "            (remarque) Aucun signe de lutte
+
+::: Autres personnes d'intérêt :::
+
+Maître Lefebvre (profession) Avocat d'Elodie
+    "           (réputation) Agressif mais efficace
+    "           (dernière action) Saisie conservatoire demandée
+
+Antoine Mercier (profession) Expert en livres anciens
+    "           (relation) Concurrent de Victor
+    "           (conflit) Vente aux enchères disputée en juillet
+
+-----------------------------------------------------------
+
+:: Lieux et Scènes ::
+
+::: Scène de crime principale :::
+
+Bibliothèque (étage) Rez-de-chaussée
+    "        (dimensions) 8m x 6m
+    "        (accès) Porte principale et porte-fenêtre jardin
+    "        (état) Aucun signe d'effraction
+    "        (température) 22°C à l'arrivée police
+
+Position du corps (lieu exact) Fauteuil en cuir près cheminée
+    "             (orientation) Face à la porte
+    "             (posture) Assis, tête penchée en arrière
+
+Fenêtre ouest (état) Ouverte
+    "         (vue sur) Jardin arrière
+    "         (hauteur) 1.5m du sol
+    "         (empreintes) Essuyées sur la poignée
+
+::: Autres lieux pertinents :::
+
+Cuisine (distance bibliothèque) 15 mètres
+    "     (dernière utilisation) 19h15 pour préparer le thé
+    "     (accès poison possible) Placard non verrouillé
+
+Cave à vin (inspection) Bouteille de Château Margaux 1982 manquante
+    "       (dernière visite connue) Jean le 27/08
+
+Bureau Victor (étage) Premier étage
+    "         (état) Fouillé mais ordonné
+    "         (coffre-fort) Ouvert, testament présent
+
+Jardin (superficie) 500m²
+    "     (particularité) Haie haute côté rue
+    "     (accès) Portillon habituellement fermé à clé
+
+-----------------------------------------------------------
+
+:: Chronologie détaillée ::
+
++:: _timeline_ ::
+
+27/08/2025 14h00 -> Jean visite Victor -> Discussion houleuse sur l'argent
+27/08/2025 14h30 -> Jean quitte le manoir -> Claque la porte
+28/08/2025 10h00 -> Victor rencontre notaire -> Modification testament évoquée
+29/08/2025 09h00 -> Victor appelle Madame Chen -> Demande de rentrer plus tôt
+29/08/2025 15h00 -> Elodie vue près du manoir -> Par voisin M. Bertrand
+29/08/2025 17h30 -> Fenêtre bibliothèque ouverte -> Observée par jardinier
+29/08/2025 18h00 -> Jardinier quitte les lieux -> Portillon fermé à clé
+29/08/2025 18h45 -> Appel Jean vers Victor -> Durée 3 minutes
+29/08/2025 19h00 -> Madame Chen part -> Laisse Victor seul
+29/08/2025 19h15 -> Victor boit son thé -> Dernière activité connue
+29/08/2025 20h30 -> Heure estimée décès -> Selon médecin légiste
+29/08/2025 21h45 -> Corps découvert -> Par Madame Chen revenue
+29/08/2025 22h00 -> Détective Dubois arrive -> Début enquête officielle
+
+-:: _timeline_ ::
+
+-----------------------------------------------------------
+
+:: Preuves et Indices ::
+
+::: Preuves physiques :::
+
+Tasse de thé (contenu) Résidus de Earl Grey et substance inconnue
+    "       (empreintes) Victor Moreau uniquement
+    "       (position) Table basse à 30cm du fauteuil
+    "       (analyse labo) En cours, résultats sous 48h
+
+Livre "Traité des Poisons Exotiques" (édition) 1923
+    "                                  (page ouverte) 247 - Alcaloïdes végétaux
+    "                                  (annotations) Récentes au crayon
+    "                                  (empreintes) Victor et inconnues partielles
+
+Boue sur tapis persan (composition) Terre argileuse rosiers
+    "                  (forme) Empreintes pointure 42
+    "                  (direction) De la fenêtre vers fauteuil
+    "                  (fraîcheur) Déposée < 24h
+
+Téléphone Victor (derniers appels) Jean 18h45, numéro inconnu 19h05
+    "            (SMS non lus) 3 messages d'Elodie menaçants
+    "            (historique navigation) Recherches sur poisons 28/08
+
+Carnet de notes (trouvé) Tiroir bureau
+    "           (dernière entrée) "E.D. devient dangereuse"
+    "           (date) 28/08/2025
+
+::: Preuves documentaires :::
+
+Testament original (bénéficiaire principal) Jean Moreau 80%
+    "             (bénéficiaires secondaires) Œuvres caritatives 20%
+    "             (date rédaction) 15/03/2025
+    "             (témoin) Notaire Maître Durand
+
+Brouillon nouveau testament (trouvé) Corbeille bureau
+    "                       (modification) Jean réduit à 10%
+    "                       (nouveau bénéficiaire) Fondation Moreau 90%
+    "                       (non signé) Daté du 28/08
+
+Facture restaurant (trouvée) Poche veste Victor
+    "              (établissement) La Tour d'Argent
+    "              (date) 26/08/2025
+    "              (convive) Madame Chen
+
+Relevés bancaires (découvert) Virement 50.000€ vers compte inconnu
+    "             (date) 27/08/2025
+    "             (référence) "Règlement définitif"
+
+::: Preuves numériques :::
+
+Caméra surveillance (dysfonctionnelle) Depuis 28/08 18h
+    "               (cause) Cable sectionné
+    "               (dernière image) Silhouette non identifiable
+
+Ordinateur Victor (historique email) Menaces d'Elodie
+    "             (fichier supprimé) "CONFESSION.doc" récupérable
+    "             (agenda) RDV mystérieux 29/08 20h "Règlement de comptes"
+
+-----------------------------------------------------------
+
+:: Analyses et Hypothèses ::
+
+::: Théorie 1 - Crime passionnel :::
+
+Mobile principal => Vengeance Elodie
+Opportunité => Connaissance habitudes Victor
+Moyen => Accès cuisine lors visites antérieures
+Point faible => Alibi apparemment solide
+
+Elodie (aurait pu) Empoisonner thé -> avant 19h
+    "   (mobile) Perte 2 millions -> vengeance
+    "   (opportunité) Clés manoir -> jusqu'en 2024
+
+::: Théorie 2 - Crime d'intérêt :::
+
+Mobile principal => Héritage Jean
+Opportunité => Modification testament imminente  
+Moyen => Connaissance maison depuis enfance
+Point faible => Présence au cinéma confirmée partiellement
+
+Jean (aurait pu) Agir entre 19h et 19h30
+    " (mobile) Dettes importantes -> besoin urgent
+    " (déclencheur) Découverte changement testament
+    " (complice possible) Personne inconnue
+
+::: Théorie 3 - Suicide maquillé :::
+
+Mobile => Problèmes santé cachés
+Moyen => Auto-empoisonnement
+But => Incriminer Elodie ou Jean
+Point faible => Personnalité non suicidaire
+
+Victor (aurait pu) Orchestrer sa mort
+    "   (but) Punir les héritiers cupides
+    "   (préparation) Recherches poisons
+    "   (mise en scène) Indices contradictoires
+
+-----------------------------------------------------------
+
+:: Connexions et Patterns ::
+
+Pattern temporel => Escalade tensions dernière semaine
+Pattern spatial => Tous lieux accessibles sans effraction  
+Pattern relationnel => Triangle victime-neveu-associée
+
+Chaîne causale suspectée:
+Conflit financier -> Menaces -> Modification testament -> Urgence action -> Crime
+
+Réseau de relations:
+Victor <-> Jean (tension financière croissante)
+Victor <-> Elodie (conflit judiciaire)
+Jean <-> Elodie (aucun contact connu)
+Victor <-> Madame Chen (confiance totale)
+
+Anomalies détectées:
+- Fenêtre ouverte malgré fraîcheur soir
+- Absence struggle malgré empoisonnement
+- Livre ouvert page spécifique
+- Timing appel inconnu suspect
+
+-----------------------------------------------------------
+
+:: Actions en cours et à venir ::
+
+Analyses laboratoire => { Tasse thé; Résidus ongles; Contenus estomac }
+Vérifications alibis => { Cinéma Jean; Dîner Elodie; Témoins à interroger }
+Recherches complémentaires => { Compte bancaire mystère; Provenance poison; Complices possibles }
+
+Prochaines étapes (priorité haute):
+1. Interrogatoire approfondi Jean
+2. Perquisition appartement Elodie  
+3. Analyse CONFESSION.doc
+4. Identification empreintes livre
+
+Pistes à explorer:
+- Relation Victor/Madame Chen plus complexe?
+- Concurrent Antoine Mercier impliqué?
+- Chantage possible sur Victor?
+- Testament modifié = mobile ou coïncidence?
+
+-----------------------------------------------------------
+
+:: Notes et Observations Détective ::
+
+Intuitions:
+- Trop d'indices évidents = mise en scène?
+- Comportement Madame Chen étrangement calme
+- Jean semble cacher quelque chose au-delà alibi
+
+Questions ouvertes:
+- Pourquoi Victor nerveux selon gouvernante?
+- Qui a coupé câble caméra et quand exactement?
+- Signification "règlement définitif"?
+- Identité correspondant téléphonique 19h05?
+
+Incohérences:
+- Boue fraîche mais jardinier parti à 18h
+- Livre rare manipulé sans gants?
+- Thé servi 19h15 mais Victor seul depuis 19h
+
+-----------------------------------------------------------
+# Fin du dossier - Mise à jour continue

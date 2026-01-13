@@ -1,0 +1,2419 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forensic Investigator - PEACE & PROGREAI - Aide à l'Enquête</title>
+    <link rel="stylesheet" href="/static/css/styles.css?v=21">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
+    <!-- Leaflet for geographic map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <!-- Leaflet Heat plugin for heatmap -->
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+</head>
+<body>
+    <!-- Authentication Modal -->
+    <div id="auth-modal" class="auth-modal">
+        <div class="auth-modal-content">
+            <div class="auth-modal-header">
+                <span class="material-icons auth-icon">lock</span>
+                <h2>Accès Démo</h2>
+            </div>
+            <p class="auth-description">Cette application est en démonstration privée.<br>Veuillez entrer le mot de passe pour continuer.</p>
+            <form id="auth-form" onsubmit="return checkPassword(event)">
+                <div class="auth-input-group">
+                    <span class="material-icons">vpn_key</span>
+                    <input type="password" id="auth-password" placeholder="Mot de passe" autocomplete="off" autofocus>
+                </div>
+                <p id="auth-error" class="auth-error hidden">Mot de passe incorrect</p>
+                <button type="submit" class="btn btn-primary auth-submit">
+                    <span class="material-icons">login</span>
+                    Accéder
+                </button>
+            </form>
+        </div>
+    </div>
+    <script>
+        function checkPassword(e) {
+            e.preventDefault();
+            const password = document.getElementById('auth-password').value;
+            const correctHash = '5e884898da28047d9166e1c6f8e3c94c'; // md5 of 'password' - change this
+            // Simple check - for demo purposes
+            if (password === 'forensic2026') {
+                document.getElementById('auth-modal').style.display = 'none';
+                sessionStorage.setItem('forensic_auth', 'true');
+            } else {
+                document.getElementById('auth-error').classList.remove('hidden');
+                document.getElementById('auth-password').value = '';
+                document.getElementById('auth-password').focus();
+            }
+            return false;
+        }
+        // Check if already authenticated
+        if (sessionStorage.getItem('forensic_auth') === 'true') {
+            document.getElementById('auth-modal').style.display = 'none';
+        }
+    </script>
+
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <h1>Forensic Investigator</h1>
+                <p class="header-subtitle">PEACE & PROGREAI | Model2vec, LLM, HRM, Graphe de Connaissance</p>
+            </div>
+            <div class="header-right">
+                <button class="btn btn-header-help" id="btn-help">
+                    <span class="material-icons">help_outline</span>
+                    Guide
+                </button>
+                <div class="header-search">
+                    <span class="material-icons">search</span>
+                    <input type="text" id="global-search" placeholder="Rechercher entité, preuve, événement..." autocomplete="off">
+                    <div id="search-results" class="search-results hidden"></div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Help Sidebar -->
+        <div class="help-sidebar-overlay" id="help-overlay"></div>
+        <aside class="help-sidebar" id="help-sidebar">
+            <div class="help-sidebar-header">
+                <h2><span class="material-icons">menu_book</span> Guide d'utilisation</h2>
+                <button class="btn btn-ghost btn-icon" id="btn-close-help">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <div class="help-sidebar-content">
+                <div class="help-section">
+                    <h3><span class="material-icons">dashboard</span> Tableau de bord</h3>
+                    <p>Vue d'ensemble de l'affaire sélectionnée. Affiche le <strong>graphe des relations</strong> entre toutes les entités, preuves et événements de l'affaire.</p>
+                    <ul>
+                        <li><strong>Graphe interactif</strong> : Visualisez les connexions. Cliquez sur les nœuds pour les détails.</li>
+                        <li><strong>Chemins</strong> : Découvrez les liens cachés entre deux entités.</li>
+                        <li><strong>Analyser</strong> : L'IA génère une analyse globale des relations.</li>
+                        <li><strong>Résumé</strong> : Statistiques rapides (entités, preuves, événements, hypothèses).</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3><span class="material-icons">people</span> Entités</h3>
+                    <p>Gestion des <strong>personnes, lieux, objets et organisations</strong> impliqués dans l'affaire.</p>
+                    <ul>
+                        <li><strong>Types</strong> : Personne, Lieu, Objet, Organisation, Véhicule.</li>
+                        <li><strong>Rôles</strong> : Victime, Suspect, Témoin, Personne d'intérêt.</li>
+                        <li><strong>Relations</strong> : Définissez les liens entre entités (connaît, employé de, propriétaire...).</li>
+                        <li><strong>Comparer</strong> : Sélectionnez plusieurs entités pour les comparer côte à côte.</li>
+                        <li><strong>Filtrer</strong> : Affichez par type ou rôle spécifique.</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3><span class="material-icons">find_in_page</span> Preuves</h3>
+                    <p>Catalogue des <strong>éléments de preuve</strong> collectés durant l'enquête.</p>
+                    <ul>
+                        <li><strong>Types</strong> : Physique, Testimoniale, Documentaire, Numérique, Forensique.</li>
+                        <li><strong>Fiabilité</strong> : Score de 1 à 10 indiquant la solidité de la preuve.</li>
+                        <li><strong>Liaisons</strong> : Associez chaque preuve aux entités concernées.</li>
+                        <li><strong>Source</strong> : Documentez l'origine et la chaîne de custody.</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3><span class="material-icons">timeline</span> Chronologie</h3>
+                    <p><strong>Frise temporelle interactive</strong> des événements pour reconstituer le déroulement des faits.</p>
+                    <ul>
+                        <li><strong>Événements datés</strong> : Placez chaque fait sur la timeline.</li>
+                        <li><strong>Vérification</strong> : Marquez les événements comme vérifiés ou non.</li>
+                        <li><strong>Zoom temporel</strong> : Ajustez la granularité (jour, semaine, mois, année).</li>
+                        <li><strong>Superposition (Overlays)</strong> :
+                            <ul>
+                                <li><em>Suspects</em> : Visualisez les présences de chaque suspect sur la timeline.</li>
+                                <li><em>Lieux</em> : Suivez les déplacements entre différents lieux.</li>
+                                <li><em>Preuves</em> : Voyez quand chaque preuve intervient dans l'affaire.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Analyse temporelle</strong> :
+                            <ul>
+                                <li><em>Détection d'écarts</em> : Identifiez les périodes sans événement (zones d'ombre).</li>
+                                <li><em>Chevauchements</em> : Repérez les conflits d'alibi et contradictions temporelles.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Animation</strong> : Lancez une lecture animée pour voir l'évolution chronologique.</li>
+                        <li><strong>Export</strong> : Générez un rapport chronologique.</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3><span class="material-icons">psychology</span> Hypothèses</h3>
+                    <p>Gestion des <strong>pistes d'enquête</strong> et analyse des scénarios possibles.</p>
+                    <ul>
+                        <li><strong>Confiance</strong> : Niveau de certitude de 0% à 100%.</li>
+                        <li><strong>Statut</strong> : En attente, Corroborée, Réfutée, Partielle.</li>
+                        <li><strong>Générer (IA)</strong> : L'IA propose des hypothèses basées sur les données.</li>
+                        <li><strong>Contradictions</strong> : Détection automatique des incohérences.</li>
+                        <li><strong>Questions</strong> : Suggestions de pistes à explorer (méthode PEACE).</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3><span class="material-icons">code</span> N4L (Narrative 4 Logic)</h3>
+                    <p>Langage de description des <strong>relations narratives</strong> pour une modélisation formelle.</p>
+                    <ul>
+                        <li><strong>Syntaxe</strong> : <code>Entité -[relation]-> Cible</code></li>
+                        <li><strong>Contextes</strong> : Regroupez les relations par thème.</li>
+                        <li><strong>Parser</strong> : Transformez le texte en graphe visuel.</li>
+                        <li><strong>Import/Export</strong> : Chargez ou sauvegardez vos fichiers .n4l.</li>
+                        <li><strong>Exemple</strong> : <code>Jean -[connaît]-> Marie</code></li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3><span class="material-icons">hub</span> Connexions Inter-Affaires</h3>
+                    <p>Recherche de <strong>correspondances entre plusieurs affaires</strong> pour identifier les patterns.</p>
+                    <ul>
+                        <li><strong>Scanner</strong> : Détecte automatiquement les entités similaires.</li>
+                        <li><strong>Correspondances</strong> : Entités, lieux, modus operandi, temporalité.</li>
+                        <li><strong>Graphe multi-affaires</strong> : Visualisez les connexions globales.</li>
+                        <li><strong>Analyser (IA)</strong> : Génère des hypothèses transversales.</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3><span class="material-icons">psychology_alt</span> HRM (Hypothetical Reasoning Model)</h3>
+                    <p>Moteur de <strong>raisonnement hiérarchique</strong> pour l'analyse forensique avancée.</p>
+                    <ul>
+                        <li><strong>Types de raisonnement</strong> :
+                            <ul>
+                                <li><em>Déductif</em> : Conclusions logiques certaines basées sur des prémisses.</li>
+                                <li><em>Inductif</em> : Généralisation à partir de cas observés.</li>
+                                <li><em>Abductif</em> : Meilleure explication possible des faits.</li>
+                                <li><em>Analogique</em> : Par comparaison avec des cas similaires.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Profondeur</strong> : Nombre d'étapes de raisonnement (2 à 7 niveaux).</li>
+                        <li><strong>Vérification d'hypothèse</strong> : Testez la solidité d'une hypothèse contre les preuves.</li>
+                        <li><strong>Contradictions</strong> : Analyse croisée des témoignages et preuves.</li>
+                        <li><strong>Analyse inter-affaires</strong> : Recherche de patterns entre plusieurs affaires.</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3><span class="material-icons">auto_fix_high</span> Inférences Sémantiques</h3>
+                    <p>Moteur d'<strong>inférence automatique</strong> pour découvrir des relations cachées dans le graphe.</p>
+                    <ul>
+                        <li><strong>Fermeture transitive</strong> : Si A→B et B→C, suggère A→C.
+                            <ul>
+                                <li>Exemple : Si Jean connaît Marie et Marie connaît Pierre, suggère que Jean pourrait connaître Pierre.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Détection de siblings</strong> : Identifie les nœuds ayant des parents communs.
+                            <ul>
+                                <li>Exemple : Deux personnes travaillant dans la même organisation.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Liaison d'orphelins</strong> : Propose des connexions pour les nœuds isolés.
+                            <ul>
+                                <li>Suggère des liens potentiels basés sur le type d'entité.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Application</strong> : Cliquez sur une suggestion pour l'ajouter au graphe.</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3><span class="material-icons">search</span> Investigation Guidée</h3>
+                    <p>Mode d'<strong>investigation structurée</strong> suivant les méthodologies PEACE et PROGREAI.</p>
+                    <ul>
+                        <li><strong>Étapes d'investigation</strong> :
+                            <ul>
+                                <li><em>Acteurs</em> : Identification des personnes clés.</li>
+                                <li><em>Lieux</em> : Cartographie des lieux pertinents.</li>
+                                <li><em>Chronologie</em> : Reconstitution temporelle.</li>
+                                <li><em>Mobiles</em> : Analyse des motivations.</li>
+                                <li><em>Preuves</em> : Évaluation des éléments de preuve.</li>
+                                <li><em>Synthèse</em> : Conclusions et recommandations.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Suggestions IA</strong> : Recommandations automatiques à chaque étape.</li>
+                        <li><strong>Notes</strong> : Prenez des notes tout au long de l'investigation.</li>
+                        <li><strong>Insights</strong> : Observations automatiques basées sur le graphe.</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3><span class="material-icons">analytics</span> Analyse de Graphe</h3>
+                    <p><strong>Analyse structurelle avancée</strong> du graphe de connaissances de l'affaire.</p>
+                    <ul>
+                        <li><strong>Clusters</strong> : Détection de groupes d'entités fortement connectées.
+                            <ul>
+                                <li>Visualisez le mini-graphe de chaque cluster.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Centralité</strong> : Classement des nœuds par importance.
+                            <ul>
+                                <li>Scores de suspicion basés sur les connexions.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Alibis</strong> : Timeline visuelle des alibis.
+                            <ul>
+                                <li>Fenêtres d'opportunité pour chaque suspect.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Densité</strong> : Carte des zones explorées vs inexplorées.</li>
+                        <li><strong>Cohérence</strong> : Détection des contradictions, orphelins et cycles.</li>
+                        <li><strong>Patterns</strong> : Séquences d'événements et patterns temporels.</li>
+                        <li><strong>Cônes</strong> : Exploration par cônes d'expansion (inspiré de SSTorytime).
+                            <ul>
+                                <li>Explorez le graphe en avant, arrière, ou bidirectionnel depuis un nœud.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Appointés</strong> : Détection des nœuds pointés par plusieurs sources.
+                            <ul>
+                                <li>Identifie les points de convergence et corrélations importantes.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Eigenvector</strong> : Centralité eigenvector (PageRank-like).
+                            <ul>
+                                <li>Mesure l'influence basée sur l'influence des voisins.</li>
+                            </ul>
+                        </li>
+                        <li><strong>STTypes</strong> : Classification sémantique des relations (N4L).
+                            <ul>
+                                <li>NEAR, LEADS_TO, CONTAINS, EXPRESSES selon le modèle SSTorytime.</li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3><span class="material-icons">waves</span> SSTorytime Avancé</h3>
+                    <p><strong>Fonctionnalités avancées d'analyse de graphe</strong> pour l'investigation forensique.</p>
+                    <ul>
+                        <li><strong>Contrawave</strong> : Analyse bidirectionnelle par collision de fronts d'onde.
+                            <ul>
+                                <li>Lancez deux fronts d'onde depuis la victime et le suspect.</li>
+                                <li>Détectez les points de collision (témoins clés, preuves partagées).</li>
+                                <li>Idéal pour : "Comment victime et suspect sont-ils reliés ?"</li>
+                                <li>Score de criticité : importance des nœuds de collision.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Super-Nœuds</strong> : Détection d'équivalence fonctionnelle.
+                            <ul>
+                                <li>Identifie les entités fonctionnellement substituables.</li>
+                                <li>Exemple : Deux complices ayant le même accès aux preuves.</li>
+                                <li>Groupes par équivalence : structurelle, de rôle, de flux.</li>
+                                <li>Applications : Identifier des suspects alternatifs.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Betweenness Centrality</strong> : Importance des intermédiaires.
+                            <ul>
+                                <li>Score d'intermédiarité : combien de chemins passent par ce nœud.</li>
+                                <li>Identifie les "goulots d'étranglement" du réseau.</li>
+                                <li>Rôles : Pont (critique), Hub (important), Périphérique.</li>
+                                <li>Applications : Témoins clés, preuves connectant plusieurs suspects.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Cônes d'Expansion</strong> : Exploration structurée depuis un point.
+                            <ul>
+                                <li>Avant (→) : Où mène ce nœud ? (conséquences, effets)</li>
+                                <li>Arrière (←) : D'où vient ce nœud ? (causes, sources)</li>
+                                <li>Bidirectionnel (↔) : Contexte complet</li>
+                                <li>Limite de profondeur configurable (1-10 niveaux).</li>
+                            </ul>
+                        </li>
+                        <li><strong>Orbites</strong> : Analyse de voisinage structuré concentrique.
+                            <ul>
+                                <li>Niveau 1 : Connexions directes (voisins immédiats).</li>
+                                <li>Niveau 2 : Connexions des connexions (2 sauts).</li>
+                                <li>Niveau 3+ : Influence étendue dans le réseau.</li>
+                                <li>Statistiques par niveau : densité interne, types de nœuds.</li>
+                                <li>Pattern d'expansion : Expansion/Contraction/Stable.</li>
+                                <li>Applications : "Quel est l'environnement social de ce suspect ?"</li>
+                            </ul>
+                        </li>
+                        <li><strong>Notation Dirac</strong> : Chemins quantiques &lt;cible|source&gt;.
+                            <ul>
+                                <li>Syntaxe inspirée de la mécanique quantique.</li>
+                                <li>Format : &lt;Cible|Source&gt; explore les chemins de Source vers Cible.</li>
+                                <li>Support des rôles : &lt;victime|suspect&gt; fonctionne directement.</li>
+                                <li>Support des noms partiels : &lt;Sophie|Marc&gt; trouve les nœuds.</li>
+                                <li>Mode bidirectionnel : analyse les chemins dans les deux sens.</li>
+                                <li>Analyse de symétrie : détecte les relations réciproques.</li>
+                                <li>Applications : "Quels chemins relient suspect et victime ?"</li>
+                            </ul>
+                        </li>
+                        <li><strong>Chemins Contraints</strong> : Exploration filtrée par type de relation.
+                            <ul>
+                                <li>Types autorisés : ne garder que certains types de liens.</li>
+                                <li>Types exclus : ignorer certains types de liens.</li>
+                                <li>Exemple : chemins via "employé_de" et "collabore_avec" uniquement.</li>
+                                <li>Statistiques : nombre d'arêtes filtrées, types réellement utilisés.</li>
+                                <li>Applications : "Comment sont-ils liés professionnellement ?"</li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3><span class="material-icons">groups</span> Analyse de Réseaux Sociaux</h3>
+                    <p><strong>Analyse sociométrique</strong> des relations entre personnes pour identifier les dynamiques de groupe.</p>
+                    <ul>
+                        <li><strong>Détection de communautés</strong> : Identifie les groupes naturels de personnes.
+                            <ul>
+                                <li>Algorithme Label Propagation pour clustering automatique.</li>
+                                <li>Visualisez chaque communauté avec ses membres et connexions.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Identification des brokers</strong> : Repère les personnes-ponts entre groupes.
+                            <ul>
+                                <li>Score de betweenness centrality (intermédiarité).</li>
+                                <li>Ces individus contrôlent le flux d'information entre communautés.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Analyse des flux</strong> : Étudie la circulation d'information ou d'argent.
+                            <ul>
+                                <li>Détection de la source principale (qui émet le plus).</li>
+                                <li>Identification du puits (qui reçoit le plus).</li>
+                                <li>Chemins de flux les plus importants.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Évolution temporelle</strong> : Visualisez comment le réseau évolue dans le temps.
+                            <ul>
+                                <li>Animation chronologique des connexions.</li>
+                                <li>Voyez quand chaque relation apparaît.</li>
+                                <li>Contrôles play/pause et navigation par événement.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Statistiques</strong> : Densité du réseau, degré moyen, coefficient de clustering.</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3><span class="material-icons">map</span> Carte Géographique</h3>
+                    <p><strong>Visualisation spatiale</strong> des lieux et déplacements liés à l'affaire.</p>
+                    <ul>
+                        <li><strong>Marqueurs</strong> : Affiche tous les lieux géolocalisés de l'affaire.
+                            <ul>
+                                <li>Couleurs par type : personnes, lieux, preuves, événements.</li>
+                                <li>Cliquez sur un marqueur pour voir les détails.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Trajets</strong> : Trace les déplacements chronologiques.
+                            <ul>
+                                <li>Lignes pointillées entre les lieux successifs de la timeline.</li>
+                                <li>Flèches indiquant la direction du mouvement.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Zones de chaleur (Heatmap)</strong> : Visualise l'intensité d'activité.
+                            <ul>
+                                <li>Rouge = forte activité, Bleu = faible activité.</li>
+                                <li>Pondération basée sur le nombre d'événements et le rôle des entités.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Synchronisation Timeline</strong> : Filtrez par période temporelle.
+                            <ul>
+                                <li>Slider pour sélectionner une plage de dates.</li>
+                                <li>Les marqueurs s'estompent si hors période.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Filtres</strong> : Affichez par type d'entité (tous, personnes, lieux, preuves).</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3><span class="material-icons">menu_book</span> Notebook</h3>
+                    <p><strong>Carnet de notes centralisé</strong> pour sauvegarder toutes vos analyses IA.</p>
+                    <ul>
+                        <li><strong>Sauvegarder une analyse</strong> : Cliquez sur "Noter" dans les modals d'analyse.</li>
+                        <li><strong>Types de notes</strong> :
+                            <ul>
+                                <li>Analyses de graphe, hypothèses, contradictions.</li>
+                                <li>Questions d'investigation, raisonnement HRM.</li>
+                                <li>Analyses d'entités, de preuves, de chemins.</li>
+                                <li>Chat IA, analyses inter-affaires.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Organisation</strong> :
+                            <ul>
+                                <li>Épinglez les notes importantes.</li>
+                                <li>Filtrez par type ou recherchez par texte.</li>
+                                <li>Triez par date, titre ou notes épinglées.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Note manuelle</strong> : Créez des notes personnalisées.</li>
+                        <li><strong>Persistance</strong> : Les notes sont sauvegardées par affaire.</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3><span class="material-icons">settings</span> Configuration</h3>
+                    <p><strong>Personnalisation des prompts IA</strong> pour adapter le comportement du système.</p>
+                    <ul>
+                        <li><strong>Prompts système</strong> : Éditez les instructions pour chaque type d'analyse.
+                            <ul>
+                                <li>Analyse d'entités, de graphe, d'hypothèses.</li>
+                                <li>Génération de questions, détection de contradictions.</li>
+                                <li>Assistant IA, analyse inter-affaires.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Instruction de langue</strong> : Forcez la réponse en français.</li>
+                        <li><strong>Modèles IA</strong> : Configurez les modèles utilisés.
+                            <ul>
+                                <li>Modèle par défaut (vLLM).</li>
+                                <li>Modèle conversion N4L (Ollama).</li>
+                            </ul>
+                        </li>
+                        <li><strong>Sauvegarde</strong> : Les modifications sont persistées dans <code>prompts.json</code>.</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3><span class="material-icons">filter_alt</span> Recherche Avancée</h3>
+                    <p>Système de <strong>filtrage multicritères</strong> pour explorer le graphe.</p>
+                    <ul>
+                        <li><strong>Filtres disponibles</strong> :
+                            <ul>
+                                <li><em>Type d'entité</em> : Personne, Lieu, Objet, Organisation, Véhicule.</li>
+                                <li><em>Rôle</em> : Victime, Suspect, Témoin, Personne d'intérêt.</li>
+                                <li><em>Type de relation</em> : connaît, employé_de, propriétaire_de, etc.</li>
+                                <li><em>Recherche textuelle</em> : Filtrer par nom ou description.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Exclusion de nœuds</strong> : Retirez temporairement des entités du graphe filtré.</li>
+                        <li><strong>Résultats</strong> : Liste des entités correspondantes avec navigation directe.</li>
+                        <li><strong>Réinitialiser</strong> : Restaurez le graphe complet à tout moment.</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3><span class="material-icons">touch_app</span> Menu Contextuel (clic droit)</h3>
+                    <p>Actions rapides accessibles via <strong>clic droit</strong> sur les nœuds du graphe.</p>
+                    <ul>
+                        <li><strong>Sur le graphe principal</strong> :
+                            <ul>
+                                <li><em>Voir détails</em> : Affiche les informations complètes de l'entité.</li>
+                                <li><em>Cône d'expansion</em> : Visualise toutes les relations directes et indirectes.</li>
+                                <li><em>Trouver chemin</em> : Calcule le plus court chemin vers une autre entité.</li>
+                                <li><em>Analyser (IA)</em> : Génère une analyse contextuelle par l'IA.</li>
+                                <li><em>Exclure du filtre</em> : Masque temporairement le nœud dans la recherche avancée.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Sur le graphe N4L</strong> :
+                            <ul>
+                                <li><em>Cône d'expansion</em> : Explore le voisinage du nœud sélectionné.</li>
+                                <li><em>Trouver chemin</em> : Recherche de chemins dans le graphe N4L.</li>
+                                <li><em>Analyser (IA)</em> : Analyse sémantique du nœud et ses relations.</li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="help-section help-tips">
+                    <h3><span class="material-icons">tips_and_updates</span> Conseils</h3>
+                    <ul>
+                        <li>Commencez par créer les <strong>entités principales</strong> de votre affaire.</li>
+                        <li>Ajoutez les <strong>preuves</strong> et liez-les aux entités.</li>
+                        <li>Construisez la <strong>chronologie</strong> pour visualiser la séquence.</li>
+                        <li>Activez la <strong>Superposition</strong> pour voir suspects, lieux et preuves sur la timeline.</li>
+                        <li>Utilisez la <strong>Détection d'écarts</strong> pour repérer les zones d'ombre temporelles.</li>
+                        <li>Utilisez les <strong>Inférences</strong> pour découvrir des relations cachées.</li>
+                        <li>Filtrez avec la <strong>Recherche avancée</strong> pour explorer le graphe.</li>
+                        <li>Utilisez <strong>HRM</strong> pour vérifier les hypothèses et détecter les contradictions.</li>
+                        <li>Lancez une <strong>Investigation guidée</strong> pour une approche structurée PEACE.</li>
+                        <li>Analysez les <strong>Clusters</strong> et la <strong>Centralité</strong> dans Analyse Graphe.</li>
+                        <li>Explorez les <strong>Réseaux Sociaux</strong> pour identifier communautés et brokers.</li>
+                        <li>Lancez l'<strong>Évolution temporelle</strong> pour voir le réseau se construire dans le temps.</li>
+                        <li>Sauvegardez vos analyses dans le <strong>Notebook</strong> avec le bouton "Noter".</li>
+                        <li>Explorez les <strong>connexions inter-affaires</strong> pour identifier les patterns.</li>
+                        <li>Personnalisez les <strong>prompts IA</strong> dans Configuration.</li>
+                        <li><strong>Clic droit</strong> sur un nœud pour accéder aux actions rapides.</li>
+                    </ul>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Navigation -->
+        <nav class="main-nav">
+            <button class="nav-btn active" data-view="dashboard" data-tooltip="Vue d'ensemble : graphe des relations, résumé, statistiques" data-tooltip-pos="bottom">
+                <span class="material-icons">dashboard</span>
+                Tableau de bord
+            </button>
+            <button class="nav-btn" data-view="entities" data-tooltip="Gérer les personnes, organisations et lieux de l'affaire" data-tooltip-pos="bottom">
+                <span class="material-icons">people</span>
+                Entités
+            </button>
+            <button class="nav-btn" data-view="evidence" data-tooltip="Cataloguer et analyser les preuves matérielles et numériques" data-tooltip-pos="bottom">
+                <span class="material-icons">find_in_page</span>
+                Preuves
+            </button>
+            <button class="nav-btn" data-view="timeline" data-tooltip="Visualiser la chronologie des événements avec superpositions" data-tooltip-pos="bottom">
+                <span class="material-icons">timeline</span>
+                Chronologie
+            </button>
+            <button class="nav-btn" data-view="hypotheses" data-tooltip="Générer et évaluer des hypothèses d'enquête avec l'IA" data-tooltip-pos="bottom">
+                <span class="material-icons">psychology</span>
+                Hypothèses
+            </button>
+            <button class="nav-btn" data-view="n4l" data-tooltip="Éditer le code N4L source de l'affaire (format texte)" data-tooltip-pos="bottom">
+                <span class="material-icons">code</span>
+                N4L
+            </button>
+            <button class="nav-btn" data-view="cross-case" data-tooltip="Rechercher des connexions entre plusieurs affaires" data-tooltip-pos="bottom">
+                <span class="material-icons">hub</span>
+                Connexions
+            </button>
+            <button class="nav-btn" data-view="hrm" data-tooltip="Human Reasoning Model : raisonnement humain augmenté" data-tooltip-pos="bottom">
+                <span class="material-icons">psychology_alt</span>
+                HRM
+            </button>
+            <button class="nav-btn" data-view="investigation" data-tooltip="Recherche sémantique dans les données de l'affaire" data-tooltip-pos="bottom">
+                <span class="material-icons">search</span>
+                Investigation
+            </button>
+            <button class="nav-btn" data-view="graph-analysis" data-tooltip="Analyse avancée du graphe : centralité, clusters, patterns" data-tooltip-pos="bottom">
+                <span class="material-icons">analytics</span>
+                Analyse Graphe
+            </button>
+            <button class="nav-btn" data-view="geo-map" data-tooltip="Carte géographique : lieux, trajets et zones de présence" data-tooltip-pos="bottom">
+                <span class="material-icons">map</span>
+                Carte
+            </button>
+            <button class="nav-btn" data-view="notebook" data-tooltip="Carnet d'investigation : notes, annotations et conclusions" data-tooltip-pos="bottom">
+                <span class="material-icons">menu_book</span>
+                Notebook
+            </button>
+            <button class="nav-btn" data-view="config" data-tooltip="Paramètres de l'application et clés API" data-tooltip-pos="bottom">
+                <span class="material-icons">settings</span>
+                Configuration
+            </button>
+            <div style="flex: 1;"></div>
+            <button class="btn btn-primary btn-sm" id="btn-new-case">
+                <span class="material-icons">add</span>
+                Nouvelle Affaire
+            </button>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Sidebar - Cases list -->
+            <aside class="sidebar">
+                <div class="sidebar-header">
+                    <span class="sidebar-title">Affaires</span>
+                    <button class="btn btn-ghost btn-icon" id="btn-refresh-cases" data-tooltip="Rafraîchir la liste des affaires" data-tooltip-pos="bottom">
+                        <span class="material-icons">refresh</span>
+                    </button>
+                </div>
+                <!-- Filtres avancés -->
+                <div class="sidebar-filters">
+                    <div class="filter-row">
+                        <select class="form-select form-select-sm" id="case-sort-by" data-tooltip="Trier les affaires" data-tooltip-pos="bottom">
+                            <option value="recent">Récemment vues</option>
+                            <option value="name">Nom (A-Z)</option>
+                            <option value="name-desc">Nom (Z-A)</option>
+                            <option value="created">Date création</option>
+                            <option value="updated">Date modification</option>
+                        </select>
+                    </div>
+                    <div class="filter-row">
+                        <select class="form-select form-select-sm" id="case-type-filter" data-tooltip="Filtrer par type d'affaire" data-tooltip-pos="bottom">
+                            <option value="all">Tous les types</option>
+                            <!-- Options dynamiques ajoutées par JavaScript -->
+                        </select>
+                    </div>
+                    <div class="filter-row">
+                        <select class="form-select form-select-sm" id="case-status-filter" data-tooltip="Filtrer par statut de l'affaire" data-tooltip-pos="bottom">
+                            <option value="all">Tous les statuts</option>
+                            <option value="en_cours">En cours</option>
+                            <option value="resolu">Résolu</option>
+                            <option value="classe">Classé</option>
+                        </select>
+                    </div>
+                    <div class="filter-row filter-row-search">
+                        <input type="text" class="form-input form-input-sm" id="case-search-input" placeholder="Rechercher..." data-tooltip="Rechercher une affaire par nom" data-tooltip-pos="bottom">
+                        <button class="btn btn-ghost btn-icon-sm" id="btn-reset-filters" data-tooltip="Réinitialiser tous les filtres" data-tooltip-pos="bottom">
+                            <span class="material-icons">filter_alt_off</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="sidebar-content" id="cases-list">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">
+                            <span class="material-icons">folder_open</span>
+                        </div>
+                        <p class="empty-state-title">Aucune affaire</p>
+                        <p class="empty-state-description">Créez une nouvelle affaire pour commencer</p>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Workspace -->
+            <main class="workspace">
+                <div class="workspace-header">
+                    <h2 id="case-title">Sélectionnez une affaire</h2>
+                    <div class="workspace-tabs" id="workspace-actions">
+                        <!-- Actions contextuelles -->
+                    </div>
+                </div>
+
+                <!-- Dashboard View -->
+                <div class="workspace-content" id="view-dashboard">
+                    <div class="panel">
+                        <div class="panel-header">
+                            <span class="panel-title">Graphe des Relations</span>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button class="btn btn-sm btn-secondary" id="btn-inferences" data-tooltip="Découvrir des relations cachées par inférence automatique (fermeture transitive, siblings, orphelins)" data-tooltip-pos="bottom">
+                                    <span class="material-icons">auto_fix_high</span>
+                                    Inférences
+                                </button>
+                                <button class="btn btn-sm btn-secondary" id="btn-advanced-search" data-tooltip="Filtrer le graphe par type d'entité, rôle, relation ou recherche textuelle" data-tooltip-pos="bottom">
+                                    <span class="material-icons">filter_alt</span>
+                                    Recherche
+                                </button>
+                                <button class="btn btn-sm btn-secondary" id="btn-find-path" data-tooltip="Trouver le chemin le plus court entre deux entités du graphe" data-tooltip-pos="bottom">
+                                    <span class="material-icons">route</span>
+                                    Chemins
+                                </button>
+                                <button class="btn btn-sm btn-secondary" id="btn-social-network" data-tooltip="Analyser les réseaux sociaux : communautés, brokers, flux et évolution temporelle" data-tooltip-pos="bottom">
+                                    <span class="material-icons">groups</span>
+                                    Réseaux Sociaux
+                                </button>
+                                <button class="btn btn-sm btn-secondary" id="btn-analyze-graph" data-tooltip="Générer une analyse IA globale des relations et patterns de l'affaire" data-tooltip-pos="bottom">
+                                    <span class="material-icons">psychology</span>
+                                    Analyser
+                                </button>
+                                <span class="btn-separator"></span>
+                                <button class="btn btn-sm btn-ghost" id="btn-reset-graph" onclick="app.resetGraphFocus()" data-tooltip="Réinitialiser la vue du graphe" data-tooltip-pos="bottom">
+                                    <span class="material-icons">restart_alt</span>
+                                    Reset
+                                </button>
+                                <button class="btn btn-sm btn-ghost" id="btn-fullscreen-graph" onclick="app.toggleGraphFullscreen()" data-tooltip="Afficher le graphe en plein écran" data-tooltip-pos="bottom">
+                                    <span class="material-icons">fullscreen</span>
+                                    Plein écran
+                                </button>
+                            </div>
+                        </div>
+                        <div class="panel-description">
+                            <span class="material-icons">info</span>
+                            Visualisation des liens entre entités, preuves et événements. <strong>Chemins</strong> découvre les connexions entre deux entités. <strong>Analyser</strong> génère une analyse IA globale.
+                        </div>
+                        <div class="panel-content">
+                            <div id="graph-container"></div>
+                        </div>
+                    </div>
+
+                    <div class="panel">
+                        <div class="panel-header">
+                            <span class="panel-title">Résumé de l'Affaire</span>
+                        </div>
+                        <div class="panel-description">
+                            <span class="material-icons">info</span>
+                            Vue d'ensemble de l'affaire. Cliquez sur les cartes pour accéder directement aux sections correspondantes.
+                        </div>
+                        <div class="panel-content" id="case-summary">
+                            <div class="empty-state">
+                                <span class="material-icons empty-state-icon">description</span>
+                                <p class="empty-state-description">Sélectionnez une affaire pour voir le résumé</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Entities View -->
+                <div class="workspace-content hidden" id="view-entities">
+                    <div class="panel panel-full">
+                        <div class="panel-header">
+                            <span class="panel-title">Entités de l'Affaire</span>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <button class="btn btn-sm btn-warning" id="compare-entities-btn" onclick="app.compareEntities()" style="display: none;">
+                                    <span class="material-icons">compare_arrows</span>
+                                    Comparer (<span class="compare-count">0</span>)
+                                </button>
+                                <div class="dropdown" id="sst-entities-dropdown" style="display: none;">
+                                    <button class="btn btn-sm btn-accent" id="btn-sst-entities">
+                                        <span class="material-icons">science</span>
+                                        Dirac
+                                    </button>
+                                    <div class="dropdown-menu" id="sst-entities-menu">
+                                        <a class="dropdown-item" id="sst-dirac-selected">
+                                            <span class="material-icons">science</span>
+                                            Requête Dirac entre sélectionnés
+                                        </a>
+                                        <a class="dropdown-item" id="sst-orbits-selected">
+                                            <span class="material-icons">radar</span>
+                                            Analyser orbites du premier
+                                        </a>
+                                        <a class="dropdown-item" id="sst-contrawave-selected">
+                                            <span class="material-icons">waves</span>
+                                            Contrawave entre sélectionnés
+                                        </a>
+                                    </div>
+                                </div>
+                                <button class="btn btn-sm btn-secondary" id="btn-filter-entities">
+                                    <span class="material-icons">filter_list</span>
+                                    Filtrer
+                                </button>
+                                <button class="btn btn-sm btn-secondary" id="btn-add-relation">
+                                    <span class="material-icons">link</span>
+                                    Ajouter Relation
+                                </button>
+                                <button class="btn btn-sm btn-primary" id="btn-add-entity">
+                                    <span class="material-icons">person_add</span>
+                                    Ajouter
+                                </button>
+                            </div>
+                        </div>
+                        <div class="panel-description">
+                            <span class="material-icons">info</span>
+                            <strong>Personnes, lieux, objets et organisations</strong> impliqués dans l'affaire. Utilisez <strong>Filtrer</strong> pour afficher par rôle (victime, suspect, témoin). Les relations entre entités sont affichées sur chaque carte.
+                        </div>
+                        <div class="panel-content" id="entities-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 1rem; align-content: start;">
+                            <!-- Entities loaded here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Evidence View -->
+                <div class="workspace-content hidden" id="view-evidence">
+                    <div class="panel panel-full" style="overflow: hidden;">
+                        <div class="panel-header">
+                            <span class="panel-title">Preuves et Indices</span>
+                            <div class="evidence-filter-container">
+                                <div class="filter-dropdown" id="evidence-filter-dropdown">
+                                    <button class="btn btn-sm btn-secondary evidence-filter-btn" id="btn-filter-evidence">
+                                        <span class="material-icons">filter_list</span>
+                                        Filtrer
+                                    </button>
+                                    <div class="filter-menu" id="evidence-filter-menu">
+                                        <label class="filter-item">
+                                            <input type="checkbox" value="physique" checked> Physique
+                                        </label>
+                                        <label class="filter-item">
+                                            <input type="checkbox" value="testimoniale" checked> Testimoniale
+                                        </label>
+                                        <label class="filter-item">
+                                            <input type="checkbox" value="documentaire" checked> Documentaire
+                                        </label>
+                                        <label class="filter-item">
+                                            <input type="checkbox" value="numerique" checked> Numérique
+                                        </label>
+                                        <label class="filter-item">
+                                            <input type="checkbox" value="forensique" checked> Forensique
+                                        </label>
+                                    </div>
+                                </div>
+                                <button class="btn btn-sm btn-primary" id="btn-add-evidence">
+                                    <span class="material-icons">add_circle</span>
+                                    Ajouter
+                                </button>
+                            </div>
+                        </div>
+                        <div class="panel-description">
+                            <span class="material-icons">info</span>
+                            <strong>Éléments de preuve</strong> collectés : physiques, testimoniales, documentaires, numériques ou forensiques. Chaque preuve a un <strong>indice de fiabilité</strong> (1-10) et peut être liée à des entités.
+                        </div>
+                        <div class="panel-content" id="evidence-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 1rem; align-content: start;">
+                            <!-- Evidence loaded here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Timeline View -->
+                <div class="workspace-content hidden" id="view-timeline">
+                    <div class="panel panel-full">
+                        <div class="panel-header">
+                            <span class="panel-title">
+                                <span class="material-icons" style="vertical-align: middle; margin-right: 0.5rem;">timeline</span>
+                                Chronologie Interactive
+                            </span>
+                            <div class="panel-header-actions">
+                                <button class="btn btn-sm btn-secondary" id="btn-timeline-export" data-tooltip="Exporter la timeline en image ou PDF" data-tooltip-pos="bottom">
+                                    <span class="material-icons">download</span>
+                                </button>
+                                <button class="btn btn-sm btn-primary" id="btn-add-event">
+                                    <span class="material-icons">add</span>
+                                    Ajouter
+                                </button>
+                            </div>
+                        </div>
+                        <div class="panel-description">
+                            <span class="material-icons">info</span>
+                            <strong>Frise chronologique interactive</strong> - Visualisez les événements avec zoom temporel (jour/semaine/mois),
+                            superposez les timelines des suspects et des lieux, détectez automatiquement les gaps et chevauchements,
+                            et animez la séquence des événements pour reconstituer le déroulement des faits.
+                        </div>
+                        <div class="panel-content" id="timeline-list">
+                            <!-- Timeline controls and events loaded dynamically here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hypotheses View -->
+                <div class="workspace-content hidden" id="view-hypotheses">
+                    <div class="panel">
+                        <div class="panel-header">
+                            <span class="panel-title">Hypothèses d'Investigation</span>
+                            <div class="hypothesis-header-actions">
+                                <div class="filter-dropdown" id="hypothesis-filter-dropdown">
+                                    <button class="btn btn-sm btn-secondary" id="btn-filter-hypotheses">
+                                        <span class="material-icons">filter_list</span>
+                                        Filtrer
+                                    </button>
+                                    <div class="filter-menu" id="hypothesis-filter-menu">
+                                        <div class="filter-section">
+                                            <label class="filter-section-title">Statut</label>
+                                            <label class="filter-item">
+                                                <input type="checkbox" name="hyp-status" value="all" checked> Tous
+                                            </label>
+                                            <label class="filter-item">
+                                                <input type="checkbox" name="hyp-status" value="en_attente"> En attente
+                                            </label>
+                                            <label class="filter-item">
+                                                <input type="checkbox" name="hyp-status" value="corroboree"> Corroborée
+                                            </label>
+                                            <label class="filter-item">
+                                                <input type="checkbox" name="hyp-status" value="refutee"> Réfutée
+                                            </label>
+                                            <label class="filter-item">
+                                                <input type="checkbox" name="hyp-status" value="partielle"> Partielle
+                                            </label>
+                                        </div>
+                                        <div class="filter-section">
+                                            <label class="filter-section-title">Confiance</label>
+                                            <label class="filter-item">
+                                                <input type="checkbox" name="hyp-confidence" value="all" checked> Tous
+                                            </label>
+                                            <label class="filter-item">
+                                                <input type="checkbox" name="hyp-confidence" value="high"> Haute (>70%)
+                                            </label>
+                                            <label class="filter-item">
+                                                <input type="checkbox" name="hyp-confidence" value="medium"> Moyenne (30-70%)
+                                            </label>
+                                            <label class="filter-item">
+                                                <input type="checkbox" name="hyp-confidence" value="low"> Basse (<30%)
+                                            </label>
+                                        </div>
+                                        <div class="filter-section">
+                                            <label class="filter-section-title">Origine</label>
+                                            <label class="filter-item">
+                                                <input type="checkbox" name="hyp-origin" value="all" checked> Tous
+                                            </label>
+                                            <label class="filter-item">
+                                                <input type="checkbox" name="hyp-origin" value="user"> Manuel
+                                            </label>
+                                            <label class="filter-item">
+                                                <input type="checkbox" name="hyp-origin" value="ai"> IA
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button class="btn btn-sm btn-secondary" id="btn-generate-hypotheses">
+                                    <span class="material-icons">auto_awesome</span>
+                                    Générer (IA)
+                                </button>
+                                <button class="btn btn-sm btn-secondary" id="btn-detect-contradictions">
+                                    <span class="material-icons">compare_arrows</span>
+                                    Contradictions
+                                </button>
+                                <button class="btn btn-sm btn-secondary" id="btn-generate-questions">
+                                    <span class="material-icons">help_outline</span>
+                                    Questions (IA)
+                                </button>
+                                <button class="btn btn-sm btn-primary" id="btn-add-hypothesis">
+                                    <span class="material-icons">add</span>
+                                    Ajouter
+                                </button>
+                            </div>
+                        </div>
+                        <div class="panel-description">
+                            <span class="material-icons">info</span>
+                            <strong>Pistes d'enquête</strong> avec niveau de confiance. <strong>Générer (IA)</strong> propose des hypothèses. <strong>Contradictions</strong> détecte les incohérences. <strong>Questions (IA)</strong> génère des questions selon la méthode PEACE.
+                        </div>
+                        <div class="panel-content" id="hypotheses-list">
+                            <!-- Hypotheses loaded here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- N4L View -->
+                <div class="workspace-content hidden" id="view-n4l">
+                    <div class="panel" id="panel-n4l-editor">
+                        <div class="panel-header">
+                            <span class="panel-title">Éditeur N4L</span>
+                            <div>
+                                <button class="btn btn-sm btn-secondary" id="btn-import-n4l">
+                                    <span class="material-icons">upload_file</span>
+                                    Importer
+                                </button>
+                                <input type="file" id="n4l-file-input" accept=".n4l,.txt" style="display: none;">
+                                <button class="btn btn-sm btn-secondary" id="btn-parse-n4l">
+                                    <span class="material-icons">play_arrow</span>
+                                    Parser
+                                </button>
+                                <button class="btn btn-sm btn-primary" id="btn-export-n4l">
+                                    <span class="material-icons">download</span>
+                                    Exporter
+                                </button>
+                                <button class="btn btn-sm btn-icon" onclick="app.togglePanel('panel-n4l-editor')" data-tooltip="Masquer ou agrandir l'éditeur" data-tooltip-pos="bottom">
+                                    <span class="material-icons">chevron_left</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="panel-description">
+                            <span class="material-icons">info</span>
+                            <strong>N4L (Narrative 4 Logic)</strong> est un langage de description de relations. Syntaxe : <code>Entité -[relation]-> Cible</code>. Cliquez sur <strong>Parser</strong> pour visualiser le graphe.
+                        </div>
+                        <div class="panel-content">
+                            <textarea class="form-textarea" id="n4l-editor" style="min-height: 400px; font-family: monospace;"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="panel" id="panel-n4l-graph">
+                        <div class="panel-header">
+                            <span class="panel-title">Prévisualisation du Graphe</span>
+                            <button class="btn btn-sm btn-icon" onclick="app.togglePanel('panel-n4l-graph')" data-tooltip="Masquer ou agrandir le graphe" data-tooltip-pos="bottom">
+                                <span class="material-icons">chevron_right</span>
+                            </button>
+                        </div>
+                        <div class="panel-description">
+                            <span class="material-icons">info</span>
+                            Visualisation interactive du graphe générée. Cliquez sur les contextes ci-dessous pour filtrer.
+                        </div>
+                        <div class="panel-content" style="display: flex; flex-direction: column; overflow: hidden;">
+                            <div id="n4l-graph-container" style="flex: 1; min-height: 300px;"></div>
+                            <div id="n4l-metadata-container" style="max-height: 300px; overflow-y: auto; margin-top: 0.5rem;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cross-Case Connections View -->
+                <div class="workspace-content hidden" id="view-cross-case">
+                    <div class="panel">
+                        <div class="panel-header">
+                            <span class="panel-title">Connexions Inter-Affaires</span>
+                            <div>
+                                <button class="btn btn-sm btn-secondary" id="btn-scan-connections">
+                                    <span class="material-icons">radar</span>
+                                    Scanner
+                                </button>
+                                <button class="btn btn-sm btn-primary" id="btn-analyze-patterns">
+                                    <span class="material-icons">auto_awesome</span>
+                                    Analyser (IA)
+                                </button>
+                            </div>
+                        </div>
+                        <div class="panel-description">
+                            <span class="material-icons">info</span>
+                            <strong>Recherche de correspondances</strong> entre l'affaire courante et les autres affaires. <strong>Scanner</strong> identifie les entités similaires, lieux communs et modus operandi. <strong>Analyser (IA)</strong> détecte les patterns et génère des hypothèses transversales.
+                        </div>
+                        <div class="panel-content">
+                            <div id="cross-case-summary" class="cross-case-summary">
+                                <div class="empty-state">
+                                    <span class="material-icons empty-state-icon">hub</span>
+                                    <p class="empty-state-description">Cliquez sur "Scanner" pour rechercher des connexions avec d'autres affaires</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="panel">
+                        <div class="panel-header">
+                            <span class="panel-title">Correspondances Détectées</span>
+                            <div class="cross-case-filter-container" style="display: flex; gap: 0.5rem; align-items: center;">
+                                <!-- Recherche textuelle -->
+                                <div class="search-input-wrapper" style="position: relative;">
+                                    <span class="material-icons" style="position: absolute; left: 8px; top: 50%; transform: translateY(-50%); font-size: 18px; color: var(--text-secondary);">search</span>
+                                    <input type="text" id="cross-case-search" class="form-input" placeholder="Rechercher..." style="padding-left: 32px; width: 150px;" data-tooltip="Rechercher par nom d'entité, lieu ou description">
+                                </div>
+                                <!-- Filtre par type -->
+                                <select class="form-select" id="cross-case-filter" style="min-width: 180px;" data-tooltip="Filtrer par type de correspondance">
+                                    <option value="all">Toutes (0)</option>
+                                    <option value="entities">Entités (0)</option>
+                                    <option value="locations">Lieux (0)</option>
+                                    <option value="modus">Modus (0)</option>
+                                    <option value="temporal">Temporel (0)</option>
+                                </select>
+                                <!-- Tri -->
+                                <select class="form-select" id="cross-case-sort" style="min-width: 140px;" data-tooltip="Trier les correspondances">
+                                    <option value="confidence-desc">Confiance ↓</option>
+                                    <option value="confidence-asc">Confiance ↑</option>
+                                    <option value="type">Par type</option>
+                                    <option value="case">Par affaire</option>
+                                    <option value="date-desc">Plus récent</option>
+                                    <option value="date-asc">Plus ancien</option>
+                                </select>
+                                <!-- Groupement -->
+                                <button class="btn btn-sm btn-primary" id="btn-group-matches" data-tooltip="Grouper par affaire liée" data-grouped="true">
+                                    <span class="material-icons">folder_copy</span>
+                                </button>
+                                <!-- Export -->
+                                <div class="dropdown" id="export-matches-dropdown">
+                                    <button class="btn btn-sm btn-secondary" id="btn-export-matches" data-tooltip="Exporter les correspondances">
+                                        <span class="material-icons">download</span>
+                                    </button>
+                                    <div class="dropdown-menu">
+                                        <div class="dropdown-item" data-format="csv">
+                                            <span class="material-icons">table_chart</span>
+                                            Exporter CSV
+                                        </div>
+                                        <div class="dropdown-item" data-format="json">
+                                            <span class="material-icons">data_object</span>
+                                            Exporter JSON
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="panel-description">
+                            <span class="material-icons">info</span>
+                            Liste des correspondances trouvées entre affaires. Cliquez sur une correspondance pour voir les détails et les liens.
+                        </div>
+                        <div class="panel-content" id="cross-case-matches">
+                            <div class="empty-state">
+                                <span class="material-icons empty-state-icon">search</span>
+                                <p class="empty-state-description">Aucune correspondance trouvée pour le moment</p>
+                            </div>
+                        </div>
+                        <!-- Alertes IA intégrées -->
+                        <div class="panel-section-divider" id="alerts-section" style="display: none;">
+                            <span class="material-icons">psychology</span>
+                            <span>Suggestions IA</span>
+                        </div>
+                        <div class="panel-content" id="cross-case-alerts" style="display: none;"></div>
+                    </div>
+
+                    <div class="panel">
+                        <div class="panel-header">
+                            <span class="panel-title">Graphe Multi-Affaires</span>
+                            <div class="panel-header-actions">
+                                <button class="btn btn-sm btn-secondary" id="btn-toggle-crosscase-graph" data-tooltip="Afficher/masquer le graphe des connexions">
+                                    <span class="material-icons">visibility</span>
+                                    Afficher
+                                </button>
+                                <button class="btn btn-sm btn-ghost" id="btn-fullscreen-crosscase" onclick="app.toggleCrossCaseFullscreen()" data-tooltip="Plein écran">
+                                    <span class="material-icons">fullscreen</span>
+                                    Plein écran
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Statistiques des connexions -->
+                        <div id="crosscase-graph-stats" class="crosscase-stats" style="display: none;">
+                            <div class="stat-item" data-tooltip="Nombre total d'affaires connectées">
+                                <span class="material-icons">folder</span>
+                                <span class="stat-value" id="stat-cases-count">0</span>
+                                <span class="stat-label">Affaires</span>
+                            </div>
+                            <div class="stat-item" data-tooltip="Nombre total de connexions détectées">
+                                <span class="material-icons">link</span>
+                                <span class="stat-value" id="stat-connections-count">0</span>
+                                <span class="stat-label">Connexions</span>
+                            </div>
+                            <div class="stat-item" data-tooltip="Entités partagées entre affaires">
+                                <span class="material-icons">person</span>
+                                <span class="stat-value" id="stat-entities-shared">0</span>
+                                <span class="stat-label">Entités</span>
+                            </div>
+                            <div class="stat-item" data-tooltip="Lieux communs entre affaires">
+                                <span class="material-icons">place</span>
+                                <span class="stat-value" id="stat-locations-shared">0</span>
+                                <span class="stat-label">Lieux</span>
+                            </div>
+                        </div>
+
+                        <!-- Filtres par type de connexion -->
+                        <div id="crosscase-graph-filters" class="crosscase-filters" style="display: none;">
+                            <span class="filter-label">Filtrer:</span>
+                            <label class="filter-checkbox" data-tooltip="Afficher les entités similaires">
+                                <input type="checkbox" id="filter-entity" checked data-filter="entity">
+                                <span class="filter-icon" style="background: #3b82f6;"></span>
+                                Entités
+                            </label>
+                            <label class="filter-checkbox" data-tooltip="Afficher les lieux communs">
+                                <input type="checkbox" id="filter-location" checked data-filter="location">
+                                <span class="filter-icon" style="background: #22c55e;"></span>
+                                Lieux
+                            </label>
+                            <label class="filter-checkbox" data-tooltip="Afficher les modus operandi similaires">
+                                <input type="checkbox" id="filter-modus" checked data-filter="modus">
+                                <span class="filter-icon" style="background: #f97316;"></span>
+                                Modus
+                            </label>
+                            <label class="filter-checkbox" data-tooltip="Afficher les chevauchements temporels">
+                                <input type="checkbox" id="filter-temporal" checked data-filter="temporal">
+                                <span class="filter-icon" style="background: #a855f7;"></span>
+                                Temporel
+                            </label>
+                        </div>
+
+                        <div class="panel-content">
+                            <div id="cross-case-graph-container" style="display: none; position: relative;"></div>
+
+                            <!-- Légende du graphe -->
+                            <div id="crosscase-graph-legend" class="crosscase-legend" style="display: none;">
+                                <div class="legend-title">Légende</div>
+                                <div class="legend-section">
+                                    <div class="legend-subtitle">Nœuds</div>
+                                    <div class="legend-item">
+                                        <span class="legend-node" style="background: #3b82f6; border-color: #1d4ed8;"></span>
+                                        Affaire courante
+                                    </div>
+                                    <div class="legend-item">
+                                        <span class="legend-node" style="background: #6366f1; border-color: #4338ca;"></span>
+                                        Autres affaires
+                                    </div>
+                                </div>
+                                <div class="legend-section">
+                                    <div class="legend-subtitle">Connexions</div>
+                                    <div class="legend-item">
+                                        <span class="legend-edge" style="background: #3b82f6;"></span>
+                                        Entité similaire
+                                    </div>
+                                    <div class="legend-item">
+                                        <span class="legend-edge" style="background: #22c55e;"></span>
+                                        Lieu commun
+                                    </div>
+                                    <div class="legend-item">
+                                        <span class="legend-edge" style="background: #f97316;"></span>
+                                        Modus operandi
+                                    </div>
+                                    <div class="legend-item">
+                                        <span class="legend-edge" style="background: #a855f7;"></span>
+                                        Temporel
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="cross-case-graph-placeholder" class="empty-state">
+                                <span class="material-icons empty-state-icon">account_tree</span>
+                                <p class="empty-state-description">Cliquez sur "Afficher" pour visualiser le graphe des connexions</p>
+                            </div>
+                        </div>
+
+                        <!-- Menu contextuel pour le graphe multi-affaires -->
+                        <div id="crosscase-context-menu" class="context-menu" style="display: none;">
+                            <div class="context-menu-item" data-action="open-case">
+                                <span class="material-icons">folder_open</span>
+                                Ouvrir cette affaire
+                            </div>
+                            <div class="context-menu-item" data-action="compare-cases">
+                                <span class="material-icons">compare</span>
+                                Comparer avec affaire courante
+                            </div>
+                            <div class="context-menu-divider"></div>
+                            <div class="context-menu-item" data-action="show-connections">
+                                <span class="material-icons">hub</span>
+                                Voir toutes les connexions
+                            </div>
+                            <div class="context-menu-item" data-action="analyze-link">
+                                <span class="material-icons">psychology</span>
+                                Analyser ce lien (IA)
+                            </div>
+                            <div class="context-menu-divider"></div>
+                            <div class="context-menu-item" data-action="focus-node">
+                                <span class="material-icons">center_focus_strong</span>
+                                Centrer sur ce nœud
+                            </div>
+                            <div class="context-menu-item" data-action="hide-node">
+                                <span class="material-icons">visibility_off</span>
+                                Masquer ce nœud
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- HRM (Hypothetical Reasoning Model) View -->
+                <div class="workspace-content hidden" id="view-hrm">
+                    <div class="panel">
+                        <div class="panel-header">
+                            <span class="panel-title">HRM - Raisonnement Hypothétique</span>
+                            <div class="hrm-status" id="hrm-status">
+                                <span class="status-indicator status-checking"></span>
+                                <span class="status-text">Vérification...</span>
+                            </div>
+                        </div>
+                        <div class="panel-description">
+                            <span class="material-icons">info</span>
+                            <strong>Hypothetical Reasoning Model</strong> - Moteur de raisonnement hiérarchique pour l'analyse forensique.
+                            Utilise une architecture à deux niveaux : planification stratégique et inférence détaillée.
+                        </div>
+                        <div class="panel-content">
+                            <div class="hrm-question-form">
+                                <div class="form-group">
+                                    <label class="form-label">Question d'Investigation</label>
+                                    <textarea class="form-textarea" id="hrm-question" placeholder="Ex: Qui pourrait être le suspect principal basé sur les preuves disponibles?" rows="3"></textarea>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label class="form-label">Type de Raisonnement</label>
+                                        <select class="form-select" id="hrm-reasoning-type">
+                                            <option value="deductive">Déductif - Conclusion logique</option>
+                                            <option value="inductive">Inductif - Généralisation</option>
+                                            <option value="abductive">Abductif - Meilleure explication</option>
+                                            <option value="analogical">Analogique - Par comparaison</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Profondeur</label>
+                                        <select class="form-select" id="hrm-max-depth">
+                                            <option value="2">Rapide (2 étapes)</option>
+                                            <option value="3" selected>Standard (3 étapes)</option>
+                                            <option value="5">Approfondi (5 étapes)</option>
+                                            <option value="7">Exhaustif (7 étapes)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <button class="btn btn-primary" id="btn-hrm-reason">
+                                    <span class="material-icons">psychology</span>
+                                    Lancer le Raisonnement
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="panel">
+                        <div class="panel-header">
+                            <span class="panel-title">Vérification d'Hypothèses</span>
+                            <button class="btn btn-sm btn-secondary" id="btn-hrm-verify-all">
+                                <span class="material-icons">fact_check</span>
+                                Vérifier Toutes
+                            </button>
+                        </div>
+                        <div class="panel-description">
+                            <span class="material-icons">info</span>
+                            Sélectionnez une hypothèse pour la vérifier avec HRM. L'analyse compare l'hypothèse aux preuves disponibles.
+                        </div>
+                        <div class="panel-content" id="hrm-hypotheses-list">
+                            <div class="empty-state">
+                                <span class="material-icons empty-state-icon">checklist</span>
+                                <p class="empty-state-description">Sélectionnez une affaire pour voir les hypothèses à vérifier</p>
+                            </div>
+                        </div>
+                        <div class="panel-content" id="hrm-verification-results" style="border-top: 1px solid var(--border); display: none;">
+                            <!-- Résultats de vérification des hypothèses -->
+                        </div>
+                    </div>
+
+                    <div class="panel">
+                        <div class="panel-header">
+                            <span class="panel-title">Détection de Contradictions</span>
+                            <button class="btn btn-sm btn-primary" id="btn-hrm-contradictions">
+                                <span class="material-icons">compare_arrows</span>
+                                Analyser
+                            </button>
+                        </div>
+                        <div class="panel-description">
+                            <span class="material-icons">info</span>
+                            Détecte automatiquement les contradictions entre témoignages, preuves et hypothèses.
+                        </div>
+                        <div class="panel-content" id="hrm-contradictions-result">
+                            <div class="empty-state">
+                                <span class="material-icons empty-state-icon">error_outline</span>
+                                <p class="empty-state-description">Cliquez sur "Analyser" pour détecter les contradictions</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="panel">
+                        <div class="panel-header">
+                            <span class="panel-title">Résultats du Raisonnement</span>
+                        </div>
+                        <div class="panel-content" id="hrm-results">
+                            <div class="empty-state">
+                                <span class="material-icons empty-state-icon">insights</span>
+                                <p class="empty-state-description">Les résultats du raisonnement HRM apparaîtront ici</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Investigation Mode View -->
+                <div class="workspace-content hidden" id="view-investigation">
+                    <div class="panel">
+                        <div class="panel-header">
+                            <span class="panel-title">Mode Investigation Guidée</span>
+                            <div>
+                                <button class="btn btn-sm btn-primary" id="btn-start-investigation">
+                                    <span class="material-icons">play_arrow</span>
+                                    Démarrer
+                                </button>
+                            </div>
+                        </div>
+                        <div class="panel-description">
+                            <span class="material-icons">info</span>
+                            <strong>Investigation structurée</strong> suivant les méthodologies PEACE et PROGREAI.
+                            Parcourez les étapes: Acteurs → Lieux → Chronologie → Mobiles → Preuves → Synthèse.
+                        </div>
+                        <div class="panel-content">
+                            <div id="investigation-steps" class="investigation-steps">
+                                <div class="empty-state">
+                                    <span class="material-icons empty-state-icon">search</span>
+                                    <p class="empty-state-description">Cliquez sur "Démarrer" pour lancer une session d'investigation guidée</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="panel">
+                        <div class="panel-header">
+                            <span class="panel-title">Étape Courante</span>
+                            <div id="investigation-step-actions" class="hidden">
+                                <button class="btn btn-sm btn-secondary" id="btn-investigation-suggest">
+                                    <span class="material-icons">lightbulb</span>
+                                    Suggestions
+                                </button>
+                                <button class="btn btn-sm btn-primary" id="btn-investigation-analyze">
+                                    <span class="material-icons">psychology</span>
+                                    Analyser (IA)
+                                </button>
+                            </div>
+                        </div>
+                        <div class="panel-description">
+                            <span class="material-icons">info</span>
+                            Détails et questions de l'étape en cours. Utilisez <strong>Suggestions</strong> pour des pistes automatiques
+                            et <strong>Analyser</strong> pour une analyse IA.
+                        </div>
+                        <div class="panel-content" id="investigation-current-step">
+                            <div class="empty-state">
+                                <span class="material-icons empty-state-icon">assignment</span>
+                                <p class="empty-state-description">Sélectionnez une étape d'investigation</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="panel">
+                        <div class="panel-header">
+                            <span class="panel-title">Insights et Recommandations</span>
+                        </div>
+                        <div class="panel-description">
+                            <span class="material-icons">info</span>
+                            Observations automatiques et recommandations basées sur l'analyse du graphe de l'affaire.
+                        </div>
+                        <div class="panel-content" id="investigation-insights">
+                            <div class="empty-state">
+                                <span class="material-icons empty-state-icon">tips_and_updates</span>
+                                <p class="empty-state-description">Les insights apparaîtront après le démarrage de l'investigation</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="panel">
+                        <div class="panel-header">
+                            <span class="panel-title">Notes d'Investigation</span>
+                        </div>
+                        <div class="panel-content">
+                            <textarea class="form-textarea" id="investigation-notes" rows="6" placeholder="Prenez des notes pendant votre investigation..."></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Graph Analysis View -->
+                <div class="workspace-content hidden" id="view-graph-analysis">
+                    <div class="panel panel-full">
+                        <div class="panel-header">
+                            <span class="panel-title">Analyse de Graphe</span>
+                            <div>
+                                <button class="btn btn-sm btn-primary" id="btn-analyze-graph-complete">
+                                    <span class="material-icons">analytics</span>
+                                    Analyse Complète
+                                </button>
+                            </div>
+                        </div>
+                        <div class="panel-description">
+                            <span class="material-icons">info</span>
+                            <strong>Analyse structurelle</strong> du graphe de connaissances: détection de clusters, patterns temporels,
+                            couches hiérarchiques, et vérification de cohérence.
+                        </div>
+                        <div class="panel-content" id="graph-analysis-summary">
+                            <div class="empty-state">
+                                <span class="material-icons empty-state-icon">analytics</span>
+                                <p class="empty-state-description">Cliquez sur "Analyse Complète" pour analyser le graphe</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="panel panel-full">
+                        <div class="panel-header" style="border-bottom: none; padding-bottom: 0;">
+                            <div class="graph-analysis-tabs">
+                                <button class="graph-analysis-tab active" data-tab="clusters" data-tooltip="Groupes d'entités fortement connectées entre elles">
+                                    <span class="material-icons">hub</span>
+                                    Clusters
+                                </button>
+                                <button class="graph-analysis-tab" data-tab="centrality" data-tooltip="Identifie les nœuds les plus influents du réseau">
+                                    <span class="material-icons">star</span>
+                                    Centralité
+                                </button>
+                                <button class="graph-analysis-tab" data-tab="alibis" data-tooltip="Analyse temporelle des alibis et contradictions">
+                                    <span class="material-icons">schedule</span>
+                                    Alibis
+                                </button>
+                                <button class="graph-analysis-tab" data-tab="density" data-tooltip="Carte de densité des connexions du graphe">
+                                    <span class="material-icons">grid_on</span>
+                                    Densité
+                                </button>
+                                <button class="graph-analysis-tab" data-tab="consistency" data-tooltip="Vérifie la cohérence logique des relations">
+                                    <span class="material-icons">fact_check</span>
+                                    Cohérence
+                                </button>
+                                <button class="graph-analysis-tab" data-tab="patterns" data-tooltip="Détecte les motifs temporels récurrents">
+                                    <span class="material-icons">timeline</span>
+                                    Patterns
+                                </button>
+                                <button class="graph-analysis-tab" data-tab="cones" data-tooltip="Cônes d'expansion : voisinage causal avant/arrière">
+                                    <span class="material-icons">blur_circular</span>
+                                    Cônes
+                                </button>
+                                <button class="graph-analysis-tab" data-tab="appointed" data-tooltip="Nœuds corrélés partageant les mêmes voisins">
+                                    <span class="material-icons">adjust</span>
+                                    Appointés
+                                </button>
+                                <button class="graph-analysis-tab" data-tab="eigenvector" data-tooltip="Centralité Eigenvector : influence par propagation">
+                                    <span class="material-icons">insights</span>
+                                    Eigenvector
+                                </button>
+                                <button class="graph-analysis-tab" data-tab="sttypes" data-tooltip="Types sémantiques spacetime des relations">
+                                    <span class="material-icons">category</span>
+                                    STTypes
+                                </button>
+                                <button class="graph-analysis-tab" data-tab="sstorytime" data-tooltip="Analyses avancées : Contrawave, Dirac, Orbites">
+                                    <span class="material-icons">waves</span>
+                                    SSTorytime+
+                                </button>
+                            </div>
+                        </div>
+                        <div class="panel-content">
+                            <!-- Tab: Clusters -->
+                            <div class="graph-analysis-tab-content active" id="tab-clusters">
+                                <div class="tab-description">
+                                    <span class="material-icons">info</span>
+                                    <strong>Détection de clusters</strong> : identifie les groupes d'entités fortement interconnectées, révélant des sous-réseaux naturels dans l'affaire. <em>Exemple : un cluster pourrait regrouper "Entreprise X + PDG + Comptable + Factures" tandis qu'un autre regroupe "Victime + Famille + Domicile".</em>
+                                </div>
+                                <div class="clusters-container">
+                                    <div class="clusters-list-panel">
+                                        <div id="clusters-list">
+                                            <div class="empty-state">
+                                                <span class="material-icons empty-state-icon">bubble_chart</span>
+                                                <p class="empty-state-description">Aucun cluster détecté</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="cluster-preview-panel">
+                                        <div class="cluster-preview-header">
+                                            <span class="material-icons">visibility</span>
+                                            <span>Aperçu du cluster</span>
+                                        </div>
+                                        <div id="cluster-mini-graph" class="cluster-mini-graph">
+                                            <div class="empty-state">
+                                                <span class="material-icons empty-state-icon">touch_app</span>
+                                                <p class="empty-state-description">Sélectionnez un cluster</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Tab: Centralité -->
+                            <div class="graph-analysis-tab-content" id="tab-centrality">
+                                <div class="tab-description">
+                                    <span class="material-icons">info</span>
+                                    <strong>Centralité</strong> : mesure l'importance de chaque entité selon son nombre de connexions et calcule un score de suspicion. Plus un nœud est central, plus il est influent dans le réseau. <em>Exemple : si "Jean Dupont" est connecté à 12 entités (témoins, preuves, lieux) alors que les autres suspects n'en ont que 3-4, il apparaîtra en tête du classement.</em>
+                                </div>
+                                <div class="centrality-container">
+                                    <div class="centrality-section">
+                                        <h4><span class="material-icons">leaderboard</span> Classement par centralité</h4>
+                                        <div id="centrality-ranking">
+                                            <div class="empty-state">
+                                                <span class="material-icons empty-state-icon">bar_chart</span>
+                                                <p class="empty-state-description">Lancez l'analyse pour voir le classement</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="centrality-section">
+                                        <h4><span class="material-icons">psychology</span> Scores de suspicion</h4>
+                                        <p class="section-description">Score calculé selon: connexions, mobiles, opportunité, preuves liées</p>
+                                        <div id="suspicion-scores">
+                                            <div class="empty-state">
+                                                <span class="material-icons empty-state-icon">person_search</span>
+                                                <p class="empty-state-description">Lancez l'analyse pour voir les scores</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Tab: Alibis Timeline -->
+                            <div class="graph-analysis-tab-content" id="tab-alibis">
+                                <div class="tab-description">
+                                    <span class="material-icons">info</span>
+                                    <strong>Timeline des alibis</strong> : visualise les créneaux horaires où chaque suspect a un alibi vérifié, non vérifié, ou aucun alibi (fenêtre d'opportunité). Croise automatiquement avec l'heure du crime. <em>Exemple : si le crime a eu lieu entre 22h et 23h, et que "Suspect A" n'a aucun alibi entre 21h30 et 23h30, cette fenêtre sera surlignée en rouge.</em>
+                                </div>
+                                <div class="alibis-container">
+                                    <div class="alibis-legend">
+                                        <span class="legend-item"><span class="legend-color alibi-verified"></span> Alibi vérifié</span>
+                                        <span class="legend-item"><span class="legend-color alibi-unverified"></span> Alibi non vérifié</span>
+                                        <span class="legend-item"><span class="legend-color alibi-opportunity"></span> Fenêtre d'opportunité</span>
+                                        <span class="legend-item"><span class="legend-color alibi-crime"></span> Heure du crime</span>
+                                    </div>
+                                    <div id="alibis-timeline">
+                                        <div class="empty-state">
+                                            <span class="material-icons empty-state-icon">schedule</span>
+                                            <p class="empty-state-description">Lancez l'analyse pour voir la timeline des alibis</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Tab: Densité -->
+                            <div class="graph-analysis-tab-content" id="tab-density">
+                                <div class="tab-description">
+                                    <span class="material-icons">info</span>
+                                    <strong>Carte de densité</strong> : visualise les zones du graphe bien explorées (nombreuses connexions) versus les zones peu explorées nécessitant plus d'investigation. <em>Exemple : si "Marie Martin" n'a qu'une seule connexion alors que tous les autres personnages en ont 5+, elle apparaîtra comme une zone à explorer davantage.</em>
+                                </div>
+                                <div id="density-map">
+                                    <div class="empty-state">
+                                        <span class="material-icons empty-state-icon">blur_on</span>
+                                        <p class="empty-state-description">Calculez la carte de densité</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Tab: Cohérence -->
+                            <div class="graph-analysis-tab-content" id="tab-consistency">
+                                <div class="tab-description">
+                                    <span class="material-icons">info</span>
+                                    <strong>Vérification de cohérence</strong> : détecte les incohérences logiques dans le graphe : contradictions entre témoignages, entités orphelines sans connexion, et cycles suspects. <em>Exemple : si "Témoin A dit que Pierre était à Paris" et "Témoin B dit que Pierre était à Lyon" au même moment → contradiction détectée.</em>
+                                </div>
+                                <div id="consistency-result">
+                                    <div class="empty-state">
+                                        <span class="material-icons empty-state-icon">verified</span>
+                                        <p class="empty-state-description">Lancez la vérification de cohérence</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Tab: Patterns Temporels -->
+                            <div class="graph-analysis-tab-content" id="tab-patterns">
+                                <div class="tab-description">
+                                    <span class="material-icons">info</span>
+                                    <strong>Patterns temporels</strong> : détecte automatiquement les séquences récurrentes d'événements et les comportements cycliques dans la timeline. <em>Exemple : "Appel téléphonique → Retrait bancaire → Rencontre café" apparaît 3 fois les mêmes jours → pattern suspect identifié.</em>
+                                </div>
+                                <div id="temporal-patterns-list">
+                                    <div class="empty-state">
+                                        <span class="material-icons empty-state-icon">schedule</span>
+                                        <p class="empty-state-description">Aucun pattern temporel détecté</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Tab: Cônes d'Expansion (SSTorytime) -->
+                            <div class="graph-analysis-tab-content" id="tab-cones">
+                                <div class="tab-description">
+                                    <span class="material-icons">info</span>
+                                    <strong>Cônes d'expansion</strong> : explore toutes les connexions accessibles depuis un nœud, soit vers l'avant (où mène-t-il ?), soit vers l'arrière (d'où vient-il ?). <em>Exemple : depuis "Arme du crime", cône avant → "Scène de crime, Victime, ADN" ; cône arrière → "Magasin d'achat, Suspect, Transaction bancaire".</em>
+                                </div>
+                                <div class="cone-search-controls">
+                                    <div class="form-group">
+                                        <label>Nœud de départ</label>
+                                        <select class="form-select" id="cone-start-node">
+                                            <option value="">Sélectionnez un nœud...</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Direction</label>
+                                        <select class="form-select" id="cone-direction">
+                                            <option value="bidirectional">Bidirectionnel</option>
+                                            <option value="forward">Avant (→)</option>
+                                            <option value="backward">Arrière (←)</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Profondeur</label>
+                                        <input type="number" class="form-input" id="cone-depth" value="3" min="1" max="10">
+                                    </div>
+                                    <button class="btn btn-primary" id="btn-cone-search">
+                                        <span class="material-icons">blur_circular</span>
+                                        Explorer le cône
+                                    </button>
+                                </div>
+                                <div id="cone-search-results">
+                                    <div class="empty-state">
+                                        <span class="material-icons empty-state-icon">blur_circular</span>
+                                        <p class="empty-state-description">Sélectionnez un nœud et lancez l'exploration</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Tab: Nœuds Appointés (SSTorytime) -->
+                            <div class="graph-analysis-tab-content" id="tab-appointed">
+                                <div class="tab-description">
+                                    <span class="material-icons">info</span>
+                                    <strong>Nœuds appointés</strong> : identifie les entités pointées par plusieurs sources indépendantes, révélant des points de convergence critiques. <em>Exemple : si "Compte bancaire offshore" est mentionné par 3 témoins différents et lié à 2 preuves documentaires → nœud fortement appointé = piste prioritaire.</em>
+                                </div>
+                                <div class="appointed-controls">
+                                    <div class="form-group">
+                                        <label>Seuil minimum de sources</label>
+                                        <input type="number" class="form-input" id="appointed-threshold" value="2" min="2" max="10">
+                                    </div>
+                                    <button class="btn btn-primary" id="btn-find-appointed">
+                                        <span class="material-icons">adjust</span>
+                                        Détecter les nœuds appointés
+                                    </button>
+                                </div>
+                                <div id="appointed-nodes-list">
+                                    <div class="empty-state">
+                                        <span class="material-icons empty-state-icon">adjust</span>
+                                        <p class="empty-state-description">Lancez la détection pour identifier les points de convergence</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Tab: Centralité Eigenvector (SSTorytime) -->
+                            <div class="graph-analysis-tab-content" id="tab-eigenvector">
+                                <div class="tab-description">
+                                    <span class="material-icons">info</span>
+                                    <strong>Centralité Eigenvector</strong> : mesure l'influence réelle d'un nœud en tenant compte de l'influence de ses voisins (comme PageRank de Google). Être connecté à des nœuds influents augmente votre propre influence. <em>Exemple : "Avocat de la défense" peut avoir peu de connexions mais être très influent car connecté au "Juge", au "Procureur" et au "Suspect principal".</em>
+                                </div>
+                                <div class="eigenvector-controls">
+                                    <div class="form-group">
+                                        <label>Itérations max</label>
+                                        <input type="number" class="form-input" id="eigenvector-iterations" value="100" min="10" max="500">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Tolérance</label>
+                                        <input type="number" class="form-input" id="eigenvector-tolerance" value="0.0001" step="0.0001" min="0.00001" max="0.01">
+                                    </div>
+                                    <button class="btn btn-primary" id="btn-eigenvector">
+                                        <span class="material-icons">insights</span>
+                                        Calculer la centralité
+                                    </button>
+                                </div>
+                                <div id="eigenvector-centrality-list">
+                                    <div class="empty-state">
+                                        <span class="material-icons empty-state-icon">insights</span>
+                                        <p class="empty-state-description">Calculez la centralité eigenvector pour identifier les influenceurs</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Tab: STTypes Sémantiques (SSTorytime) -->
+                            <div class="graph-analysis-tab-content" id="tab-sttypes">
+                                <div class="tab-description">
+                                    <span class="material-icons">info</span>
+                                    <strong>STTypes (Semantic Spacetime)</strong> : classifie automatiquement les relations selon leur nature sémantique (causalité, possession, localisation, appartenance...). <em>Exemple : "possède" → type POSSESSION, "était à" → type LOCALISATION, "a causé" → type CAUSALITÉ. Permet d'analyser la structure narrative de l'affaire.</em>
+                                </div>
+                                <div class="sttypes-controls">
+                                    <button class="btn btn-primary" id="btn-analyze-sttypes">
+                                        <span class="material-icons">category</span>
+                                        Analyser les types sémantiques
+                                    </button>
+                                </div>
+                                <div id="sttype-analysis">
+                                    <div class="empty-state">
+                                        <span class="material-icons empty-state-icon">category</span>
+                                        <p class="empty-state-description">Lancez l'analyse pour classifier les relations sémantiques</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Tab: SSTorytime Avancé -->
+                            <div class="graph-analysis-tab-content" id="tab-sstorytime">
+                                <div class="tab-description">
+                                    <span class="material-icons">info</span>
+                                    <strong>SSTorytime Avancé</strong> : outils d'analyse avancés incluant la recherche Contrawave (collision de fronts d'onde pour trouver les points de passage critiques), la détection de Super-Nœuds (entités interchangeables), et la Betweenness Centrality (nœuds "ponts" contrôlant le flux). <em>Exemple Contrawave : trouver tous les chemins entre "Victime" et "Suspect" révèle que "Café du Commerce" est un point de passage obligé.</em>
+                                </div>
+
+                                <!-- Analyse Complète SSTorytime -->
+                                <div class="sstorytime-section">
+                                    <h4><span class="material-icons">auto_awesome</span> Analyse Complète SSTorytime</h4>
+                                    <p class="section-description">Lance toutes les analyses SSTorytime en une seule requête : Cônes d'expansion, Nœuds appointés, Eigenvector, STTypes, Contrawave, Super-Nœuds et Betweenness. <em>Génère un rapport complet de la structure du graphe en quelques secondes.</em></p>
+                                    <button class="btn btn-primary" id="btn-sstorytime-complete">
+                                        <span class="material-icons">play_circle</span>
+                                        Lancer l'analyse complète
+                                    </button>
+                                    <div id="sstorytime-summary">
+                                        <div class="empty-state">
+                                            <span class="material-icons empty-state-icon">analytics</span>
+                                            <p class="empty-state-description">Cliquez pour lancer l'analyse complète</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Contrawave Search -->
+                                <div class="sstorytime-section" id="section-contrawave">
+                                    <h4><span class="material-icons">waves</span> Recherche Contrawave</h4>
+                                    <p class="section-description">Collision de fronts d'onde bidirectionnels : deux "vagues" partent simultanément des nœuds sources et cibles, et on identifie où elles se rencontrent. Ces points de collision sont des passages obligés reliant les deux groupes. <em>Exemple : entre "Famille de la victime" et "Suspects", la collision révèle que "Notaire Lefebvre" et "Manoir" sont des points de passage critiques.</em></p>
+                                    <div class="contrawave-controls">
+                                        <div class="form-row">
+                                            <div class="form-group">
+                                                <label>Nœuds de départ (Ctrl+clic pour multi-sélection)</label>
+                                                <select class="form-select" id="contrawave-start-nodes" multiple size="4">
+                                                </select>
+                                            </div>
+                                            <div class="form-group">
+                                                <label>Nœuds cibles (Ctrl+clic pour multi-sélection)</label>
+                                                <select class="form-select" id="contrawave-end-nodes" multiple size="4">
+                                                </select>
+                                            </div>
+                                            <div class="form-group">
+                                                <label>Profondeur max</label>
+                                                <input type="number" class="form-input" id="contrawave-depth" value="5" min="1" max="10">
+                                            </div>
+                                        </div>
+                                        <button class="btn btn-primary" id="btn-contrawave-search">
+                                            <span class="material-icons">compare_arrows</span>
+                                            Lancer la recherche Contrawave
+                                        </button>
+                                    </div>
+                                    <div id="contrawave-results">
+                                        <div class="empty-state">
+                                            <span class="material-icons empty-state-icon">compare_arrows</span>
+                                            <p class="empty-state-description">Sélectionnez des nœuds de départ et cibles pour trouver les points de collision</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Super-Nodes Detection -->
+                                <div class="sstorytime-section">
+                                    <h4><span class="material-icons">group_work</span> Détection de Super-Nœuds</h4>
+                                    <p class="section-description">Identifie les groupes de nœuds structurellement équivalents : mêmes voisins, mêmes types de relations. Ces entités sont "interchangeables" dans le réseau et pourraient jouer des rôles similaires. <em>Exemple : si "Témoin A" et "Témoin B" sont tous deux connectés uniquement à "Scène du crime" et "Enquêteur", ils forment un super-nœud = ils ont la même position dans l'enquête.</em></p>
+                                    <div class="supernodes-controls">
+                                        <div class="form-group">
+                                            <label>Seuil de similarité (0-1)</label>
+                                            <input type="number" class="form-input" id="supernode-threshold" value="0.7" min="0.1" max="1" step="0.1">
+                                        </div>
+                                        <button class="btn btn-primary" id="btn-super-nodes">
+                                            <span class="material-icons">group_work</span>
+                                            Détecter les Super-Nœuds
+                                        </button>
+                                    </div>
+                                    <div id="supernodes-results">
+                                        <div class="empty-state">
+                                            <span class="material-icons empty-state-icon">group_work</span>
+                                            <p class="empty-state-description">Détectez les entités interchangeables dans l'enquête</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Betweenness Centrality -->
+                                <div class="sstorytime-section">
+                                    <h4><span class="material-icons">alt_route</span> Centralité d'Intermédiarité (Betweenness)</h4>
+                                    <p class="section-description">Mesure combien de chemins passent par chaque nœud. Un score élevé = nœud "pont" qui contrôle le flux d'information entre différentes parties du réseau. Supprimer ce nœud fragmenterait le graphe. <em>Exemple : "Secrétaire du PDG" avec betweenness élevé = toutes les informations entre "Direction" et "Employés" passent par elle → personne clé à interroger.</em></p>
+                                    <div class="betweenness-controls">
+                                        <button class="btn btn-primary" id="btn-betweenness">
+                                            <span class="material-icons">alt_route</span>
+                                            Calculer Betweenness Centrality
+                                        </button>
+                                    </div>
+                                    <div id="betweenness-results">
+                                        <div class="empty-state">
+                                            <span class="material-icons empty-state-icon">alt_route</span>
+                                            <p class="empty-state-description">Identifiez les nœuds critiques pour la connectivité du réseau</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Chemins Contraints -->
+                                <div class="sstorytime-section">
+                                    <h4><span class="material-icons">filter_alt</span> Chemins Contraints</h4>
+                                    <p class="section-description">Recherche de chemins en filtrant par type de relation. Incluez uniquement certains types (ex: "financier") ou excluez-en d'autres (ex: "familial"). Permet de tracer des flux spécifiques. <em>Exemple : trouver les chemins entre "Suspect" et "Victime" en excluant les relations "connaît" → révèle uniquement les liens financiers ou professionnels.</em></p>
+                                    <div class="constrained-controls">
+                                        <div class="form-row">
+                                            <div class="form-group">
+                                                <label>Nœud de départ</label>
+                                                <select class="form-select" id="constrained-from-node">
+                                                    <option value="">Sélectionnez...</option>
+                                                </select>
+                                            </div>
+                                            <div class="form-group">
+                                                <label>Nœud d'arrivée</label>
+                                                <select class="form-select" id="constrained-to-node">
+                                                    <option value="">Sélectionnez...</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="form-row">
+                                            <div class="form-group">
+                                                <label>Types autorisés (optionnel)</label>
+                                                <select class="form-select" id="constrained-allowed-types" multiple size="3">
+                                                </select>
+                                            </div>
+                                            <div class="form-group">
+                                                <label>Types exclus (optionnel)</label>
+                                                <select class="form-select" id="constrained-excluded-types" multiple size="3">
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="form-row">
+                                            <div class="form-group">
+                                                <label>Profondeur max</label>
+                                                <input type="number" class="form-input" id="constrained-max-depth" value="5" min="1" max="10">
+                                            </div>
+                                            <div class="form-group">
+                                                <label>Nb chemins max</label>
+                                                <input type="number" class="form-input" id="constrained-max-paths" value="10" min="1" max="50">
+                                            </div>
+                                        </div>
+                                        <button class="btn btn-primary" id="btn-constrained-paths">
+                                            <span class="material-icons">filter_alt</span>
+                                            Rechercher les chemins
+                                        </button>
+                                    </div>
+                                    <div id="constrained-paths-results">
+                                        <div class="empty-state">
+                                            <span class="material-icons empty-state-icon">filter_alt</span>
+                                            <p class="empty-state-description">Filtrez les chemins par type de relation</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Notation Dirac -->
+                                <div class="sstorytime-section" id="section-dirac">
+                                    <h4><span class="material-icons">science</span> Notation Dirac &lt;cible|source&gt;</h4>
+                                    <p class="section-description">Syntaxe inspirée de la mécanique quantique (bra-ket) pour exprimer des requêtes de chemin. Le format &lt;cible|source&gt; explore simultanément les chemins dans les deux directions, comme une "superposition" de trajectoires. <em>Exemple : &lt;Victime|Suspect&gt; trouve tous les chemins reliant ces deux entités, dans les deux sens, révélant les connexions cachées.</em></p>
+                                    <div class="dirac-controls">
+                                        <div class="form-row">
+                                            <div class="form-group form-group-wide">
+                                                <label>Requête Dirac</label>
+                                                <input type="text" class="form-input" id="dirac-query" placeholder="<Victime|Suspect>">
+                                                <small class="form-help">Format: &lt;cible|source&gt; - explore les chemins dans les deux sens</small>
+                                                <div id="dirac-examples" class="dirac-examples"></div>
+                                            </div>
+                                        </div>
+                                        <div class="form-row">
+                                            <div class="form-group">
+                                                <label>Profondeur max</label>
+                                                <input type="number" class="form-input" id="dirac-max-depth" value="5" min="1" max="10">
+                                            </div>
+                                            <div class="form-group">
+                                                <label>Nb chemins max</label>
+                                                <input type="number" class="form-input" id="dirac-max-paths" value="10" min="1" max="50">
+                                            </div>
+                                            <div class="form-group">
+                                                <label class="checkbox-label">
+                                                    <input type="checkbox" id="dirac-bidirectional" checked>
+                                                    Bidirectionnel
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <button class="btn btn-primary" id="btn-dirac-search">
+                                            <span class="material-icons">science</span>
+                                            Recherche Dirac
+                                        </button>
+                                    </div>
+                                    <div id="dirac-results">
+                                        <div class="empty-state">
+                                            <span class="material-icons empty-state-icon">science</span>
+                                            <p class="empty-state-description">Utilisez la notation Dirac pour explorer les chemins quantiques</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Orbites -->
+                                <div class="sstorytime-section" id="section-orbits">
+                                    <h4><span class="material-icons">radar</span> Analyse des Orbites</h4>
+                                    <p class="section-description">Exploration concentrique : visualise les nœuds par cercles de distance depuis un point central (niveau 1 = voisins directs, niveau 2 = voisins des voisins, etc.). Révèle la sphère d'influence d'une entité. <em>Exemple : orbites autour de "Suspect principal" → Niveau 1 : famille, avocat ; Niveau 2 : témoins, collègues ; Niveau 3 : connaissances éloignées.</em></p>
+                                    <div class="orbits-controls">
+                                        <div class="form-row">
+                                            <div class="form-group">
+                                                <label>Nœud central</label>
+                                                <select class="form-select" id="orbit-center-node">
+                                                    <option value="">Sélectionnez...</option>
+                                                </select>
+                                            </div>
+                                            <div class="form-group">
+                                                <label>Niveaux max</label>
+                                                <input type="number" class="form-input" id="orbit-max-level" value="4" min="1" max="10">
+                                            </div>
+                                        </div>
+                                        <button class="btn btn-primary" id="btn-orbits">
+                                            <span class="material-icons">radar</span>
+                                            Analyser les orbites
+                                        </button>
+                                    </div>
+                                    <div id="orbits-results">
+                                        <div class="empty-state">
+                                            <span class="material-icons empty-state-icon">radar</span>
+                                            <p class="empty-state-description">Explorez le voisinage structuré autour d'une entité</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Geo Map View -->
+                <div class="workspace-content hidden" id="view-geo-map">
+                    <div class="panel panel-full">
+                        <div class="panel-header">
+                            <span class="panel-title">
+                                <span class="material-icons">map</span>
+                                Carte Géographique
+                            </span>
+                        </div>
+                        <div class="modal-explanation" style="margin: 1rem; border-radius: 8px;">
+                            <span class="material-icons">info</span>
+                            <p><strong>Marqueurs</strong> affiche les lieux liés à l'affaire. <strong>Trajets</strong> trace les déplacements chronologiques entre les lieux. <strong>Zones de chaleur</strong> visualise l'intensité d'activité par zone. <strong>Sync Timeline</strong> filtre les lieux selon la période sélectionnée.</p>
+                        </div>
+                        <div class="panel-content" id="geo-map-content">
+                            <div class="empty-state">
+                                <span class="material-icons empty-state-icon">map</span>
+                                <p class="empty-state-description">Sélectionnez une affaire pour afficher la carte des lieux</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Notebook View -->
+                <div class="workspace-content hidden" id="view-notebook">
+                    <div class="panel panel-full">
+                        <div class="panel-header">
+                            <span class="panel-title" id="notebook-panel-title">Notebook - Analyses IA</span>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <input type="text" class="form-input form-input-sm" id="notebook-search" placeholder="Rechercher..." style="width: 200px;">
+                                <select class="form-select form-select-sm" id="notebook-type-filter" style="min-width: 150px;">
+                                    <option value="all">Tous les types</option>
+                                    <option value="graph_analysis">Analyse graphe</option>
+                                    <option value="hypothesis">Hypothèses</option>
+                                    <option value="contradiction">Contradictions</option>
+                                    <option value="question">Questions</option>
+                                    <option value="entity_analysis">Analyse entité</option>
+                                    <option value="evidence_analysis">Analyse preuve</option>
+                                    <option value="path_analysis">Analyse chemins</option>
+                                    <option value="hrm_reasoning">Raisonnement HRM</option>
+                                    <option value="investigation">Investigation</option>
+                                    <option value="cross_case_analysis">Inter-affaires</option>
+                                    <option value="chat">Chat IA</option>
+                                    <option value="manual">Manuel</option>
+                                </select>
+                                <select class="form-select form-select-sm" id="notebook-sort" style="min-width: 120px;">
+                                    <option value="date_desc">Plus récent</option>
+                                    <option value="date_asc">Plus ancien</option>
+                                    <option value="title_asc">Titre A-Z</option>
+                                    <option value="title_desc">Titre Z-A</option>
+                                    <option value="pinned">Épinglées</option>
+                                </select>
+                                <button class="btn btn-sm btn-primary" id="btn-add-manual-note" style="white-space: nowrap;">
+                                    <span class="material-icons">add</span>
+                                    Nouvelle note
+                                </button>
+                            </div>
+                        </div>
+                        <div class="panel-description">
+                            <span class="material-icons">info</span>
+                            <strong>Centralisez toutes vos analyses IA</strong> dans ce carnet de notes. Cliquez sur <strong>Noter</strong> dans les modals d'analyse pour sauvegarder. Épinglez les notes importantes et utilisez les tags pour organiser.
+                        </div>
+                        <div class="panel-content">
+                            <!-- Statistiques -->
+                            <div id="notebook-stats" class="notebook-stats" style="display: flex; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap;">
+                                <!-- Stats loaded by JS -->
+                            </div>
+                            <!-- Liste des notes -->
+                            <div id="notebook-notes-list" class="notebook-notes-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 1rem;">
+                                <div class="empty-state">
+                                    <span class="material-icons empty-state-icon">menu_book</span>
+                                    <p class="empty-state-title">Notebook vide</p>
+                                    <p class="empty-state-description">Sauvegardez des analyses IA en cliquant sur "Noter" dans les modals d'analyse.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Configuration View -->
+                <div class="workspace-content hidden" id="view-config">
+                    <div class="panel panel-full">
+                        <div class="panel-header">
+                            <span class="panel-title">Configuration des Prompts IA</span>
+                            <div>
+                                <button class="btn btn-sm btn-secondary" id="btn-reload-config">
+                                    <span class="material-icons">refresh</span>
+                                    Recharger
+                                </button>
+                                <button class="btn btn-sm btn-primary" id="btn-save-config">
+                                    <span class="material-icons">save</span>
+                                    Sauvegarder
+                                </button>
+                            </div>
+                        </div>
+                        <div class="panel-description">
+                            <span class="material-icons">info</span>
+                            Personnalisez les <strong>prompts système</strong> utilisés par l'IA pour l'analyse forensique. Chaque prompt définit le comportement de l'IA pour une tâche spécifique. Les modifications sont sauvegardées dans le fichier <code>config/prompts.json</code>.
+                        </div>
+                        <div class="panel-content" style="display: flex; flex-direction: column; gap: 1rem; padding: 1rem;">
+
+                            <!-- Language Instruction -->
+                            <div class="config-section">
+                                <div class="config-section-header">
+                                    <h3><span class="material-icons">language</span> Instruction de Langue</h3>
+                                </div>
+                                <textarea class="form-textarea" id="config-language-instruction" rows="2" placeholder="Ex: IMPORTANT: Tu DOIS répondre UNIQUEMENT en FRANÇAIS."></textarea>
+                            </div>
+
+                            <!-- Prompts List -->
+                            <div class="config-prompts-container">
+                                <div class="config-prompts-nav" id="config-prompts-nav">
+                                    <!-- Navigation buttons will be generated by JS -->
+                                </div>
+                                <div class="config-prompt-editor" id="config-prompt-editor">
+                                    <div class="empty-state">
+                                        <span class="material-icons empty-state-icon">edit_note</span>
+                                        <p class="empty-state-description">Sélectionnez un prompt à éditer</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Models Configuration -->
+                            <div class="config-section">
+                                <div class="config-section-header">
+                                    <h3><span class="material-icons">smart_toy</span> Modèles IA</h3>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label class="form-label">Modèle par défaut</label>
+                                        <input type="text" class="form-input" id="config-model-default" placeholder="Qwen/Qwen2.5-7B-Instruct">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Modèle conversion N4L</label>
+                                        <input type="text" class="form-input" id="config-model-n4l" placeholder="n4l-qwen:latest">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- Modal Template -->
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modal-title">Titre</h3>
+                <button class="modal-close" id="modal-close">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- Modal content -->
+            </div>
+            <div class="modal-footer" id="modal-footer">
+                <button class="btn btn-secondary" id="modal-cancel">Annuler</button>
+                <button class="btn btn-primary" id="modal-confirm">Confirmer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Analysis Modal -->
+    <div class="modal-overlay" id="analysis-modal">
+        <div class="modal" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3 class="modal-title" id="analysis-modal-title">Analyse IA</h3>
+                <button class="modal-close" onclick="document.getElementById('analysis-modal').classList.remove('active')">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="ai-analysis" id="analysis-content">
+                    <!-- Analysis content -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="navigator.clipboard.writeText(document.getElementById('analysis-content').innerText)">
+                    <span class="material-icons">content_copy</span>
+                    Copier
+                </button>
+                <button class="btn btn-warning" id="btn-save-to-notebook" onclick="app.saveAnalysisToNotebook()">
+                    <span class="material-icons">note_add</span>
+                    Noter
+                </button>
+                <button class="btn btn-primary" onclick="document.getElementById('analysis-modal').classList.remove('active')">
+                    Fermer
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Assistant Panel (fixed bottom right, draggable, collapsed by default) -->
+    <div class="ai-assistant collapsed" id="ai-assistant">
+        <div class="ai-assistant-header" id="ai-assistant-toggle">
+            <span class="material-icons">smart_toy</span>
+            <span>Assistant IA</span>
+            <span class="material-icons" id="ai-assistant-chevron">expand_less</span>
+        </div>
+        <div class="ai-assistant-body" id="ai-assistant-body">
+            <div class="ai-assistant-messages" id="ai-messages">
+                <div class="ai-message ai-message-bot">
+                    <strong>Assistant:</strong> Bonjour! Je suis votre assistant d'enquête. Posez-moi des questions sur l'affaire en cours.
+                </div>
+            </div>
+            <div class="ai-assistant-input">
+                <input type="text" id="ai-input" placeholder="Posez votre question..." class="form-input">
+                <button class="btn btn-primary btn-icon" id="btn-ai-send">
+                    <span class="material-icons">send</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Social Network Analysis Panel -->
+    <div id="social-network-panel" class="social-network-panel">
+        <div class="social-network-panel-header">
+            <h2>
+                <span class="material-icons">hub</span>
+                Analyse de Réseaux Sociaux
+            </h2>
+            <div class="social-network-panel-actions">
+                <button id="btn-fullscreen-sn" class="btn btn-ghost btn-icon" onclick="app.toggleSocialNetworkFullscreen()" data-tooltip="Plein écran">
+                    <span class="material-icons">fullscreen</span>
+                </button>
+                <button id="close-social-network-panel" class="btn btn-ghost btn-icon">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+        </div>
+        <div class="modal-explanation" style="margin: 1rem; border-radius: 8px;">
+            <span class="material-icons">info</span>
+            <p><strong>Communautés</strong> identifie les groupes naturels du réseau. <strong>Brokers</strong> trouve les personnes-ponts qui connectent différents groupes. <strong>Flux</strong> analyse les types de relations (information, argent, influence). <strong>Évolution</strong> montre comment le réseau évolue dans le temps.</p>
+        </div>
+        <div class="social-network-panel-content" id="social-network-content">
+            <div class="empty-state">
+                <span class="material-icons empty-state-icon">groups</span>
+                <p class="empty-state-title">Analyse de réseau</p>
+                <p class="empty-state-description">Sélectionnez une affaire pour analyser son réseau social</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Inference Panel -->
+    <div id="inference-panel" class="inference-panel hidden">
+        <div class="inference-panel-header">
+            <h3>
+                <span class="material-icons">auto_fix_high</span>
+                Suggestions d'Inférences
+            </h3>
+            <button id="close-inference-panel" class="btn btn-ghost btn-icon">
+                <span class="material-icons">close</span>
+            </button>
+        </div>
+        <div class="panel-description" style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border);">
+            <span class="material-icons">info</span>
+            Découvrez des relations cachées : fermeture transitive (A→B→C suggère A→C), détection de siblings (nœuds avec parents communs), et liaison d'orphelins (connexions pour nœuds isolés).
+        </div>
+        <div class="inference-panel-actions">
+            <button id="generate-inferences-btn" class="btn btn-primary" style="width: 100%;">
+                <span class="material-icons">psychology</span>
+                Générer des inférences
+            </button>
+        </div>
+        <div id="inference-list" class="inference-list">
+            <div class="inference-empty">
+                <span class="material-icons">lightbulb</span>
+                <p>Cliquez pour analyser les relations manquantes</p>
+            </div>
+        </div>
+        <div class="inference-panel-footer">
+            <span>Relations suggérées:</span>
+            <span id="inference-count" class="inference-count-badge">0</span>
+        </div>
+    </div>
+
+    <!-- Advanced Search Panel -->
+    <div id="search-panel" class="search-panel hidden">
+        <div class="search-panel-header">
+            <h3>
+                <span class="material-icons">filter_alt</span>
+                Recherche Avancée
+            </h3>
+            <button id="close-search-panel" class="btn btn-ghost btn-icon">
+                <span class="material-icons">close</span>
+            </button>
+        </div>
+        <div class="panel-description" style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border);">
+            <span class="material-icons">info</span>
+            <strong>Recherche Hybride (BM25 + Model2vec)</strong> : Combine recherche lexicale et sémantique pour des résultats précis. Filtrez aussi par type, rôle ou relation.
+        </div>
+        <div class="search-panel-content">
+            <!-- Recherche Hybride Sémantique -->
+            <div class="search-filter-section" style="background: var(--bg-secondary); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                <label style="color: var(--primary); font-weight: 600;">
+                    <span class="material-icons">psychology</span>
+                    Recherche Hybride (Sémantique + BM25)
+                </label>
+                <input type="text" id="hybrid-search-query" class="form-input" placeholder="Ex: suspect avec alibi, témoin de la scène...">
+                <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem; align-items: center;">
+                    <label style="font-size: 0.75rem; color: var(--text-muted); min-width: fit-content;">Poids BM25:</label>
+                    <input type="range" id="bm25-weight-slider" min="0" max="100" value="50" style="flex: 1;">
+                    <span id="bm25-weight-display" style="font-size: 0.75rem; min-width: 35px;">50%</span>
+                </div>
+                <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                    <button id="hybrid-search-btn" class="btn btn-primary" style="flex: 1;">
+                        <span class="material-icons">search</span>
+                        Rechercher
+                    </button>
+                </div>
+                <div id="hybrid-search-results" class="hidden" style="margin-top: 1rem; max-height: 200px; overflow-y: auto;">
+                    <!-- Résultats de recherche hybride -->
+                </div>
+            </div>
+
+            <!-- Filtres par type d'entité -->
+            <div class="search-filter-section">
+                <label>
+                    <span class="material-icons">category</span>
+                    Types d'entités
+                </label>
+                <div id="entity-type-filters" class="filter-tags">
+                    <button class="filter-tag active" data-type="personne">Personnes</button>
+                    <button class="filter-tag active" data-type="lieu">Lieux</button>
+                    <button class="filter-tag active" data-type="organisation">Organisations</button>
+                    <button class="filter-tag active" data-type="document">Documents</button>
+                    <button class="filter-tag active" data-type="objet">Objets</button>
+                </div>
+            </div>
+
+            <!-- Filtres par rôle -->
+            <div class="search-filter-section">
+                <label>
+                    <span class="material-icons">badge</span>
+                    Rôles
+                </label>
+                <div id="role-filters" class="filter-tags">
+                    <button class="filter-tag active" data-role="suspect">Suspects</button>
+                    <button class="filter-tag active" data-role="victime">Victimes</button>
+                    <button class="filter-tag active" data-role="temoin">Témoins</button>
+                    <button class="filter-tag active" data-role="autre">Autres</button>
+                </div>
+            </div>
+
+            <!-- Filtres par type de relation -->
+            <div class="search-filter-section">
+                <label>
+                    <span class="material-icons">sync_alt</span>
+                    Types de Relations
+                </label>
+                <div id="relation-type-filters" class="filter-tags">
+                    <button class="filter-tag active" data-rel="famille">Famille</button>
+                    <button class="filter-tag active" data-rel="emploi">Emploi</button>
+                    <button class="filter-tag active" data-rel="conflit">Conflit</button>
+                    <button class="filter-tag active" data-rel="propriete">Propriété</button>
+                    <button class="filter-tag active" data-rel="autre">Autres</button>
+                </div>
+            </div>
+
+            <!-- Recherche textuelle simple -->
+            <div class="search-filter-section">
+                <label>
+                    <span class="material-icons">search</span>
+                    Recherche textuelle (filtre rapide)
+                </label>
+                <input type="text" id="search-text-query" class="form-input" placeholder="Filtrer par nom...">
+            </div>
+
+            <!-- Noeuds exclus -->
+            <div class="search-filter-section">
+                <label>
+                    <span class="material-icons">block</span>
+                    Exclure des entités
+                </label>
+                <div id="excluded-nodes-list" class="excluded-nodes-container"></div>
+                <p class="search-hint">Clic droit sur un noeud du graphe pour l'exclure</p>
+            </div>
+        </div>
+        <div class="search-panel-actions">
+            <button id="apply-search-filters" class="btn btn-primary">
+                <span class="material-icons">filter_alt</span>
+                Appliquer
+            </button>
+            <button id="reset-search-filters" class="btn btn-secondary">
+                <span class="material-icons">restart_alt</span>
+                Réinitialiser
+            </button>
+        </div>
+        <div id="search-results" class="search-results hidden">
+            <!-- Résultats de recherche -->
+        </div>
+    </div>
+
+    <!-- Context Menu for Graph Nodes -->
+    <div id="graph-context-menu" class="context-menu hidden">
+        <a class="context-menu-item" data-action="expansion-cone">
+            <span class="material-icons">blur_on</span>
+            Explorer le voisinage
+        </a>
+        <a class="context-menu-item" data-action="analyze-cone">
+            <span class="material-icons">psychology</span>
+            Analyser avec l'IA
+        </a>
+        <a class="context-menu-item" data-action="find-paths">
+            <span class="material-icons">route</span>
+            Trouver les chemins
+        </a>
+        <div class="context-menu-divider"></div>
+        <span class="context-menu-header">SSTorytime</span>
+        <a class="context-menu-item" data-action="orbits-analysis">
+            <span class="material-icons">radar</span>
+            Analyser les orbites
+        </a>
+        <a class="context-menu-item" data-action="dirac-from-node">
+            <span class="material-icons">science</span>
+            Requête Dirac depuis...
+        </a>
+        <a class="context-menu-item" data-action="contrawave-start">
+            <span class="material-icons">waves</span>
+            Lancer Contrawave
+        </a>
+        <a class="context-menu-item" data-action="betweenness-highlight">
+            <span class="material-icons">mediation</span>
+            Centralité du nœud
+        </a>
+        <div class="context-menu-divider"></div>
+        <a class="context-menu-item" data-action="exclude-node">
+            <span class="material-icons">block</span>
+            Exclure du filtre
+        </a>
+        <a class="context-menu-item" data-action="focus-node">
+            <span class="material-icons">center_focus_strong</span>
+            Focaliser
+        </a>
+        <a class="context-menu-item" data-action="show-details">
+            <span class="material-icons">info</span>
+            Voir les details
+        </a>
+    </div>
+
+    <!-- Tooltip system - must load first -->
+    <script src="/static/js/tooltip.js"></script>
+
+    <!-- Version modulaire (active) -->
+    <script src="/static/js/modules/core.js?v=3" defer></script>
+    <script src="/static/js/modules/dashboard.js" defer></script>
+    <script src="/static/js/modules/entities.js?v=5" defer></script>
+    <script src="/static/js/modules/evidence.js" defer></script>
+    <script src="/static/js/modules/timeline.js" defer></script>
+    <script src="/static/js/modules/hypotheses.js?v=4" defer></script>
+    <script src="/static/js/modules/hrm.js" defer></script>
+    <script src="/static/js/modules/config.js" defer></script>
+    <script src="/static/js/modules/investigation.js" defer></script>
+    <script src="/static/js/modules/graph-analysis.js?v=3" defer></script>
+    <script src="/static/js/modules/notebook.js" defer></script>
+    <script src="/static/js/modules/graph.js?v=6" defer></script>
+    <script src="/static/js/modules/n4l.js" defer></script>
+    <script src="/static/js/modules/chat.js?v=2" defer></script>
+    <script src="/static/js/modules/cross-case.js?v=13" defer></script>
+    <script src="/static/js/modules/search.js" defer></script>
+    <script src="/static/js/modules/social-network.js?v=5" defer></script>
+    <script src="/static/js/modules/geo-map.js?v=8" defer></script>
+    <script src="/static/js/app.js?v=12" defer></script>
+
+    <!-- Version monolithique (backup)
+    <script src="/static/js/app.js" defer></script>
+    -->
+</body>
+</html>

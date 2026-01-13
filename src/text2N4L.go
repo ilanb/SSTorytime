@@ -79,7 +79,14 @@ func RipFile2File(filename string,percentage float64){
 	selection := MergeSelections(ranking1,ranking2)
 
 	fmt.Println("Extracting ambient phrases for context")
-	f,s,ff,ss := SST.ExtractIntentionalTokens(L,selection)
+
+	// We only want short fragments for context, else we're repeating
+	// significant context info from teh actual samples
+
+	const minN = 1 // >= N_GRAM_MIN
+	const maxN = 3 // <= N_GRAM_MAX
+
+	f,s,ff,ss := SST.ExtractIntentionalTokens(L,selection,minN,maxN)
 
 	WriteOutput(filename,selection,L,percentage,f,s,ff,ss)
 }
@@ -89,6 +96,8 @@ func RipFile2File(filename string,percentage float64){
 func WriteOutput(filename string,selection []SST.TextRank,L int, percentage float64,anom_by_part[][]string,ambi_by_part[][]string,all_anom[]string,all_ambi[]string) {
 
 	// See AddMandatory() in N4L.go for reserved names (TBD, collect these one day as const)
+
+	var collected_fragments = make(map[string][]string)
 
 	outputfile := filename + "_edit_me.n4l"
 
@@ -105,21 +114,40 @@ func WriteOutput(filename string,selection []SST.TextRank,L int, percentage floa
 
 	fmt.Fprintf(fp,"\n# (begin) ************\n")
 
-	fmt.Fprintf(fp,"\n :: _sequence_ , %s::\n", filename)
+	filealias := strings.Split(filename,".")[0]
+	fmt.Fprintf(fp,"\n :: _sequence_ , %s::\n", filealias)
 
 	var partcheck = make(map[string]bool)
 	var parts []string
+	var lastpart string
 	
 	for i := range selection {
+
+		context := SpliceSet(ambi_by_part[selection[i].Partition])
+		part := PartName(selection[i].Partition,filealias,context)
+
+		// Add context from n = 2,3 fractions
+
+		if part != lastpart {
+			if len(context) > 0 {
+				fmt.Fprintf(fp,"\n :: %s ::\n",context)
+				lastpart = part
+			}
+		}
+
 		fmt.Fprintf(fp,"\n@sen%d   %s\n",selection[i].Order,Sanitize(selection[i].Fragment))
-		part := PartName(selection[i].Partition,filename)
-		fmt.Fprintf(fp,"              \" (is in) %s\n",part)
+
+		fmt.Fprintf(fp,"              \" (%s) %s\n",SST.INV_CONT_FOUND_IN_S,part)
+
+		AddIntentionalContext(collected_fragments,part,anom_by_part[selection[i].Partition])
+
 		if !partcheck[part] {
 			parts = append(parts,part)
 			partcheck[part] = true
 		}
 	}
-	
+
+	fmt.Fprintf(fp,"\n -:: _sequence_ , %s::\n", filealias)	
 	fmt.Fprintf(fp,"\n# (end) ************\n")
 
 	// some stats
@@ -134,6 +162,18 @@ func WriteOutput(filename string,selection []SST.TextRank,L int, percentage floa
 	
 	fmt.Fprintf(fp,"\n#\n")
 
+
+	// add the parts' fragments
+
+	for key := range collected_fragments {
+
+		fmt.Fprintf(fp,"\n\n %s\n",key)
+		for _,s := range collected_fragments[key] {
+			fmt.Fprintf(fp,"              \" (%s) %s\n",SST.CONT_FRAG_S,s)
+		}
+
+	}
+
 	// document the parts
 
 	fmt.Fprintf(fp,"\n :: themes and topics you might want to annotate/replace ::\n")
@@ -143,11 +183,11 @@ func WriteOutput(filename string,selection []SST.TextRank,L int, percentage floa
 	for p := range parts {
 		fmt.Fprintf(fp,"\n %s\n",parts[p])
 		for w := range ambi_by_part[p] {
-			fmt.Fprintf(fp,"  # %s\n",ambi_by_part[p][w])
+			fmt.Fprintf(fp,"  #AMBI %s\n",ambi_by_part[p][w])
 		}
 
 		for w := range anom_by_part[p] {
-			fmt.Fprintf(fp,"   # %s\n",anom_by_part[p][w])
+			fmt.Fprintf(fp,"   #INTENT %s\n",anom_by_part[p][w])
 		}
 	}
 
@@ -168,18 +208,39 @@ func WriteOutput(filename string,selection []SST.TextRank,L int, percentage floa
 
 //*******************************************************************
 
-func PartName(n int,s string) string {
+func PartName(p int,file string,context string) string {
 
-	return fmt.Sprintf("part %d of %s",n,s)
+	// include ambient context in the section name
+
+	if len(context) > 0 {
+		return fmt.Sprintf("part %d of %s about: %s",p,file,context)
+	} else {
+		return fmt.Sprintf("part %d of %s",p,file)
+	}
+}
+
+//*******************************************************************
+
+func SpliceSet(ctx []string) string {
+
+	return strings.Join(ctx, ", ")
+}
+
+//*******************************************************************
+
+func AddIntentionalContext(collected map[string][]string,key string,ctx []string) {
+	
+	for w := 0; w < len(ctx); w++ {
+		collected[key] = append(collected[key],ctx[w])
+	}
 }
 
 //*******************************************************************
 
 func Sanitize(s string) string {
 
-	s = strings.Replace(s,"(","[",-1)
-	s = strings.Replace(s,")","]",-1)
-	return s
+	replacer := strings.NewReplacer("(", "[", ")", "]")
+	return replacer.Replace(s)
 }
 
 //*******************************************************************

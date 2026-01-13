@@ -1,25 +1,25 @@
 
-- double slit example
+-double slit example
 
  :: physics, connectivity, path example ::
 
- A1 (forwards) A2
-  " (forwards) A3
- A2 (forwards) A5
- A3 (forwards) A5
- A3 (forwards) A6
- A4 (forwards) S1
- A5 (forwards) S1
- A5 (forwards) S2
- A6 (forwards) S2
+ A1 (fwd) A2
+  " (fwd) A3
+ A2 (fwd) A5
+ A3 (fwd) A5
+ A3 (fwd) A6
+ A4 (fwd) S1
+ A5 (fwd) S1
+ A5 (fwd) S2
+ A6 (fwd) S2
 
- S1 (forwards) B1
- S2 (forwards) B2
- S2 (forwards) B3
+ S1 (fwd) B1
+ S2 (fwd) B2
+ S2 (fwd) B3
  
- B1 (forwards) B4
- B2 (forwards) B4
- B2 (forwards) B5
- B3 (forwards) B5
- B4 (forwards) B6
+ B1 (fwd) B4
+ B2 (fwd) B4
+ B2 (fwd) B5
+ B3 (fwd) B5
+ B4 (fwd) B6
 

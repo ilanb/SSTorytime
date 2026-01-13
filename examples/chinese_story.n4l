@@ -3,9 +3,9 @@
 # that contextualizes the words and makes a story that's easier to remember than random access facts.
 #
 
-- story example exercise in chinese
+-chinese example exercise
 
- :: _sequence_ , _title_ zài chéngshì lǐ, city, story, example, exercise in combining terms ::
+ :: _sequence_ , zài chéngshì lǐ, city, story, example, exercise in combining terms ::
 
 zài chéngshì lǐ (ph) 在城市里 (he) In the city
          "  (role) title
@@ -87,8 +87,8 @@ zhè jiùshì yùndòng                           (ph) 这就是运动          
 to become (eh) 成为 (hp) chéngwéi
 to be/come finished (eh) 完成 (hp) wánchéng
 
-成  (pt) 成为
- "  (pt) 完成
+成  (has-pt) 成为
+ "  (has-pt) 完成
  "  (he) become (ep) chéng
 
 a composer (eh) 一名作曲家 (hp) yī míng zuòqǔ jiā
@@ -134,7 +134,7 @@ zhá jī (ph) 炸鸡 (he) fried chicken
 # choosing the right word for anxious in the story -- how?
 
 
-wǒ jíyú jìn kuài dàodá bàngōngshì (right word?) jíyú
+wǒ jíyú jìn kuài dàodá bàngōngshì (note) is jíyú the right word?
 
 jíyú (ph) 急于  (he) anxious, eager
   "  (see also) jǐnzhāng

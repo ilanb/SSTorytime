@@ -13,7 +13,19 @@ SSTorytime takes information that you enter in the form of
 * Personal notes (written in a simple format called N4L).
 * Data entered by a computer program (using the API for creating Nodes and Links).
 
-It turns these data into a graph, which you can then browse and query with the ready-made tools here, or by writing your own programs using the API. 
+It turns these data into a graph, which you can then browse and query
+with the ready-made tools here, or by writing your own programs using
+the API.
+
+
+## Five steps to heaven
+
+* JOT IT DOWN WHEN YOU THINK OF IT. . .
+* TYPE IT INTO N4L AS SOON AS YOU CAN. . .
+* ORGANIZE AND TIDY YOUR N4L NOTES EVERY DAY. . .
+* UPLOAD AND BROWSE THEM ONLINE. . .
+* REMEMBER, IT ISN'T KNOWLEDGE IF YOU DON'T ACTUALLY KNOW IT !!
+
 
 ## The tools
 
@@ -40,7 +52,7 @@ There are also tools for helping you to get started making notes about a text do
 
 * Use `text2N4L` to read a text file and select parts to produce an editable file in N4L that you can use as a starting point for your own notes.
 
-## The data model
+## The idea
 
 The knowledge database is divided into
 
@@ -120,7 +132,8 @@ collaborating with friends or colleagues (but only in small groups).
 you'll be shocked and disappointed by this project. If you're a teacher or a writer, you might
 quite like it.*
 
-## How to start
+
+## Go for it!
 
 With SSTorytime, the source files are your main focus, and the database is just a convenient
 aid to remembering, because retrieval sometimes needs help. You will spend most of your time
@@ -178,7 +191,7 @@ If you choose verbose output, you see more of what's going on:
 
 ![A Flow Chart is a knowledge representation](https://github.com/markburgess/SSTorytime/blob/main/docs/figs/verbose.png 'Verbose output')
 
-* First N4L reads a configuration file that's called `N4Lconfig.in` with lots of customizations.
+* First N4L reads a number of configuration files in `SSTconfig/*`. These contain arrow definitions.
 * Then it reads your file and chops it into parts that are related.
 * N4L thinks that each line is an event, or an item.
 * If you out something in parentheses, it treats it as a relationship or an "arrow" that points from one item to another. You can define your own arrows, and the idea is to use them to find things more easily.
@@ -189,7 +202,7 @@ That already covers a lot of possibilities!
 
 ## Uploading to the database
 
-To upload notes to the database, you use the `N4L-db` version of the tool. To get
+To upload notes to the database, you use the `N4L` version of the tool. To get
 started, you can try some of the examples:
 <pre>
 $ cd examples
@@ -197,20 +210,20 @@ $ make
 </pre>
 You see this runs the following command:
 <pre>
-../src/N4L-db -u -wipe doors.n4l Mary.n4l chinese*n4l branches.n4l doubleslit.n4l ConstructionProcesses.n4l wardleymap.n4l 
+../src/N4L -u -wipe doors.n4l Mary.n4l chinese*n4l branches.n4l doubleslit.n4l ConstructionProcesses.n4l wardleymap.n4l 
 brains.n4l kubernetes.n4l SSTorytime.n4l integral.n4l reasoning.n4l
 </pre>
 The `-u` option tells the program to upload to the database. The `-wipe` option, tells it to override
 whatever is already in the database and start again. If you want to append new data, you can simply
 omit the `-wipe` option:
 <pre>
-$ ../src/N4L-db -u LoopyLoo.n4l
+$ ../src/N4L -u LoopyLoo.n4l
 </pre>
 The examples in the documentation assume you set up from the start with these uploads:
 <pre>
 $ cd examples
 $ make 
-$ ../src/N4L-db -u LoopyLoo.n4l
+$ ../src/N4L -u LoopyLoo.n4l
 </pre>
 
 ## Searching
@@ -390,5 +403,13 @@ It's not rocket science, unless of course it is rocket science.
  Space Camp movie ..
 
 </pre>
+
+## Tracking Your Progress
+
+Currently under development is a new feature.
+As you start to use the tool more, you can use the checkboxes to click and leave a trace of what you've worked
+on. This will be traced and give feedback on your learning goals.
+
+![Alpha interface](https://github.com/markburgess/SSTorytime/blob/main/docs/figs/progresstracker.png 'Testing a web interface')
 
 

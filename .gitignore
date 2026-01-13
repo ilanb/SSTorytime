@@ -90,3 +90,6 @@ cscope.*
 stories
 conceptualize
 
+# ML Models (large files)
+finetune/models/
+

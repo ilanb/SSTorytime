@@ -1,188 +1,93 @@
-# Setting up and getting started on a Linux computer
 
-*At the moment, STTorytime is only supported on Linux based operating systems. Packaging for other systems will follow when things are more finished.*
+# Documentation for SSTorytime
 
-## Summary
+### Installing
 
-These are the things you will need to do:
+* [Installing / Getting Started](GettingStarted.md)
 
-* Download this repository, which contains examples of data input
-languages N4L and examples of scripting your own programs.
+### General questions and information
 
-* Install the `postgres` database, `postgres-contrib` extensions, and `psql` shell command line client.
+* [Frequently Asked Questions](FAQ.md)
+* [How YOU can contribute!](howtocontribute.md)
+* [Links and Outreach](outreach.md)
+* [The Mission of STTorytime](Storytelling.md)
+* [The To-Do List](ToDo.md)
 
-* You need to make a decision about authentication credentials for the database. For personal use on a personal device, everything is local and private so there is no real need to set complex passwords for privacy. However, if you are setting up a shared resource, you might want to change the name of the database, user, and mickymouse password etc. That requires an extra step, changing the defaults and creating a file `$HOME/.SSTorytime` with those choices in your home directory.
+### Tutorials
 
-* Install the Go(lang) programming and build environment.
-
-* Get started by uploading ready-made examples.
-
-* Read [Related series about semantic spacetime](https://mark-burgess-oslo-mb.medium.com/list/semantic-spacetime-and-data-analytics-28e9649c0ade)
-
-*Note about troubleshooting: the "hard part" of setting up is to work around the quirks of the `Go` language and the database `Postgresql`. These are both delicate beasts: when they work they will just work, but if they don't they are very hard to debug. Postgres, in particular, fails silently and mysteriously. It keeps log files in `/var/lib/pgsql/data/log`. Luckily the major linux distros are mostly similar these days, so cross fingers that these instructions work. If you experience problems with the go language,
-you may need to turn off modules:*
-
-```
-go env -w GO111MODULE=off
-```
+* [A Quickstart Tutorial](Tutorial.md)
+* [Examples to try](search_examples.md)  
+* [Creating Knowables: Getting Started Writing Notes In N4L](N4L.md)
+* [How to use arrows](arrows.md)
+* [A Case Study Example](example.md)
+* [More Generally About The Idea](KnowledgeAndLearning.md)
+* [Building A Knowledge Graph of a Music Collection: A case study in building Knowledge Graphs from Data Structures](https://medium.com/@mark-burgess-oslo-mb/building-a-knowledge-graph-of-a-music-collection-81c9a9ea1b8b)
+* [Using N4L notes and SST Knowledge Graphs For Foreign Language Learning](https://medium.com/@mark-burgess-oslo-mb/using-n4l-notes-and-sst-knowledge-graphs-for-foreign-language-learning-ac4c0731320d)
 
 
+### Technical, APIs, Programming and Extending
 
-## Installing database Postgres
+* [How Context Works](howdoescontextwork.md)
+* [Namespaces Now and In Future](namespaces.md)
+* [A Basic Programming API](API.md)
+* [A Web/JSON Querying API](WebAPI.md)
+* [Dynamic Functions For Realtime Knowables](dynamic_functions.md)  
 
-Hard part first; the postgres database is a bit of a monster. There are several steps to install it an set it up. Here's the summary:
+## The tools
 
-* Use your local package manager to download and install packages for `postgres databaser server` and `psql client`.
-* In postgres, you need root privileges to configure and create a database.
-* Locate and edit the configuration file `pg_hba.conf` and make sure it's owned by the `postgres` user.
-* Set the server to run in your systemd configuration.
+The tool-set consistent of several components, starting with:
 
-You need privileged `root` access to access the postgres management account. Postgres prefers you to do everything as the postgres user not as root.
+* [N4L](N4L.md) - The N4L compiler (This is now merged with N4L-db)
 
-* To begin with, you need to start the database as root.
-If this command doesn't work, check your local Linux instruction page as distros vary.
+* [searchN4L](searchN4L.md) - a simple and experimental command line tool for testing the graph database
 
-```
-$ sudo systemctl enable postgresql
-$ sudo systemctl start postgresql
+* [text2N4L](text2N4L.md) - scan a text file and turn it into a set of notes in N4L file for further editing
 
-$ ps waux | grep postgres
-```
-You should now see a number of processes running as the postgres user.
+* [removeN4L](removeN4L.md) - remove an uploaded chapter from the database
 
-* * (as postgres user) Next login to the postgres user account and run the `psql` command there to gain root access:
+* [notes](notes.md) - a simple command line browser of notes in page view layout
 
-```
-sudo su -
-su - postgres
-psql
-```
+* [pathsolve](pathsolve.md) - a simple and experimental command line tool for testing the graph database
 
-Only postgres user can CREATE or DROP a database.
+* [graph_report](graph_report.md) - a simple and experimental command line tool for reporting on graph data, detecting loops, sources, sinks, etc, symmetrizing on different links and finding eigenvector centrality.
 
-* * (as postgres user) Set up a database for the examples. The default name in the code is:
+* [http_server](http_server.md) - a prototype webserver providing the SSTorytime browsing service
 
-```
-\h for help
+* [API_EXAMPLE_1](API_EXAMPLE_1.go) - a simple store and retrieve example of the graph database.
 
-CREATE USER sstoryline PASSWORD 'sst_1234' superuser;
-CREATE DATABASE sstoryline;
-GRANT ALL PRIVILEGES ON DATABASE sstoryline TO sstoryline;
-CREATE EXTENSION UNACCENT;
-```
+* [API_EXAMPLE_2](API_EXAMPLE_2.go) - multi/hyperlink example, joining several nodes through a central hub.
 
-For the last line, you must have installed the extension packages `postgres-contrib`.
-If you want to use psql to examine and manage
-the database yourself using psql, it's useful to add your own account to the privileges, like this:
+* [API_EXAMPLE_3](API_EXAMPLE_3.go) - a maze solving example, showing higher functions.
 
-```
-CREATE USER myusername;
-GRANT ALL PRIVILEGES ON DATABASE sstoryline TO myusername;
-\l
-```
+* [API_EXAMPLE_4](API_EXAMPLE_4.go) - a path solving example, with loop corrections (quantum style).
 
-The `\l` command lists the databases, and you should now see the database.
+* [python_integration_example.py](../src/python_integration_example.py) - a basic Python example
 
-* * (as postgres user) Locate the file `locate pg_hba.conf` for your distribution (you might have to search for it) and edit it as the postgres user.
+* [SSTorytime.py](../src/SSTorytime.py) - Includable Python interface for SSTorytime, basic functions (TBD)
 
 
-```
-$ myfavouriteeditor /var/lib/pgsql/data/pg_hba.conf
-
-# TYPE  DATABASE        USER            ADDRESS                 METHOD
-
-# "local" is for Unix domain socket connections only
-local   all             all                                     peer
-# IPv4 local connections:
-host    all             all             127.0.0.1/32            <b>password</b>
-# IPv6 local connections:
-host    all             all             ::1/128                 <b>password</b>
-```
-
-This will allow you to connect to the database using the shell command `psql` command using password
-authentication. Think of a suitable password.
-
-Note that, if you accidentally edit the file as root, the owner of the file will be changed and postgres will fail to start.
+## External Articles and Tutorials (Deep Background)
 
 
-Notice that the `psql` is a tool that accepts commands of two kind: backslash commands, e.g. describe tables for the current database `\dt`,  `\d tablename`, and describing stored functions `\df`. Also note that direct SQL commands, which must end in a semi-colon `;`.
+* See these Medium articles for a conceptual introduction
+* * [Getting To Know Knowledge--How Can Semantic Graphs Actually Help Us?](https://medium.com/@mark-burgess-oslo-mb/getting-to-know-knowledge-how-can-semantic-graphs-actually-help-us-e3afb53fc6af)
+* * [What is semantic search?](https://medium.com/@mark-burgess-oslo-mb/what-is-semantic-search-4ed4d306ab07)
+* * [Why Semantic Spacetime (SST) is the answer to rescue property graphs](https://medium.com/@mark-burgess-oslo-mb/why-semantic-spacetime-sst-is-the-answer-to-rescue-property-graphs-2c004fe705b2)
+* * [From cognition to understanding](https://medium.com/@mark-burgess-oslo-mb/from-cognition-to-understanding-677e3b7485de): 
+* * [Searching in Graphs, Artificial Reasoning, and Quantum Loop Corrections with Semantics Spacetime](https://medium.com/@mark-burgess-oslo-mb/searching-in-graphs-artificial-reasoning-and-quantum-loop-corrections-with-semantics-spacetime-ea8df54ba1c5)
+* * [The Shape of Knowledge part 1](https://medium.com/@mark-burgess-oslo-mb/semantic-spacetime-1-the-shape-of-knowledge-86daced424a5)
+* * [The Shape of Knowledge part 2](https://medium.com/@mark-burgess-oslo-mb/semantic-spacetime-2-why-you-still-cant-find-what-you-re-looking-for-922d113177e7)
+* * [Why are we so bad at knowledge graphs?](https://medium.com/@mark-burgess-oslo-mb/why-are-we-so-bad-at-knowledge-graphs-55be5aba6df5)
+* * [The Role of Intent and Context Knowledge Graphs With Cognitive Agents](https://medium.com/@mark-burgess-oslo-mb/the-role-of-intent-and-context-knowledge-graphs-with-cognitive-agents-fb45d8dfb34d)
+* * [Designing Nodes and Arrows in Knowledge Graphs with Semantic Spacetime](https://medium.com/@mark-burgess-oslo-mb/designing-nodes-and-arrows-in-knowledge-graphs-with-semantic-spacetime-0992b9cae595)
+* * [Avoiding the Ontology Trap: How biotech shows us how to link knowledge spaces](https://medium.com/@mark-burgess-oslo-mb/avoiding-the-ontology-trap-how-biotech-shows-us-how-to-link-knowledge-spaces-654bcbb9122a)
+* * [Using Knowledge Maps for Learning Comprehension](https://mark-burgess-oslo-mb.medium.com/using-knowledge-maps-for-learning-comprehension-15e162a251cd)
+* * [Unifying Data Structures and Knowledge Graphs](https://medium.com/@mark-burgess-oslo-mb/unifying-data-structures-and-knowledge-graphs-5c9fa32e74ea)
+* * [Using Knowledge Graphs For Inferential Reasoning](https://medium.com/@mark-burgess-oslo-mb/using-knowledge-graphs-for-inferential-reasoning-8a06e583b4d4)
 
-* You should now be able to exit su log in to the postgres shell as an ordinary user, without sudo. Tap CTRL-D twice to get back to your user shell.
-When connecting in code, you have to add the password. For a shell user, postgres recognizes your local
-credentials.
 
-```
-$ psql sstoryline
-```
 
-*Cleary this is not a secure configuration, so you should only use this for testing on your laptop.
-Also, note that this will not allow you to login until you also open up the configuration of postgres
-as below.*
 
-* IF YOU WANT TO CHANGE THE DATABASE CREDENTIALS from the defaults, by creating a file with these lines into a file `$HOME/.SSTorytime` :
 
-```
-dbname: my_sstoryline
-user: my_sstoryline_user
-passwd: new_password_for_sst_1234
-```
 
-Postgres is finnicky if you're not used to running it, but once these details are set up
-you will be able to use the software. If you're planning to run a publicly available server, you
-should learn more about the security of postgres. We won't go into that here.
 
-## Installing the Go programming language for building and scripting
-
-See also about Go
-
-```
-https://golang.org/dl/
-```
-After installing a package for your operating system, you need to set up some things in your environment so that you can forget about golang for the rest of your tortured life. One less thing to fret over.
-
-You’ll need a command window (shell).
-Then create some directories for the Golang workspace.
-These are used to simplify the importing of packages. Finally, you need to link a gopath to your code download area.
-
-```
-% mkdir -p ~/go/bin
-% mkdir -p ~/go/src
-% git clone https://github.com/markburgess/SSTorytime
-% ln -s ~/clonedirectory/pkg/SST ~/go/src/SSTorytime
-```
-
-The last step links the directory where you will keep the Smart Spacetime code library to the list of libraries that Go knows about. You’ll also need to set a GOPATH environment variable and add the installation directory to your execution path.For Linux (using default bash shell) you edit the file “~/.bashrc” in your home directory using your favourite text editor. It should contain these lines, as per the golang destructions:
-
-```
-export PATH=$PATH:/usr/local/go/bin
-export GOPATH=~/go
-```
-
-Don’t forget to restart your shell or command window after editing this.
-
-Since version 1.13 of Go, big changes have been made (and are expected to continue going forwards, sigh) concerning “modules” design. Unless you know what you’re doing, disable modules by running:
-
-```
-% go env -w GO111MODULE=off
-```
-
-To use the Go Driver, download it
-
-```
-% go get github.com/lib/pq
-
-```
-
-Try writing some simple programs in golang to learn its quirks. The
-most annoying of these is the forced placement of curly braces and
-indentations.
-
-## Uploading the ready-made examples
-
-Now that everything is working, simply do the following to try out the examples in the documentation:
-
-```
-$ cd examples
-$ make
-$ ../src/N4L-db -u LoopyLoo.n4l
-```

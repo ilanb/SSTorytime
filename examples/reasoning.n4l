@@ -40,13 +40,13 @@
 
  :: semantic spacetime ::
 
- SST (short for) Semantic Spacetime (derived) Promise Theory
+ SST (short for) Semantic Spacetime (derive-fr) Promise Theory
 
- a %graph (represents) a %process
+ a %graph (repr) a %process
 
- events (representedby) nodes (represents) states of the knowledge system
+ events (repr-by) nodes (repr) states of the knowledge system
     "   (consists of) place and moment in a proper time sequence
- associations (representedby) arrows
+ associations (repr-by) arrows
 
 @path contiguous paths through a sequence of %events
 
@@ -55,14 +55,14 @@
 
  Stories are connected directed graphs
 
- A story/stories (represents) any kind of reasoning: deduction, induction, abduction
-         "       (representedby) $path.1
+ A story/stories (repr) any kind of reasoning: deduction, induction, abduction
+         "       (repr-by) $path.1
 
- %deduction (representedby) first order %logic of %Hilbert (uses) theorems as facts / tautologies
+ %deduction (repr-by) first order %logic of %Hilbert (uses) theorems as facts / tautologies
 
- %induction (representedby) %expressing %SST %properties (e.g.) grouping of examples into a named class
+ %induction (repr-by) %expressing %SST %properties (e.g.) grouping of examples into a named class
 
- %abduction (representedby) $path.1
+ %abduction (repr-by) $path.1
      "      (consists of) any number of possible connecting paths, one to be selected
 
  What unknown property? (enables) paths that join up into stories (enables) reasoning

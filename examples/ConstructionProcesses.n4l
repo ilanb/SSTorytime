@@ -15,7 +15,9 @@
 
  ::: meeting 1 :::
 
- Martin X (met with) Sonja Y, Knut Z
+ Martin X met with Sonja Y, Knut Z
+       " (involves) Sonja Y
+       " (involves) Knut Z
  Martin X (proposes) apply for insulation grant
  meeting 1 (decides) next meeting cancelled 
 
@@ -64,7 +66,7 @@
 #     "      (damaged) 2 boxes   // this is ambiguous and needs reworking
       "      (contains) 2 damaged boxes
 
-   2 damaged boxes (condition) water damage
+   2 damaged boxes (cond) water damage
 
 
 

@@ -42,6 +42,7 @@ const (
 	ERR_ILLEGAL_LINK_CLASS = "ILLEGAL LINK CLASS"
 	ERR_NO_SUCH_ARROW = "No such arrow has been declared in the configuration: "
 	ERR_MEMORY_DB_ARROW_MISMATCH = "Arrows in database are not in synch (shouldn't happen)"
+	ERR_MEMORY_DB_CONTEXT_MISMATCH = "Contexts in database are not in synch (shouldn't happen)"
 	WARN_DIFFERENT_CAPITALS = "WARNING: Another capitalization exists"
 
 	SCREENWIDTH = 120
@@ -52,6 +53,9 @@ const (
 	LEADSTO = 1   // +/-
 	CONTAINS = 2  // +/-
 	EXPRESS = 3   // +/-
+
+	// Letting a cone search get too large is unresponsive
+	CAUSAL_CONE_MAXLIMIT = 100
 
 	// And shifted indices for array indicesin Go
 
@@ -90,6 +94,18 @@ const (
         INV_EXPR_AMBIENT_L = "is contextual highlight of"
 	INV_EXPR_AMBIENT_S = "highlight_of"
 
+	CONT_FINDS_L = "contains extract/quote"
+	CONT_FINDS_S = "has-extract"
+	INV_CONT_FOUND_IN_L = "extract/quote from"
+	INV_CONT_FOUND_IN_S = "extract-fr"
+
+	// This is a "contained-by something that expresses" shortcut => NEAR
+
+	CONT_FRAG_L = "contains intented characteristic"      // intentional characteristic
+	CONT_FRAG_S = "has-frag"
+	INV_CONT_FRAG_IN_L = "characteristic of"   // explains intentional context
+	INV_CONT_FRAG_IN_S = "charct-in"
+
 )
 
 var BASE_DB_CHANNEL_STATE[7] ClassedNodePtr
@@ -98,41 +114,76 @@ var CLASS_CHANNEL_DESCRIPTION = []string{"","single word ngram","two word ngram"
 	"string less than 128 chars","string less than 1024 chars","string greater than 1024 chars"}
 
 //**************************************************************
+// Data structures
+//**************************************************************
+
+type PoSST struct {
+
+   DB *sql.DB
+}
+
+//******************************************************************
 
 type Node struct {
 
 	L         int     // length of text string
 	S         string  // text string itself
 
+	Seq       bool    // true if this node begins an intended sequence, otherwise ambiguous
 	Chap      string  // section/chapter name in which this was added
 	NPtr      NodePtr // Pointer to self index
 
-	I [ST_TOP][]Link  // link incidence list, by STindex
+	I [ST_TOP][]Link  // link incidence list, by STindex - these are the "vectors" +/-
   	                  // NOTE: carefully how STindex offsets represent negative SSTtypes
 }
 
 //**************************************************************
 
-type NodeArrowNode struct {
-
-	NFrom NodePtr
-	STType int
-	Arr ArrowPtr
-	Wgt float32
-	Ctx []string
-	NTo NodePtr
+type Link struct {  // A link is a type of arrow, with context
+                    // and maybe with a weightfor package math
+	Arr ArrowPtr         // type of arrow, presorted
+	Wgt float32          // numerical weight of this link
+	Ctx ContextPtr       // context for this pathway
+	Dst NodePtr          // adjacent event/item/node
 }
 
 //**************************************************************
 
-type QNodePtr struct {
+type NodePtr struct {
 
-	// A Qualified NodePtr 
-
-	NPtr    NodePtr
-	Context string  // array in string form
-	Chapter string
+	Class int            // Text size-class, used mainly in memory
+	CPtr  ClassedNodePtr // index of within name class lane
 }
+
+//**************************************************************
+
+type ClassedNodePtr int  // Internal pointer type of size-classified text
+
+//**************************************************************
+
+type ArrowDirectory struct {
+
+	STAindex  int
+	Long    string
+	Short   string
+	Ptr     ArrowPtr
+}
+
+//**************************************************************
+
+type ArrowPtr int // ArrowDirectory index
+
+//**************************************************************
+
+type ContextDirectory struct {
+
+	Context string
+	Ptr     ContextPtr
+}
+
+//**************************************************************
+
+type ContextPtr int // ContextDirectory index
 
 //**************************************************************
 
@@ -140,38 +191,9 @@ type PageMap struct {  // Thereis additional intent in the layout
 
 	Chapter string
 	Alias   string
-	Context []string
+	Context ContextPtr
 	Line    int
 	Path    []Link
-}
-
-//**************************************************************
-
-type PageView struct {
-	Title   string
-	Context string
-	Notes   [][]WebPath
-}
-
-//**************************************************************
-
-type Coords struct {
-	X   float64
-	Y   float64
-	Z   float64
-	R   float64
-	Lat float64
-	Lon float64
-}
-
-//**************************************************************
-
-type WebPath struct {
-	NPtr    NodePtr
-	Arr     ArrowPtr
-	STindex int
-	Name    string
-	XYZ     Coords
 }
 
 //**************************************************************
@@ -187,16 +209,6 @@ type Appointment struct {
 	Ctx []string
 	NTo NodePtr
 	NFrom []NodePtr
-}
-
-//**************************************************************
-
-type Link struct {  // A link is a type of arrow, with context
-                    // and maybe with a weightfor package math
-	Arr ArrowPtr         // type of arrow, presorted
-	Wgt float32          // numerical weight of this link
-	Ctx []string         // context for this pathway
-	Dst NodePtr          // adjacent event/item/node
 }
 
 //**************************************************************
@@ -232,31 +244,7 @@ type NodeDirectory struct {
 var NODE_CACHE = make(map[NodePtr]NodePtr)
 
 //**************************************************************
-
-type NodePtr struct {
-
-	Class int            // Text size-class
-	CPtr  ClassedNodePtr // index of within name class lane
-}
-
-//**************************************************************
-
-type ClassedNodePtr int  // Internal pointer type of size-classified text
-
-//**************************************************************
-
-type ArrowDirectory struct {
-
-	STAindex  int
-	Long    string
-	Short   string
-	Ptr     ArrowPtr
-}
-
-//**************************************************************
-
-type ArrowPtr int // ArrowDirectory index
-
+// POSTGRES DATA TYPES
 //**************************************************************
 
 const NODEPTR_TYPE = "CREATE TYPE NodePtr AS  " +
@@ -269,55 +257,38 @@ const LINK_TYPE = "CREATE TYPE Link AS  " +
 	"(                    " +
 	"Arr      int,        " +
 	"Wgt      real,       " +
-	"Ctx      text,       " +
+	"Ctx      int,        " +
 	"Dst      NodePtr     " +
 	")"
 
-const APPOINTMENT_TYPE = "CREATE TYPE Appointment AS  " +
-	"(                    " +
-	"Arr    int," +
-	"STType int," +
-	"Chap   text," +
-	"Ctx    text[]," +
-	"NTo    NodePtr," +
-	"NFrom  NodePtr[]" +
-	")"
-
-const NODE_TABLE = "CREATE TABLE IF NOT EXISTS Node " +
+const NODE_TABLE = "CREATE UNLOGGED TABLE IF NOT EXISTS Node " +
 	"( " +
-	"NPtr      NodePtr,        " +
-	"L         int,            " +
-	"S         text,           " +
-	"Chap      text,           " +
-	I_MEXPR+"  Link[],         " + // Im3
-	I_MCONT+"  Link[],         " + // Im2
-	I_MLEAD+"  Link[],         " + // Im1
-	I_NEAR +"  Link[],         " + // In0
-	I_PLEAD+"  Link[],         " + // Il1
-	I_PCONT+"  Link[],         " + // Ic2
-	I_PEXPR+"  Link[]          " + // Ie3
+	"NPtr      NodePtr,        \n" +
+	"L         int,            \n" +
+	"S         text,           \n" +
+	"Search    TSVECTOR GENERATED ALWAYS AS (to_tsvector('english',S)) STORED,\n" +
+	"UnSearch  TSVECTOR GENERATED ALWAYS AS (to_tsvector('english',sst_unaccent(S))) STORED,\n" +
+	"Chap      text,           \n" +
+	"Seq       boolean,        \n" +
+	I_MEXPR+"  Link[],         \n" + // Im3
+	I_MCONT+"  Link[],         \n" + // Im2
+	I_MLEAD+"  Link[],         \n" + // Im1
+	I_NEAR +"  Link[],         \n" + // In0
+	I_PLEAD+"  Link[],         \n" + // Il1
+	I_PCONT+"  Link[],         \n" + // Ic2
+	I_PEXPR+"  Link[]          \n" + // Ie3
 	")"
 
-const LINK_TABLE = "CREATE TABLE IF NOT EXISTS NodeArrowNode " +
-	"( " +
-	"NFrom    NodePtr, " +
-	"STtype   int,     " +
-	"Arr      int,     " +
-	"Wgt      int,     " +
-	"Ctx      text[],  " +
-	"NTo      NodePtr  " +
-	")"
-
-const PAGEMAP_TABLE = "CREATE TABLE IF NOT EXISTS PageMap " +
+const PAGEMAP_TABLE = "CREATE UNLOGGED TABLE IF NOT EXISTS PageMap " +
 	"( " +
 	"Chap     Text,  " +
 	"Alias    Text,  " +
-	"Ctx      Text[]," +
+	"Ctx      int,   " +
 	"Line     Int,   " +
 	"Path     Link[] " +
 	")"
 
-const ARROW_DIRECTORY_TABLE = "CREATE TABLE IF NOT EXISTS ArrowDirectory " +
+const ARROW_DIRECTORY_TABLE = "CREATE UNLOGGED TABLE IF NOT EXISTS ArrowDirectory " +
 	"(    " +
 	"STAindex int,           " +
 	"Long text,              " +
@@ -325,11 +296,37 @@ const ARROW_DIRECTORY_TABLE = "CREATE TABLE IF NOT EXISTS ArrowDirectory " +
 	"ArrPtr int primary key  " +
 	")"
 
-const ARROW_INVERSES_TABLE = "CREATE TABLE IF NOT EXISTS ArrowInverses " +
+const ARROW_INVERSES_TABLE = "CREATE UNLOGGED TABLE IF NOT EXISTS ArrowInverses " +
 	"(    " +
 	"Plus int,  " +
 	"Minus int,  " +
 	"Primary Key(Plus,Minus)" +
+	")"
+
+const LASTSEEN_TABLE = "CREATE TABLE IF NOT EXISTS LastSeen " +
+	"(    " +
+	"Section text," +
+	"NPtr    NodePtr," +
+	"First   timestamp,"+
+	"Last    timestamp," +
+	"Delta   real," +
+	"Freq    int" +
+	")"
+
+const CONTEXT_DIRECTORY_TABLE = "CREATE TABLE IF NOT EXISTS ContextDirectory " +
+	"(    " +
+	"Context text,            " +
+	"CtxPtr  int primary key  " +
+	")"
+
+const APPOINTMENT_TYPE = "CREATE TYPE Appointment AS  " +
+	"(                    " +
+	"Arr    int," +
+	"STType int," +
+	"Chap   text," +
+	"Ctx    int," +
+	"NTo    NodePtr," +
+	"NFrom  NodePtr[]" +
 	")"
 
 //**************************************************************
@@ -337,31 +334,69 @@ const ARROW_INVERSES_TABLE = "CREATE TABLE IF NOT EXISTS ArrowInverses " +
 //**************************************************************
 
 var ( 
+	// Arrow multi-name factorization
+
 	ARROW_DIRECTORY []ArrowDirectory
 	ARROW_SHORT_DIR = make(map[string]ArrowPtr) // Look up short name int referene
 	ARROW_LONG_DIR = make(map[string]ArrowPtr)  // Look up long name int referene
 	ARROW_DIRECTORY_TOP ArrowPtr = 0
 	INVERSE_ARROWS = make(map[ArrowPtr]ArrowPtr)
 
+	IGNORE_ARROWS []ArrowPtr
+
+	// Context array factorization
+
+	CONTEXT_DIRECTORY []ContextDirectory
+	CONTEXT_DIR = make(map[string]ContextPtr)   // Look up long name int referene
+	CONTEXT_TOP ContextPtr
+
 	PAGE_MAP []PageMap
 
 	NODE_DIRECTORY NodeDirectory  // Internal histo-representations
-
 	NO_NODE_PTR NodePtr // see Init()
+	NONODE NodePtr
+
+	// Uploading
 
 	WIPE_DB bool = false
         SILLINESS_COUNTER int
         SILLINESS_POS int
+        SILLINESS_SLOGAN int
 	SILLINESS bool
 )
 
-//******************************************************************
-// LIBRARY
-//******************************************************************
+//**************************************************************
+// WEB INTEFACE REPRESENTATIONS FOR JSON RENDERING
+//**************************************************************
 
-type PoSST struct {
+type PageView struct {
+	Title   string
+	Context string
+	Notes   [][]WebPath
+}
 
-   DB *sql.DB
+//**************************************************************
+
+type Coords struct {
+	X   float64
+	Y   float64
+	Z   float64
+	R   float64
+	Lat float64
+	Lon float64
+}
+
+//**************************************************************
+
+type WebPath struct {
+	NPtr    NodePtr
+	Arr     ArrowPtr
+	STindex int
+	Line    int     // used for pagemap
+	Name    string
+	Chp     string
+	Ctx     string
+	XYZ     Coords
 }
 
 //******************************************************************
@@ -382,10 +417,21 @@ type NodeEvent struct {
 	Text    string
 	L       int
 	Chap    string
-	Context []string
+	Context string
         NPtr    NodePtr
 	XYZ     Coords
 	Orbits  [ST_TOP][]Orbit
+}
+
+//******************************************************************
+
+type WebConePaths struct {
+
+	RootNode   NodePtr
+	Title      string
+	BTWC       []string
+	Paths      [][]WebPath
+	SuperNodes []string
 }
 
 //******************************************************************
@@ -422,12 +468,25 @@ type ChCtx struct {
 }
 
 //******************************************************************
+
+type LastSeen struct {
+	Section string
+	First   int64    // timestamp of first access
+	Last    int64    // timestamp of last access
+        Pdelta  float64  // previous average of access intervals
+	Ndelta  float64  // current last access interval
+	Freq    int      // count of total accesses
+	NPtr    NodePtr
+	XYZ     Coords
+}
+
+//******************************************************************
 // Open Library Context
 //******************************************************************
 
 func Open(load_arrows bool) PoSST {
 
-	var ctx PoSST
+	var sst PoSST
 	var err error
 
 	// Replace this with a private file
@@ -440,16 +499,25 @@ func Open(load_arrows bool) PoSST {
 
 	user,password,dbname = OverrideCredentials(user,password,dbname)
 
-        connStr := "user="+user+" dbname="+dbname+" password="+password+" sslmode=disable"
+        connect_str := "user="+user+" dbname="+dbname+" password="+password+" sslmode=disable"
 
-        ctx.DB, err = sql.Open("postgres", connStr)
+	// Check environment variable
+        // postgresql://<USER>:<PASSWORD>@<HOST>:<PORT>/<DATABASE>
+	// export POSTGRESQL_URI=postgresql://sstoryline:sst1234@localhost:5432/sstoryline?sslmode=disable
 
-	if err != nil {
-	   	fmt.Println("Error connecting to the database: ", err)
-		os.Exit(-1)
+	env := os.Getenv("POSTGRESQL_URI")
+
+	if len(env) == 0 {
+		sst.DB, err = sql.Open("postgres", connect_str)
+	} else {
+		sst.DB, err = sql.Open("postgres",env)
+		if err != nil {
+			fmt.Println("Error connecting to the database: ", err)
+			os.Exit(-1)
+		}
 	}
-	
-	err = ctx.DB.Ping()
+
+	err = sst.DB.Ping()
 	
 	if err != nil {
 		fmt.Println("Error pinging the database: ", err)
@@ -457,17 +525,21 @@ func Open(load_arrows bool) PoSST {
 	}
 
 	MemoryInit()
-	Configure(ctx,load_arrows)
+	Configure(sst,load_arrows)
 
 	NO_NODE_PTR.Class = 0
 	NO_NODE_PTR.CPtr =  -1
+	NONODE.Class = 0
+	NONODE.CPtr = 0
 
-	return ctx
+	return sst
 }
 
 // **************************************************************************
 
 func OverrideCredentials(u,p,d string) (string,string,string) {
+
+	// Store database/postgres credentials in a system file instead of hardcoding
 
 	dirname, err := os.UserHomeDir()
 
@@ -532,6 +604,8 @@ func OverrideCredentials(u,p,d string) (string,string,string) {
 
 func GetLine(s []byte,i int) (string,int) {
 
+	// For parsing the password credential file
+
 	var result []byte
 
 	for o := i; o < len(s); o++ {
@@ -547,6 +621,8 @@ func GetLine(s []byte,i int) (string,int) {
 	return string(result),i
 }
 
+// **************************************************************************
+//  When opening a connection, restore config
 // **************************************************************************
 
 func MemoryInit() {
@@ -573,7 +649,7 @@ func MemoryInit() {
 
 // **************************************************************************
 
-func Configure(ctx PoSST,load_arrows bool) {
+func Configure(sst PoSST,load_arrows bool) {
 
 	// Tmp reset
 
@@ -583,116 +659,259 @@ func Configure(ctx PoSST,load_arrows bool) {
 		fmt.Println("* WIPING DB")
 		fmt.Println("***********************")
 		
-		ctx.DB.QueryRow("drop function fwdconeaslinks")
-		ctx.DB.QueryRow("drop function fwdconeasnodes")
-		ctx.DB.QueryRow("drop function fwdpathsaslinks")
-		ctx.DB.QueryRow("drop function getfwdlinks")
-		ctx.DB.QueryRow("drop function getfwdnodes")
-		ctx.DB.QueryRow("drop function getneighboursbytype")
-		ctx.DB.QueryRow("drop function getsingletonaslink")
-		ctx.DB.QueryRow("drop function AllNCPathsAsLinks")
-		ctx.DB.QueryRow("drop function AllSuperNCPathsAsLinks")
-		ctx.DB.QueryRow("drop function SumAllNCPaths")
-		ctx.DB.QueryRow("drop function GetNCFwdLinks")
-		ctx.DB.QueryRow("drop function GetNCCLinks")
+		sst.DB.QueryRow("DROP INDEX sst_nan")
+		sst.DB.QueryRow("DROP INDEX sst_type")
+		sst.DB.QueryRow("DROP INDEX sst_gin")
+		sst.DB.QueryRow("DROP INDEX sst_ungin")
+		sst.DB.QueryRow("DROP INDEX sst_s")
+		sst.DB.QueryRow("DROP INDEX sst_n")
+		sst.DB.QueryRow("DROP INDEX sst_cnt")
 
-		ctx.DB.QueryRow("drop function getsingletonaslinkarray")
-		ctx.DB.QueryRow("drop function idempinsertnode")
-		ctx.DB.QueryRow("drop function sumfwdpaths")
-		ctx.DB.QueryRow("drop function match_context")
-		ctx.DB.QueryRow("drop function empty_path")
-		ctx.DB.QueryRow("drop function match_arrows")
-		ctx.DB.QueryRow("drop function ArrowInList")
-		ctx.DB.QueryRow("drop function GetStoryStartNodes")
-		ctx.DB.QueryRow("drop function GetNCCStoryStartNodes")
-		ctx.DB.QueryRow("drop function GetAppointments")
-		ctx.DB.QueryRow("drop function UnCmp")
-		ctx.DB.QueryRow("drop function DeleteChapter")
+		sst.DB.QueryRow("drop function fwdconeaslinks")
+		sst.DB.QueryRow("drop function fwdconeasnodes")
+		sst.DB.QueryRow("drop function fwdpathsaslinks")
+		sst.DB.QueryRow("drop function getfwdlinks")
+		sst.DB.QueryRow("drop function getfwdnodes")
+		sst.DB.QueryRow("drop function getneighboursbytype")
+		sst.DB.QueryRow("drop function getsingletonaslink")
+		sst.DB.QueryRow("drop function AllNCPathsAsLinks")
+		sst.DB.QueryRow("drop function AllSuperNCPathsAsLinks")
+		sst.DB.QueryRow("drop function SumAllNCPaths")
+		sst.DB.QueryRow("drop function GetNCFwdLinks")
+		sst.DB.QueryRow("drop function GetNCCLinks")
 
-		ctx.DB.QueryRow("drop table Node")
-		ctx.DB.QueryRow("drop table PageMap")
-		ctx.DB.QueryRow("drop table NodeArrowNode")
-		ctx.DB.QueryRow("drop type NodePtr")
-		ctx.DB.QueryRow("drop type Link")
-		ctx.DB.QueryRow("drop type Appointment")
+		sst.DB.QueryRow("drop function getsingletonaslinkarray")
+		sst.DB.QueryRow("drop function idempinsertnode")
+		sst.DB.QueryRow("drop function sumfwdpaths")
+		sst.DB.QueryRow("drop function match_context")
+		sst.DB.QueryRow("drop function empty_path")
+		sst.DB.QueryRow("drop function match_arrows")
+		sst.DB.QueryRow("drop function ArrowInList")
+		sst.DB.QueryRow("drop function GetNCCStoryStartNodes")
+		sst.DB.QueryRow("drop function GetStoryStartNodes")
+		sst.DB.QueryRow("drop function GetAppointments")
+		sst.DB.QueryRow("drop function UnCmp")
+		sst.DB.QueryRow("drop function DeleteChapter")
 
-		ctx.DB.QueryRow("drop table ArrowDirectory")
-		ctx.DB.QueryRow("drop table ArrowInverses")
+		sst.DB.QueryRow("drop function lastsawsection(text)")
+		sst.DB.QueryRow("drop function lastsawnptr(nodeptr)")
+
+		sst.DB.QueryRow("drop type NodePtr")
+		sst.DB.QueryRow("drop type Link")
+		sst.DB.QueryRow("drop type Appointment")
+
+		sst.DB.QueryRow("drop table Node")
+		sst.DB.QueryRow("drop table PageMap")
+		sst.DB.QueryRow("drop table NodeArrowNode")
+		sst.DB.QueryRow("drop table ArrowDirectory")
+		sst.DB.QueryRow("drop table ArrowInverses")
+		sst.DB.QueryRow("drop table ContextDirectory")
+		sst.DB.QueryRow("drop table LastSeen")
 
 	}
 
-	// Ignore error
-	ctx.DB.QueryRow("CREATE EXTENSION unaccent")
+	// Create functions, some we use in autocreating index columns
 
-	if !CreateType(ctx,NODEPTR_TYPE) {
+	sst.DB.QueryRow("CREATE EXTENSION unaccent")
+
+	if !CreateType(sst,NODEPTR_TYPE) {
 		fmt.Println("Unable to create type as, ",NODEPTR_TYPE)
 		os.Exit(-1)
 	}
 
-	if !CreateType(ctx,LINK_TYPE) {
+	if !CreateType(sst,LINK_TYPE) {
 		fmt.Println("Unable to create type as, ",LINK_TYPE)
 		os.Exit(-1)
 	}
 
-	if !CreateType(ctx,APPOINTMENT_TYPE) {
+	if !CreateType(sst,APPOINTMENT_TYPE) {
 		fmt.Println("Unable to create type as, ",APPOINTMENT_TYPE)
 		os.Exit(-1)
 	}
 
-	if !CreateTable(ctx,PAGEMAP_TABLE) {
+	if !CreateTable(sst,CONTEXT_DIRECTORY_TABLE) {
+		fmt.Println("Unable to create table as, ",CONTEXT_DIRECTORY_TABLE)
+		os.Exit(-1)
+	}
+
+	DefineStoredFunctions(sst)
+
+	if !CreateTable(sst,PAGEMAP_TABLE) {
 		fmt.Println("Unable to create table as, ",PAGEMAP_TABLE)
 		os.Exit(-1)
 	}
 
-	if !CreateTable(ctx,NODE_TABLE) {
+	if !CreateTable(sst,NODE_TABLE) {
 		fmt.Println("Unable to create table as, ",NODE_TABLE)
 		os.Exit(-1)
 	}
 
-	if !CreateTable(ctx,LINK_TABLE) {
-		fmt.Println("Unable to create table as, ",LINK_TABLE)
-		os.Exit(-1)
-	}
-
-	if !CreateTable(ctx,ARROW_INVERSES_TABLE) {
+	if !CreateTable(sst,ARROW_INVERSES_TABLE) {
 		fmt.Println("Unable to create table as, ",ARROW_INVERSES_TABLE)
 		os.Exit(-1)
 	}
-	if !CreateTable(ctx,ARROW_DIRECTORY_TABLE) {
+
+	if !CreateTable(sst,ARROW_DIRECTORY_TABLE) {
 		fmt.Println("Unable to create table as, ",ARROW_DIRECTORY_TABLE)
 		os.Exit(-1)
 	}
 
-	DefineStoredFunctions(ctx)
-	DownloadArrowsFromDB(ctx)
-	SynchronizeNPtrs(ctx)
+	if !CreateTable(sst,LASTSEEN_TABLE) {
+		fmt.Println("Unable to create table as, ",LASTSEEN_TABLE)
+		os.Exit(-1)
+	}
 
+	DownloadArrowsFromDB(sst)
+	DownloadContextsFromDB(sst)
+	SynchronizeNPtrs(sst)
+
+	// Find ignorable arrows
 }
 
 // **************************************************************************
 
-func Close(ctx PoSST) {
-	ctx.DB.Close()
+func Close(sst PoSST) {
+	sst.DB.Close()
 }
 
 // **************************************************************************
-// In memory representation structures
+//  Context registratation and directory management
 // **************************************************************************
 
-func GetNodeContext(ctx PoSST,node Node) []string {
+func GetContext(contextptr ContextPtr) string {
 
-	empty := GetDBArrowByName(ctx,"empty")
+	exists := int(contextptr) < len(CONTEXT_DIRECTORY)
 
-	for _,lnk := range node.I[ST_ZERO+LEADSTO] {
+	if exists {
+		return CONTEXT_DIRECTORY[contextptr].Context
+	}
 
-		if lnk.Arr == empty {
-			return lnk.Ctx
+	return "unknown context"
+}
+
+// ****************************************************************************
+
+func RegisterContext(parse_state map[string]bool,context []string) ContextPtr {
+
+	ctxstr := NormalizeContextString(parse_state,context)
+
+	if len(ctxstr) == 0 {
+		return 0
+	}
+
+	ctxptr,exists := CONTEXT_DIR[ctxstr] 
+
+	if !exists {
+		var cd ContextDirectory
+		cd.Context = ctxstr
+		cd.Ptr = CONTEXT_TOP
+		CONTEXT_DIRECTORY = append(CONTEXT_DIRECTORY,cd)
+		CONTEXT_DIR[ctxstr] = CONTEXT_TOP
+		ctxptr = CONTEXT_TOP
+		CONTEXT_TOP++
+	}
+
+	return ctxptr
+}
+
+// **************************************************************************
+
+func TryContext(sst PoSST,context []string) ContextPtr {
+
+	ctxstr := CompileContextString(context)
+	str,ctxptr := GetDBContextByName(sst,ctxstr)
+
+	if ctxptr == -1 || str != ctxstr {
+		ctxptr = UploadContextToDB(sst,ctxstr,-1)
+		RegisterContext(nil,context)
+	}
+
+	return ctxptr
+}
+
+// **************************************************************************
+
+func CompileContextString(context []string) string {
+
+	// Ensure idempotence
+
+	var merge = make(map[string]int)
+
+	for c := range context {
+		merge[context[c]]++
+	}
+
+	return List2String(Map2List(merge))	
+}
+
+// **************************************************************************
+
+func NormalizeContextString(contextmap map[string]bool,ctx []string) string {
+
+	// Mitigate combinatoric explosion
+
+	var merge = make(map[string]bool)
+	var clist []string
+
+	// Merge sources into single map
+	
+	if contextmap != nil {
+		for c := range contextmap {
+			merge[c] = true
 		}
+	}
+
+	for c := range ctx {
+		merge[ctx[c]] = true
+	}
+
+	for c := range merge {
+		s := strings.Split(c,",")
+		for i := range s {
+			s[i] = strings.TrimSpace(s[i])
+			if s[i] != "_sequence_" {
+				clist = append(clist,s[i])
+			}
+		}
+	}
+
+	return List2String(clist)
+}
+
+// **************************************************************************
+
+func GetNodeContext(sst PoSST,node Node) []string {
+
+	str := GetNodeContextString(sst,node)
+
+	if str != "" {
+		return strings.Split(str,",")
 	}
 
 	return nil
 }
 
+// **************************************************************************
+
+func GetNodeContextString(sst PoSST,node Node) string {
+
+	// This reads the ghost link planted for the purpose of attaching
+	// a context to floating nodes
+
+	empty := GetDBArrowByName(sst,"empty")
+
+	for _,lnk := range node.I[ST_ZERO+LEADSTO] {
+
+		if lnk.Arr == empty {
+			return GetContext(lnk.Ctx)
+		}
+	}
+
+	return ""
+}
+
+// **************************************************************************
+//  Node registration and memory management
 // **************************************************************************
 
 func GetNodeTxtFromPtr(frptr NodePtr) string {
@@ -761,7 +980,7 @@ func AppendTextToDirectory(event Node,ErrFunc func(string)) NodePtr {
 
 	if ok {
 		node_alloc_ptr.CPtr = cnode_slot
-		IdempAddChapterToNode(node_alloc_ptr.Class,node_alloc_ptr.CPtr,event.Chap)
+		IdempAddChapterSeqToNode(node_alloc_ptr.Class,node_alloc_ptr.CPtr,event.Chap,event.Seq)
 		return node_alloc_ptr
 	}
 
@@ -885,7 +1104,7 @@ func CheckExistingOrAltCaps(event Node,ErrFunc func(string)) (ClassedNodePtr,boo
 
 //**************************************************************
 
-func IdempAddChapterToNode(class int,cptr ClassedNodePtr,chap string) {
+func IdempAddChapterSeqToNode(class int,cptr ClassedNodePtr,chap string,seq bool) {
 
 	/* In the DB version, we have handle chapter collisions
            we want all similar names to have a single node for lateral
@@ -894,25 +1113,12 @@ func IdempAddChapterToNode(class int,cptr ClassedNodePtr,chap string) {
 
 	var node Node
 
-	switch class {
-	case N1GRAM:
-		node = NODE_DIRECTORY.N1directory[cptr]
-	case N2GRAM:
-		node = NODE_DIRECTORY.N2directory[cptr]
-	case N3GRAM:
-		node = NODE_DIRECTORY.N3directory[cptr]
-	case LT128:
-		node = NODE_DIRECTORY.LT128[cptr]
-	case LT1024:
-		node = NODE_DIRECTORY.LT1024[cptr]
-	case GT1024:
-		node = NODE_DIRECTORY.GT1024[cptr]
-	}
+	node = UpdateSeqStatus(class,cptr,seq)
 
 	if strings.Contains(node.Chap,chap) {
 		return
 	}
-	
+
 	newchap := node.Chap + "," + chap
 
 	switch class {
@@ -933,6 +1139,39 @@ func IdempAddChapterToNode(class int,cptr ClassedNodePtr,chap string) {
 
 //**************************************************************
 
+func UpdateSeqStatus(class int,cptr ClassedNodePtr,seq bool) Node {
+
+	switch class {
+	case N1GRAM:
+		NODE_DIRECTORY.N1directory[cptr].Seq = NODE_DIRECTORY.N1directory[cptr].Seq || seq
+		return NODE_DIRECTORY.N1directory[cptr]
+	case N2GRAM:
+		NODE_DIRECTORY.N2directory[cptr].Seq = NODE_DIRECTORY.N2directory[cptr].Seq || seq
+		return NODE_DIRECTORY.N2directory[cptr]
+	case N3GRAM:
+		NODE_DIRECTORY.N3directory[cptr].Seq = NODE_DIRECTORY.N3directory[cptr].Seq || seq
+		return NODE_DIRECTORY.N3directory[cptr]
+	case LT128:
+		NODE_DIRECTORY.LT128[cptr].Seq = NODE_DIRECTORY.LT128[cptr].Seq || seq
+		return NODE_DIRECTORY.LT128[cptr]
+	case LT1024:
+		NODE_DIRECTORY.LT1024[cptr].Seq = NODE_DIRECTORY.LT1024[cptr].Seq || seq
+		return NODE_DIRECTORY.LT1024[cptr]
+	case GT1024:
+		NODE_DIRECTORY.GT1024[cptr].Seq = NODE_DIRECTORY.GT1024[cptr].Seq || seq
+		return NODE_DIRECTORY.GT1024[cptr]
+	}
+
+	fmt.Println("Non existent node class (shouldn't happen)")
+	os.Exit(-1)
+	var dummy Node
+	return dummy
+}
+
+//**************************************************************
+// Link registration and management
+//**************************************************************
+
 func AppendLinkToNode(frptr NodePtr,link Link,toptr NodePtr) {
 
 	frclass := frptr.Class
@@ -941,53 +1180,59 @@ func AppendLinkToNode(frptr NodePtr,link Link,toptr NodePtr) {
 
 	link.Dst = toptr // fill in the last part of the reference
 
-	// Add idempotently ...
+	// Idempotently add any new context strings to the current list
+	// between from and to nodes -- stindex tells us which link type, so implicit in the arrow type
+	// the empty arrow is used to record node context, which is type LEADSTO
 
 	switch frclass {
 
 	case N1GRAM:
-		NODE_DIRECTORY.N1directory[frm].I[stindex] = MergeLinks(NODE_DIRECTORY.N1directory[frm].I[stindex],link)
+		NODE_DIRECTORY.N1directory[frm].I[stindex] = MergeLinkLists(NODE_DIRECTORY.N1directory[frm].I[stindex],link)
 	case N2GRAM:
-		NODE_DIRECTORY.N2directory[frm].I[stindex] = MergeLinks(NODE_DIRECTORY.N2directory[frm].I[stindex],link)
+		NODE_DIRECTORY.N2directory[frm].I[stindex] = MergeLinkLists(NODE_DIRECTORY.N2directory[frm].I[stindex],link)
 	case N3GRAM:
-		NODE_DIRECTORY.N3directory[frm].I[stindex] = MergeLinks(NODE_DIRECTORY.N3directory[frm].I[stindex],link)
+		NODE_DIRECTORY.N3directory[frm].I[stindex] = MergeLinkLists(NODE_DIRECTORY.N3directory[frm].I[stindex],link)
 	case LT128:
-		NODE_DIRECTORY.LT128[frm].I[stindex] = MergeLinks(NODE_DIRECTORY.LT128[frm].I[stindex],link)
+		NODE_DIRECTORY.LT128[frm].I[stindex] = MergeLinkLists(NODE_DIRECTORY.LT128[frm].I[stindex],link)
 	case LT1024:
-		NODE_DIRECTORY.LT1024[frm].I[stindex] = MergeLinks(NODE_DIRECTORY.LT1024[frm].I[stindex],link)
+		NODE_DIRECTORY.LT1024[frm].I[stindex] = MergeLinkLists(NODE_DIRECTORY.LT1024[frm].I[stindex],link)
 	case GT1024:
-		NODE_DIRECTORY.GT1024[frm].I[stindex] = MergeLinks(NODE_DIRECTORY.GT1024[frm].I[stindex],link)
+		NODE_DIRECTORY.GT1024[frm].I[stindex] = MergeLinkLists(NODE_DIRECTORY.GT1024[frm].I[stindex],link)
 	}
 }
 
 //**************************************************************
 
-func MergeLinks(list []Link,lnk Link) []Link {
+func MergeLinkLists(linklist []Link,lnk Link) []Link {
 
-	var ctx []string
+	// Ensure all arrows and contexts in lnk are in list for the appropriate arrows
 
-	for c := range lnk.Ctx { // strip redundant signal
-		if lnk.Ctx[c] != "_sequence_" {
-			ctx = append(ctx,lnk.Ctx[c])
+	new_ctxstr := GetContext(lnk.Ctx)
+	new_ctxlist := strings.Split(new_ctxstr,",")
+
+	// Check if the arrow is already there to add to its context
+
+	for l := range linklist {
+		if linklist[l].Arr == lnk.Arr && linklist[l].Dst == lnk.Dst {
+
+			already_ctxstr := GetContext(linklist[l].Ctx)
+			already_ctxlist := strings.Split(already_ctxstr,",")
+
+			linklist[l].Ctx = MergeContextLists(already_ctxlist,new_ctxlist)
+
+			return linklist
 		}
 	}
 
-	lnk.Ctx = ctx
+	// if not already there, add this arrow
 
-	for l := range list {
-		if list[l].Arr == lnk.Arr && list[l].Dst == lnk.Dst {
-			list[l].Ctx = MergeContexts(list[l].Ctx,ctx)
-			return list
-		}
-	}
-
-	list = append(list,lnk)
-	return list
+	linklist = append(linklist,lnk)
+	return linklist
 }
 
 //**************************************************************
 
-func MergeContexts(one,two []string) []string {
+func MergeContextLists(one,two []string) ContextPtr {
 
 	var merging = make(map[string]bool)
 	var merged []string
@@ -1006,7 +1251,25 @@ func MergeContexts(one,two []string) []string {
 		}
 	}
 
-	return merged
+	ctxstr := List2String(merged)
+
+	// Register the merger of contexts
+
+	ctxptr,ok := CONTEXT_DIR[ctxstr]
+
+	if ok {
+		return ctxptr
+	} else {
+		var cd ContextDirectory
+		cd.Context = ctxstr
+		cd.Ptr = CONTEXT_TOP
+		CONTEXT_DIRECTORY = append(CONTEXT_DIRECTORY,cd)
+		CONTEXT_DIR[ctxstr] = CONTEXT_TOP
+		ctxptr = CONTEXT_TOP
+		CONTEXT_TOP++
+	}
+
+	return ctxptr
 }
 
 //**************************************************************
@@ -1033,6 +1296,8 @@ func LinearFindText(in []Node,event Node,ignore_caps bool) (ClassedNodePtr,bool)
 	return -1,false
 }
 
+//**************************************************************
+// STtype naming and conversion
 //**************************************************************
 
 func GetSTIndexByName(stname,pm string) int {
@@ -1096,12 +1361,25 @@ func PrintSTAIndex(stindex int) string {
 }
 
 //**************************************************************
+// Arrow registration and management
+//**************************************************************
 
 func InsertArrowDirectory(stname,alias,name,pm string) ArrowPtr {
 
 	// Insert an arrow into the forward/backward indices
 
 	var newarrow ArrowDirectory
+
+	// Check is already exists - harmless
+
+	prev_alias,a_exists := ARROW_SHORT_DIR[alias]
+	prev_name,n_exists := ARROW_LONG_DIR[name]
+
+	if a_exists && n_exists {
+		if prev_alias == prev_name {
+			return prev_alias
+		}
+	}
 
 	for a := range ARROW_DIRECTORY {
 		if ARROW_DIRECTORY[a].Long == name || ARROW_DIRECTORY[a].Short == alias {
@@ -1137,12 +1415,12 @@ func InsertInverseArrowDirectory(fwd,bwd ArrowPtr) {
 }
 
 //**************************************************************
-// Write to database
+// Upload managed N4L graph / Write to database
 //**************************************************************
 
-func GraphToDB(ctx PoSST,wait_counter bool) {
+func GraphToDB(sst PoSST,wait_counter bool) {
 
-	total := 2 * len(NODE_DIRECTORY.N1directory) + len(NODE_DIRECTORY.N2directory) + len(NODE_DIRECTORY.N3directory) + len(NODE_DIRECTORY.LT128) + len(NODE_DIRECTORY.LT1024) + len(NODE_DIRECTORY.GT1024)
+	total := len(NODE_DIRECTORY.N1directory) + len(NODE_DIRECTORY.N2directory) + len(NODE_DIRECTORY.N3directory) + len(NODE_DIRECTORY.LT128) + len(NODE_DIRECTORY.LT1024) + len(NODE_DIRECTORY.GT1024) + len(PAGE_MAP)
 
 	fmt.Println("\nStoring primary nodes ...\n")
 
@@ -1154,87 +1432,38 @@ func GraphToDB(ctx PoSST,wait_counter bool) {
 		case N1GRAM:
 			for n := offset; n < len(NODE_DIRECTORY.N1directory); n++ {
 				org := NODE_DIRECTORY.N1directory[n]
-				UploadNodeToDB(ctx,org,class)
+				UploadNodeToDB(sst,org)
 				Waiting(wait_counter,total)
 			}
 		case N2GRAM:
 			for n := offset; n < len(NODE_DIRECTORY.N2directory); n++ {
 				org := NODE_DIRECTORY.N2directory[n]
-				UploadNodeToDB(ctx,org,class)
+				UploadNodeToDB(sst,org)
 				Waiting(wait_counter,total)
 			}
 		case N3GRAM:
 			for n := offset; n < len(NODE_DIRECTORY.N3directory); n++ {
 				org := NODE_DIRECTORY.N3directory[n]
-				UploadNodeToDB(ctx,org,class)
+				UploadNodeToDB(sst,org)
 				Waiting(wait_counter,total)
 			}
 		case LT128:
 			for n := offset; n < len(NODE_DIRECTORY.LT128); n++ {
 				org := NODE_DIRECTORY.LT128[n]
-				UploadNodeToDB(ctx,org,class)
+				UploadNodeToDB(sst,org)
 				Waiting(wait_counter,total)
 			}
 		case LT1024:
 			for n := offset; n < len(NODE_DIRECTORY.LT1024); n++ {
 				org := NODE_DIRECTORY.LT1024[n]
-				UploadNodeToDB(ctx,org,class)
+				UploadNodeToDB(sst,org)
 				Waiting(wait_counter,total)
 			}
 
 		case GT1024:
 			for n := offset; n < len(NODE_DIRECTORY.GT1024); n++ {
 				org := NODE_DIRECTORY.GT1024[n]
-				UploadNodeToDB(ctx,org,class)
-				Waiting(wait_counter,total)
-			}
-		}
-	}
-
-	// upload secondary table separately to avoid fragmentation
-
-	fmt.Println("\nStoring secondary nodes arrow node relations ...\n")
-
-	for class := N1GRAM; class <= GT1024; class++ {
-
-		offset := int(BASE_DB_CHANNEL_STATE[class])
-
-		switch class {
-		case N1GRAM:
-			for n := offset; n < len(NODE_DIRECTORY.N1directory); n++ {
-				org := NODE_DIRECTORY.N1directory[n]
-				UploadNodeArrowNodeToDB(ctx,org,class)
-				Waiting(wait_counter,total)
-			}
-		case N2GRAM:
-			for n := offset; n < len(NODE_DIRECTORY.N2directory); n++ {
-				org := NODE_DIRECTORY.N2directory[n]
-				UploadNodeArrowNodeToDB(ctx,org,class)
-				Waiting(wait_counter,total)
-			}
-		case N3GRAM:
-			for n := offset; n < len(NODE_DIRECTORY.N3directory); n++ {
-				org := NODE_DIRECTORY.N3directory[n]
-				UploadNodeArrowNodeToDB(ctx,org,class)
-				Waiting(wait_counter,total)
-			}
-		case LT128:
-			for n := offset; n < len(NODE_DIRECTORY.LT128); n++ {
-				org := NODE_DIRECTORY.LT128[n]
-				UploadNodeArrowNodeToDB(ctx,org,class)
-				Waiting(wait_counter,total)
-			}
-		case LT1024:
-			for n := offset; n < len(NODE_DIRECTORY.LT1024); n++ {
-				org := NODE_DIRECTORY.LT1024[n]
-				UploadNodeArrowNodeToDB(ctx,org,class)
-				Waiting(wait_counter,total)
-			}
-
-		case GT1024:
-			for n := offset; n < len(NODE_DIRECTORY.GT1024); n++ {
-				org := NODE_DIRECTORY.GT1024[n]
-				UploadNodeArrowNodeToDB(ctx,org,class)
+				UploadNodeToDB(sst,org)
 				Waiting(wait_counter,total)
 			}
 		}
@@ -1244,122 +1473,92 @@ func GraphToDB(ctx PoSST,wait_counter bool) {
 
 	fmt.Println("\nStoring Arrows...")
 
-	ctx.DB.QueryRow("drop table ArrowDirectory")
-	ctx.DB.QueryRow("drop table ArrowInverses")
+	sst.DB.QueryRow("drop table ArrowDirectory")
+	sst.DB.QueryRow("drop table ArrowInverses")
 
-	if !CreateTable(ctx,ARROW_INVERSES_TABLE) {
+	if !CreateTable(sst,ARROW_INVERSES_TABLE) {
 		fmt.Println("Unable to create table as, ",ARROW_INVERSES_TABLE)
 		os.Exit(-1)
 	}
-	if !CreateTable(ctx,ARROW_DIRECTORY_TABLE) {
+	if !CreateTable(sst,ARROW_DIRECTORY_TABLE) {
 		fmt.Println("Unable to create table as, ",ARROW_DIRECTORY_TABLE)
 		os.Exit(-1)
 	}
 
 	for arrow := range ARROW_DIRECTORY {
 
-		UploadArrowToDB(ctx,ArrowPtr(arrow))
+		UploadArrowToDB(sst,ArrowPtr(arrow))
 	}
 
 	fmt.Println("Storing inverse Arrows...")
 
 	for arrow := range INVERSE_ARROWS {
 
-		UploadInverseArrowToDB(ctx,ArrowPtr(arrow))
+		UploadInverseArrowToDB(sst,ArrowPtr(arrow))
 	}
+
+	fmt.Println("Storing contexts...")
+
+	UploadContextsToDB(sst)
 
 	fmt.Println("Storing page map...")
 
 	for line := 0; line < len(PAGE_MAP); line ++ {
-		UploadPageMapEvent(ctx,PAGE_MAP[line])
+		UploadPageMapEvent(sst,PAGE_MAP[line])
+		Waiting(wait_counter,total)
 	}
 
 	// CREATE INDICES
 
 	fmt.Println("Indexing ....")
 
-	ctx.DB.QueryRow("CREATE INDEX on NodeArrowNode (Arr,STType)")
-	ctx.DB.QueryRow("CREATE INDEX on Node (((NPtr).Chan),L,S)")
+//	sst.DB.QueryRow("CREATE INDEX IF NOT EXISTS sst_type on Node (((NPtr).Chan),L,S)")
+	sst.DB.QueryRow("CREATE INDEX IF NOT EXISTS sst_gin on Node USING GIN (to_tsvector('english',Search))")
+	sst.DB.QueryRow("CREATE INDEX IF NOT EXISTS sst_ungin on Node USING GIN (to_tsvector('english',UnSearch))")
+	sst.DB.QueryRow("CREATE INDEX IF NOT EXISTS sst_s on Node USING GIN (S)")
+	sst.DB.QueryRow("CREATE INDEX IF NOT EXISTS sst_n on Node USING GIN (NPtr)")
+	sst.DB.QueryRow("CREATE INDEX IF NOT EXISTS sst_cnt on ContextDirectory USING GIN (Context)")
+	sst.DB.QueryRow("ALTER TABLE Node SET LOGGED")
+	sst.DB.QueryRow("ALTER TABLE PageMap SET LOGGED")
+
+	fmt.Println("Finally done!")
 }
 
 // **************************************************************************
-// Postgres
+// Store - High level API, for automatic NPtr numbering
 // **************************************************************************
 
-func CreateType(ctx PoSST, defn string) bool {
-
-	row,err := ctx.DB.Query(defn)
-
-	if err != nil {
-		s := fmt.Sprintln("Failed to create datatype PGLink ",err)
-		
-		if strings.Contains(s,"already exists") {
-			return true
-		} else {
-			return false
-		}
-	}
-
-	row.Close();
-	return true
-}
-
-// **************************************************************************
-
-func CreateTable(ctx PoSST,defn string) bool {
-
-	row,err := ctx.DB.Query(defn)
-	
-	if err != nil {
-		s := fmt.Sprintln("Failed to create a table %.10 ...",defn,err)
-		
-		if strings.Contains(s,"already exists") {
-			return true
-		} else {
-			return false
-		}
-	}
-
-	row.Close()
-	return true
-}
-
-// **************************************************************************
-// Store - High level API
-// **************************************************************************
-
-func Vertex(ctx PoSST,name,chap string) Node {
+func Vertex(sst PoSST,name,chap string) Node {
 
 	var n Node
 
 	n.S = name
 	n.Chap = chap
 
-	return IdempDBAddNode(ctx,n)
+	return IdempDBAddNode(sst,n)
 }
 
 // **************************************************************************
 
-func Edge(ctx PoSST,from Node,arrow string,to Node,context []string,weight float32) (ArrowPtr,int) {
+func Edge(sst PoSST,from Node,arrow string,to Node,context []string,weight float32) (ArrowPtr,int) {
 
-	arrowptr,sttype := GetDBArrowsWithArrowName(ctx,arrow)
+	arrowptr,sttype := GetDBArrowsWithArrowName(sst,arrow)
 
 	var link Link
 
 	link.Arr = arrowptr
 	link.Dst = to.NPtr
 	link.Wgt = weight
-	link.Ctx = context
+	link.Ctx = TryContext(sst,context)
 
-	IdempDBAddLink(ctx,from,link,to)
-	CreateDBNodeArrowNode(ctx,from.NPtr,link,sttype)
+	IdempDBAddLink(sst,from,link,to)
 
 	return arrowptr,sttype
 }
 
 // **************************************************************************
 
-func HubJoin(ctx PoSST,name,chap string,nptrs []NodePtr,arrow string,context []string,weight []float32) Node {
+func HubJoin(sst PoSST,name,chap string,nptrs []NodePtr,arrow string,context []string,weight []float32) Node {
 
 	// Create a container node joining several other nodes in a list, like a hyperlink
 
@@ -1385,7 +1584,7 @@ func HubJoin(ctx PoSST,name,chap string,nptrs []NodePtr,arrow string,context []s
 		name = "hub_"+arrow+"_"
 		for n := range nptrs {
 			name += fmt.Sprintf("(%d,%d)",nptrs[n].Class,nptrs[n].CPtr)
-			node := GetDBNodeByNodePtr(ctx,nptrs[n])
+			node := GetDBNodeByNodePtr(sst,nptrs[n])
 			chaps[node.Chap]++
 		}
 	}
@@ -1402,9 +1601,9 @@ func HubJoin(ctx PoSST,name,chap string,nptrs []NodePtr,arrow string,context []s
 		}
 	}
 
-	container := IdempDBAddNode(ctx,to)
+	container := IdempDBAddNode(sst,to)
 
-	arrowptr,sttype := GetDBArrowsWithArrowName(ctx,arrow)
+	arrowptr,_ := GetDBArrowsWithArrowName(sst,arrow)
 
 	for nptr := range nptrs {
 
@@ -1412,20 +1611,46 @@ func HubJoin(ctx PoSST,name,chap string,nptrs []NodePtr,arrow string,context []s
 		link.Arr = arrowptr
 		link.Dst = container.NPtr
 		link.Wgt = weight[nptr]
-		link.Ctx = context
-		from := GetDBNodeByNodePtr(ctx,nptrs[nptr])
-		IdempDBAddLink(ctx,from,link,container)
-		CreateDBNodeArrowNode(ctx,nptrs[nptr],link,sttype)
+		link.Ctx = TryContext(sst,context)
+		from := GetDBNodeByNodePtr(sst,nptrs[nptr])
+		IdempDBAddLink(sst,from,link,container)
 	}
 
-	return GetDBNodeByNodePtr(ctx,container.NPtr)
+	return GetDBNodeByNodePtr(sst,container.NPtr)
 }
 
 // **************************************************************************
-// Lower level functions
+// Lower level functions, for self-managed NPtr values
 // **************************************************************************
 
-func CreateDBNode(ctx PoSST, n Node) Node {
+func FormDBNode(sst PoSST, n Node) string {
+
+	// Add node version setting explicit CPtr value, note different function call
+	// We use this function when we ARE managing/counting CPtr values ourselves
+
+	var qstr,seqstr string
+
+        n.L,n.NPtr.Class = StorageClass(n.S)
+	
+	cptr := n.NPtr.CPtr
+
+	es := SQLEscape(n.S)
+	ec := SQLEscape(n.Chap)
+
+	if n.Seq {
+		seqstr = "true"
+	} else {
+		seqstr = "false"
+	}
+
+	qstr = fmt.Sprintf("SELECT InsertNode(%d,%d,%d,'%s','%s',%s);\n",n.L,n.NPtr.Class,cptr,es,ec,seqstr)
+	return qstr
+}
+
+
+// **************************************************************************
+
+func CreateDBNode(sst PoSST, n Node) Node {
 
 	// Add node version setting explicit CPtr value, note different function call
 	// We use this function when we ARE managing/counting CPtr values ourselves
@@ -1441,7 +1666,7 @@ func CreateDBNode(ctx PoSST, n Node) Node {
 
 	qstr = fmt.Sprintf("SELECT IdempInsertNode(%d,%d,%d,'%s','%s')",n.L,n.NPtr.Class,cptr,es,ec)
 
-	row,err := ctx.DB.Query(qstr)
+	row,err := sst.DB.Query(qstr)
 	
 	if err != nil {
 		s := fmt.Sprint("Failed to insert",err)
@@ -1456,25 +1681,29 @@ func CreateDBNode(ctx PoSST, n Node) Node {
 	var whole string
 	var cl,ch int
 
-	for row.Next() {		
-		err = row.Scan(&whole)
-		fmt.Sscanf(whole,"(%d,%d)",&cl,&ch)
+	if row != nil {
+		for row.Next() {		
+			err = row.Scan(&whole)
+			fmt.Sscanf(whole,"(%d,%d)",&cl,&ch)
+		}
+		
+		n.NPtr.Class = cl
+		n.NPtr.CPtr = ClassedNodePtr(ch)
+		
+		row.Close()
 	}
-
-	n.NPtr.Class = cl
-	n.NPtr.CPtr = ClassedNodePtr(ch)
-
-	row.Close()
 
 	return n
 }
 
 // **************************************************************************
+//  Low level append/insert for auto-managed NPtr values
+// **************************************************************************
 
-func IdempDBAddNode(ctx PoSST,n Node) Node {
+func IdempDBAddNode(sst PoSST,n Node) Node {
 
 	// We use this function when we aren't counting CPtr values
-	// This functon may be deprecated in future, replaced by Node()
+	// This functon may be deprecated in future
 
 	var qstr string
 
@@ -1489,7 +1718,7 @@ func IdempDBAddNode(ctx PoSST,n Node) Node {
 
 	qstr = fmt.Sprintf("SELECT IdempAppendNode(%d,%d,'%s','%s')",n.L,n.NPtr.Class,es,ec)
 
-	row,err := ctx.DB.Query(qstr)
+	row,err := sst.DB.Query(qstr)
 	
 	if err != nil {
 		s := fmt.Sprint("Failed to add node",err)
@@ -1504,66 +1733,58 @@ func IdempDBAddNode(ctx PoSST,n Node) Node {
 	var whole string
 	var cl,ch int
 
-	for row.Next() {		
-		err = row.Scan(&whole)
-		fmt.Sscanf(whole,"(%d,%d)",&cl,&ch)
+	if row != nil {
+		for row.Next() {		
+			err = row.Scan(&whole)
+			fmt.Sscanf(whole,"(%d,%d)",&cl,&ch)
+		}
+		
+		n.NPtr.Class = cl
+		n.NPtr.CPtr = ClassedNodePtr(ch)
+		
+		row.Close()
 	}
-
-	n.NPtr.Class = cl
-	n.NPtr.CPtr = ClassedNodePtr(ch)
-
-	row.Close()
 
 	return n
 }
 
 // **************************************************************************
-
-func UploadNodeToDB(ctx PoSST, org Node,channel int) {
-
-	const nolink = 999
-
-	CreateDBNode(ctx,org)
-
-	for stindex := 0; stindex < len(org.I); stindex++ {
-
-		for lnk := range org.I[stindex] {
-
-			dstlnk := org.I[stindex][lnk]
-			sttype := STIndexToSTType(stindex)
-
-			AppendDBLinkToNode(ctx,org.NPtr,dstlnk,sttype)
-		}
-	}
-}
-
+//  Uploading memory cache to database
 // **************************************************************************
 
-func UploadNodeArrowNodeToDB(ctx PoSST, org Node,channel int) {
+func UploadNodeToDB(sst PoSST, org Node) {
 
 	const nolink = 999
-	var empty Link
 
-	empty.Arr = GetDBArrowByName(ctx,"empty")
+	qstr := "BEGIN;\n" + FormDBNode(sst,org)
 
 	for stindex := 0; stindex < len(org.I); stindex++ {
 
-		if len(org.I[stindex]) > 0 {
-			for lnk := range org.I[stindex] {
-				dstlnk := org.I[stindex][lnk]
-				sttype := STIndexToSTType(stindex)
-				CreateDBNodeArrowNode(ctx,org.NPtr,dstlnk,sttype)
-			}
+		lnkarray := FormatSQLLinkArray(org.I[stindex])
+		sttype := STIndexToSTType(stindex)
+		qstr += AppendDBLinkArrayToNode(sst,org.NPtr,lnkarray,sttype)
+	}
+
+	qstr += "\nCOMMIT;"
+
+	row,err := sst.DB.Query(qstr)
+
+	if err != nil {
+		s := fmt.Sprint("Failed to insert",err)
+		
+		if strings.Contains(s,"duplicate key") {
 		} else {
-			// if the node has no links, then still add the node for consistency
-			CreateDBNodeArrowNode(ctx,org.NPtr,empty,nolink)
+			fmt.Println(s,"FAILED \n",qstr,err)
 		}
+		return
 	}
+
+	row.Close()
 }
 
 // **************************************************************************
 
-func UploadArrowToDB(ctx PoSST,arrow ArrowPtr) {
+func UploadArrowToDB(sst PoSST,arrow ArrowPtr) {
 
 	staidx := ARROW_DIRECTORY[arrow].STAindex
 	long := SQLEscape(ARROW_DIRECTORY[arrow].Long)
@@ -1571,7 +1792,7 @@ func UploadArrowToDB(ctx PoSST,arrow ArrowPtr) {
 
 	qstr := fmt.Sprintf("INSERT INTO ArrowDirectory (STAindex,Long,Short,ArrPtr) SELECT %d,'%s','%s',%d WHERE NOT EXISTS (SELECT Long,Short,ArrPtr FROM ArrowDirectory WHERE lower(Long) = lower('%s') OR lower(Short) = lower('%s') OR ArrPtr = %d)",staidx,long,short,arrow,long,short,arrow)
 
-	row,err := ctx.DB.Query(qstr)
+	row,err := sst.DB.Query(qstr)
 	
 	if err != nil {
 		s := fmt.Sprint("Failed to insert",err)
@@ -1588,14 +1809,14 @@ func UploadArrowToDB(ctx PoSST,arrow ArrowPtr) {
 
 // **************************************************************************
 
-func UploadInverseArrowToDB(ctx PoSST,arrow ArrowPtr) {
+func UploadInverseArrowToDB(sst PoSST,arrow ArrowPtr) {
 
 	plus := arrow
 	minus := INVERSE_ARROWS[arrow]
 
 	qstr := fmt.Sprintf("INSERT INTO ArrowInverses (Plus,Minus) SELECT %d,%d WHERE NOT EXISTS (SELECT Plus,Minus FROM ArrowInverses WHERE Plus = %d OR minus = %d)",plus,minus,plus,minus)
 
-	row,err := ctx.DB.Query(qstr)
+	row,err := sst.DB.Query(qstr)
 	
 	if err != nil {
 		s := fmt.Sprint("Failed to insert",err)
@@ -1606,17 +1827,64 @@ func UploadInverseArrowToDB(ctx PoSST,arrow ArrowPtr) {
 		}
 		return
 	}
-
 	row.Close()
+}
+
+// **************************************************************************
+
+func UploadContextsToDB(sst PoSST) {
+
+	for ctxdir := range CONTEXT_DIRECTORY {
+		UploadContextToDB(sst,CONTEXT_DIRECTORY[ctxdir].Context,CONTEXT_DIRECTORY[ctxdir].Ptr)
+	}
+}
+
+// **************************************************************************
+
+func UploadContextToDB(sst PoSST,contextstring string,ptr ContextPtr) ContextPtr {
+
+	a := SQLEscape(contextstring)
+	b := ptr
+
+	// Make sure neither a nor b are previously defined
+
+	qstr := fmt.Sprintf("SELECT IdempInsertContext('%s',%d)",a,b)
+
+	row,err := sst.DB.Query(qstr)
+	
+	if err != nil {
+		fmt.Println("FAILED \n",qstr,err)
+	}
+
+	var cptr ContextPtr
+
+	if row != nil {
+		for row.Next() {
+			err = row.Scan(&cptr)
+		}
+		row.Close()
+	}
+
+	return cptr
 }
 
 //**************************************************************
 
-func UploadPageMapEvent(ctx PoSST, line PageMap) {
+func UploadPageMapEvent(sst PoSST, line PageMap) {
 
-	qstr := fmt.Sprintf("INSERT INTO PageMap (Chap,Alias,Ctx,Line) VALUES ('%s','%s',%s,%d)",line.Chapter,line.Alias,FormatSQLStringArray(line.Context),line.Line)
+	chap := SQLEscape(line.Chapter)
 
-	row,err := ctx.DB.Query(qstr)
+	qstr := "BEGIN;\n"
+
+	qstr += fmt.Sprintf("INSERT INTO PageMap (Chap,Alias,Ctx,Line) VALUES ('%s','%s',%d,%d);\n",chap,line.Alias,line.Context,line.Line)
+
+	lnkarray := FormatSQLLinkArray(line.Path)
+
+	qstr += fmt.Sprintf("\nUPDATE PageMap SET Path='%s' WHERE Chap = '%s' AND Line = '%d';",lnkarray,chap,line.Line)
+
+	qstr += "COMMIT;"
+
+	row,err := sst.DB.Query(qstr)
 	
 	if err != nil {
 		s := fmt.Sprint("Failed to insert pagemap event",err)
@@ -1630,28 +1898,13 @@ func UploadPageMapEvent(ctx PoSST, line PageMap) {
 	}
 
 	row.Close()
-
-	for lnk := 0; lnk < len(line.Path); lnk++ {
-
-		linkval := fmt.Sprintf("(%d, %f, %s, (%d,%d)::NodePtr)",line.Path[lnk].Arr,line.Path[lnk].Wgt,FormatSQLStringArray(line.Path[lnk].Ctx),line.Path[lnk].Dst.Class,line.Path[lnk].Dst.CPtr)
-
-		literal := fmt.Sprintf("%s::Link",linkval)
-		
-		qstr := fmt.Sprintf("UPDATE PageMap SET Path=array_append(Path,%s) WHERE Chap = '%s' AND Line = '%d'",literal,line.Chapter,line.Line)
-		
-		row,err := ctx.DB.Query(qstr)
-		
-		if err != nil {
-			fmt.Println("Failed to append",err,qstr)
-		}
-		
-		row.Close()
-	}
 }
 
 //**************************************************************
 
-func IdempDBAddLink(ctx PoSST,from Node,link Link,to Node) {
+func IdempDBAddLink(sst PoSST,from Node,link Link,to Node) {
+
+	// API Entry point for registering links
 
 	frptr := from.NPtr
 	toptr := to.NPtr
@@ -1663,7 +1916,7 @@ func IdempDBAddLink(ctx PoSST,from Node,link Link,to Node) {
 		os.Exit(-1)
 	}
 
-	if link.Arr < 0 {
+	if link.Arr < 0 || len(ARROW_DIRECTORY) == 0 {
 		fmt.Println("No arrows have yet been defined, so you can't rely on the arrow names")
 		os.Exit(-1)
 	}
@@ -1675,7 +1928,7 @@ func IdempDBAddLink(ctx PoSST,from Node,link Link,to Node) {
 
 	sttype := STIndexToSTType(ARROW_DIRECTORY[link.Arr].STAindex)
 
-	AppendDBLinkToNode(ctx,frptr,link,sttype)
+	AppendDBLinkToNode(sst,frptr,link,sttype)
 
 	// Double up the reverse definition for easy indexing of both in/out arrows
 	// But be careful not the make the graph undirected by mistake
@@ -1684,42 +1937,16 @@ func IdempDBAddLink(ctx PoSST,from Node,link Link,to Node) {
 	invlink.Arr = INVERSE_ARROWS[link.Arr]
 	invlink.Wgt = link.Wgt
 	invlink.Dst = frptr
-	AppendDBLinkToNode(ctx,toptr,invlink,-sttype)
+	AppendDBLinkToNode(sst,toptr,invlink,-sttype)
 }
 
 // **************************************************************************
 
-func AppendDBLinkToNode(ctx PoSST, n1ptr NodePtr, lnk Link, sttype int) bool {
+func AppendDBLinkToNode(sst PoSST, n1ptr NodePtr, lnk Link, sttype int) bool {
 
-	// Want to make this idempotent, because SQL is not (and not clause)
+	qstr := AppendDBLinkToNodeCommand(sst,n1ptr,lnk,sttype)
 
-	if sttype < -EXPRESS || sttype > EXPRESS {
-		fmt.Println(ERR_ST_OUT_OF_BOUNDS,sttype)
-		os.Exit(-1)
-	}
-
-	if n1ptr == lnk.Dst {
-		return false
-	}
-
-	//                       Arr,Wgt,Ctx,  Dst
-	linkval := fmt.Sprintf("(%d, %f, %s, (%d,%d)::NodePtr)",lnk.Arr,lnk.Wgt,FormatSQLStringArray(lnk.Ctx),lnk.Dst.Class,lnk.Dst.CPtr)
-
-	literal := fmt.Sprintf("%s::Link",linkval)
-
-	link_table := STTypeDBChannel(sttype)
-
-	qstr := fmt.Sprintf("UPDATE NODE SET %s=array_append(%s,%s) WHERE (NPtr).CPtr = '%d' AND (NPtr).Chan = '%d' AND (%s IS NULL OR NOT %s = ANY(%s))",
-		link_table,
-		link_table,
-		literal,
-		n1ptr.CPtr,
-		n1ptr.Class,
-		link_table,
-		literal,
-		link_table)
-
-	row,err := ctx.DB.Query(qstr)
+	row,err := sst.DB.Query(qstr)
 
 	if err != nil {
 		fmt.Println("Failed to append",err,qstr)
@@ -1732,81 +1959,106 @@ func AppendDBLinkToNode(ctx PoSST, n1ptr NodePtr, lnk Link, sttype int) bool {
 
 // **************************************************************************
 
-func CreateDBNodeArrowNode(ctx PoSST, org NodePtr, dst Link, sttype int) bool {
+func AppendDBLinkToNodeCommand(sst PoSST, n1ptr NodePtr, lnk Link, sttype int) string {
 
-	if dst.Wgt == 0 {
-		return false
+	// Want to make this idempotent, because SQL is not (and not clause)
+
+	if sttype < -EXPRESS || sttype > EXPRESS {
+		fmt.Println(ERR_ST_OUT_OF_BOUNDS,sttype)
+		os.Exit(-1)
 	}
 
-	qstr := fmt.Sprintf("SELECT IdempInsertNodeArrowNode(" +
-		"%d," + //infromptr
-		"%d," + //infromchan
-		"%d," + //isttype
-		"%d," + //iarr
-		"%.2f," + //iwgt
-		"%s," + //ictx
-		"%d," + //intoptr
-		"%d " + //intochan,
-		")",
-		org.CPtr,
-		org.Class,
-		sttype,
-		dst.Arr,
-		dst.Wgt,
-		FormatSQLStringArray(dst.Ctx),
-		dst.Dst.CPtr,
-		dst.Dst.Class)
+	if n1ptr == lnk.Dst {
+		return ""
+	}
 
-	row,err := ctx.DB.Query(qstr)
+	//                       Arr,Wgt,Ctx,  Dst
+	linkval := fmt.Sprintf("(%d, %f, %d, (%d,%d)::NodePtr)",lnk.Arr,lnk.Wgt,lnk.Ctx,lnk.Dst.Class,lnk.Dst.CPtr)
+
+	literal := fmt.Sprintf("%s::Link",linkval)
+
+	link_table := STTypeDBChannel(sttype)
+
+	qstr := fmt.Sprintf("UPDATE NODE SET %s=array_append(%s,%s) WHERE (NPtr).CPtr = '%d' AND (NPtr).Chan = '%d' AND (%s IS NULL OR NOT %s = ANY(%s));\n",
+		link_table,
+		link_table,
+		literal,
+		n1ptr.CPtr,
+		n1ptr.Class,
+		link_table,
+		literal,
+		link_table)
+
+	return qstr
+}
+
+// **************************************************************************
+
+func AppendDBLinkArrayToNode(sst PoSST, nptr NodePtr, array string, sttype int) string {
+
+	// Want to make this idempotent, because SQL is not (and not clause)
+
+	if sttype < -EXPRESS || sttype > EXPRESS {
+		fmt.Println(ERR_ST_OUT_OF_BOUNDS,sttype)
+		os.Exit(-1)
+	}
+
+	link_table := STTypeDBChannel(sttype)
+
+	qstr := fmt.Sprintf("UPDATE NODE SET %s='%s' WHERE (NPtr).CPtr = '%d' AND (NPtr).Chan = '%d';\n",
+		link_table,
+		array,
+		nptr.CPtr,
+		nptr.Class)
+
+	return qstr
+}
+
+// **************************************************************************
+// Postgres interface
+// **************************************************************************
+
+func CreateType(sst PoSST, defn string) bool {
+
+	row,err := sst.DB.Query(defn)
 
 	if err != nil {
-		fmt.Println("Failed to make node-arrow-node",err,qstr)
-	       return false
+		s := fmt.Sprintln("Failed to create datatype PGLink ",err)
+		
+		if strings.Contains(s,"already exists") {
+			return true
+		} else {
+			return false
+		}
 	}
 
-	row.Close()
-
-	if dst.Dst.Class == 0 {
-		// Dummy entry, no inverse
-		return true
-	}
-
-	// And the reverse arrow
-
-	qstr = fmt.Sprintf("SELECT IdempInsertNodeArrowNode(" +
-		"%d," + //infromptr
-		"%d," + //infromchan
-		"%d," + //isttype
-		"%d," + //iarr
-		"%.2f," + //iwgt
-		"%s," + //ictx
-		"%d," + //intoptr
-		"%d " + //intochan,
-		")",
-		dst.Dst.CPtr,
-		dst.Dst.Class,
-		-sttype,
-		INVERSE_ARROWS[dst.Arr],
-		dst.Wgt,
-		FormatSQLStringArray(dst.Ctx),
-		org.CPtr,
-		org.Class,)
-
-	row,err = ctx.DB.Query(qstr)
-
-	if err != nil {
-		fmt.Println("Failed to make inverse node-arrow-node",err,qstr)
-	       return false
-	}
-
-	row.Close()
-
+	row.Close();
 	return true
 }
 
 // **************************************************************************
 
-func DefineStoredFunctions(ctx PoSST) {
+func CreateTable(sst PoSST,defn string) bool {
+
+	row,err := sst.DB.Query(defn)
+	
+	if err != nil {
+		s := fmt.Sprintln("Failed to create a table %.10 ...",defn,err)
+		
+		if strings.Contains(s,"already exists") {
+			return true
+		} else {
+			return false
+		}
+	}
+
+	row.Close()
+	return true
+}
+
+// **************************************************************************
+
+func DefineStoredFunctions(sst PoSST) {
 
 	// NB! these functions are in "plpgsql" language, NOT SQL. They look similar but they are DIFFERENT!
 	
@@ -1828,13 +2080,34 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;",cols);
 
-	row,err := ctx.DB.Query(qstr)
+	row,err := sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
 	}
 
 	row.Close()
+
+	// Force for managed input
+
+	qstr = fmt.Sprintf("CREATE OR REPLACE FUNCTION InsertNode(iLi INT, iszchani INT, icptri INT, iSi TEXT, ichapi TEXT,sequence boolean)\n" +
+		"RETURNS bool AS $fn$ " +
+		"DECLARE \n" +
+		"BEGIN\n" +
+		"   INSERT INTO Node (Nptr.Chan,Nptr.Cptr,L,S,chap,Seq,%s) VALUES (iszchani,icptri,iLi,iSi,ichapi,sequence,'{}','{}','{}','{}','{}','{}','{}');" +
+		"   RETURN true;\n"+
+		"END ;\n" +
+		"$fn$ LANGUAGE plpgsql;",cols);
+
+	row,err = sst.DB.Query(qstr)
+	
+	if err != nil {
+		fmt.Println("Error defining postgres function:",qstr,err)
+	}
+
+	row.Close()
+
+	// Without controlling nptr
 
 	qstr = "CREATE OR REPLACE FUNCTION IdempAppendNode(iLi INT, iszchani INT, iSi TEXT, ichapi TEXT)\n" +
 		"RETURNS TABLE (    \n" +
@@ -1855,7 +2128,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;";
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -1863,37 +2136,87 @@ func DefineStoredFunctions(ctx PoSST) {
 
 	row.Close()
 
-	// For lookup by arrow
+	// Insert Context from API
 
-	qstr = "CREATE OR REPLACE FUNCTION IdempInsertNodeArrowNode\n" +
-		"(\n" +
-		"infromptr  int,   \n" +
-		"infromchan int,   \n" +
-		"isttype    int,   \n" +
-		"iarr       int,   \n" +
-		"iwgt       real,  \n" +
-		"ictx       text[],\n" +
-		"intoptr    int,   \n" +
-		"intochan   int    \n" +
-		")\n" +
-
-		"RETURNS real AS $fn$ " +
-
+	qstr = "CREATE OR REPLACE FUNCTION IdempInsertContext(constr text,conptr int)\n" +
+		"RETURNS int AS $fn$ " +
 		"DECLARE \n" +
-		"  ret_wgt real;\n" +
+		"    cptr INT = 0;\n" +
+		"    found int=-99;\n" +
 		"BEGIN\n" +
-
-		"  IF NOT EXISTS (SELECT Wgt FROM NodeArrowNode WHERE (NFrom).Cptr=infromptr AND (NFrom).Chan=infromchan AND Arr=iarr AND (NTo).Cptr=intoptr AND (NTo).Chan=intochan)  THEN\n" +
-		"     INSERT INTO NodeArrowNode (nfrom.Cptr,nfrom.Chan,sttype,arr,wgt,ctx,nto.Cptr,nto.Chan) \n" +
-		"       VALUES (infromptr,infromchan,isttype,iarr,iwgt,ictx,intoptr,intochan);" +
-
-		"  END IF;\n" +
-		"  SELECT Wgt into ret_wgt FROM NodeArrowNode WHERE (NFrom).Cptr=infromptr AND Arr=iarr AND (NTo).Cptr=intoptr;\n" +
-		"  RETURN ret_wgt;" +
+		"IF conptr=-1 THEN\n"+
+		"   SELECT Context,CtxPtr INTO found FROM ContextDirectory WHERE Context=constr AND CtxPtr=conptr;\n"+
+		"   SELECT max(CtxPtr) INTO cptr FROM ContextDirectory;\n"+
+		"   INSERT INTO ContextDirectory (Context,CtxPtr) VALUES (constr,cptr+1);\n"+
+		"   RETURN cptr+1;\n" +
+		"END IF;\n" +
+		"IF NOT EXISTS (SELECT CtxPtr FROM ContextDirectory WHERE CtxPtr=conptr OR Context=constr) THEN\n" +
+		"   INSERT INTO ContextDirectory (Context,CtxPtr) VALUES (constr,conptr);\n"+
+		"   RETURN conptr;\n" +
+		"END IF;"+
+		"SELECT CtxPtr INTO cptr FROM ContextDirectory WHERE CtxPtr=conptr OR Context=constr;\n"+
+		"RETURN cptr;\n"+
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;";
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
+	
+	if err != nil {
+		fmt.Println("Error defining postgres function:",qstr,err)
+	}
+
+	row.Close()
+
+	// For lookup include name,chapter,context,arrow
+	
+	qstr = "CREATE OR REPLACE FUNCTION NCC_match(thisnptr NodePtr,context text[],arrows int[],sttypes int[],lm3 Link[],lm2 Link[],lm1 Link[],ln0 Link[],lp1 Link[],lp2 Link[],lp3 Link[])\n"+
+		"RETURNS boolean AS $fn$\n"+
+		"DECLARE \n"+
+		"    emptyarray Link[] := Array[] :: Link[];\n"+
+		"    lnkarray Link[] := Array[] :: Link[];\n"+
+		"    lnk Link;\n"+
+		"    st int;\n"+
+		"BEGIN\n"+
+		
+		// If there are no arrows, we only need to look for the Node context in lp1 for "empty" == 0
+
+		"IF array_length(arrows,1) IS NULL THEN\n"+
+
+		"   IF lp1 IS NOT NULL THEN"+		
+		"      FOREACH lnk IN ARRAY lp1 LOOP\n"+
+                "         IF lnk.Arr = 0 AND match_context(lnk.Ctx,context) THEN\n"+
+		"            RETURN true;"+
+		"         END IF;"+
+		"      END LOOP;\n"+
+		"   END IF;\n"+
+
+		"ELSE\n"+
+
+		// If there are arrows
+
+		"   FOREACH st IN ARRAY sttypes LOOP\n"+
+		"      CASE st \n"		
+	for st := -EXPRESS; st <= EXPRESS; st++ {
+		qstr += fmt.Sprintf("   WHEN %d THEN\n"+
+			"         SELECT %s INTO lnkarray FROM Node WHERE Nptr=thisnptr;\n",st,STTypeDBChannel(st));
+	}
+	qstr +=	"      ELSE RAISE EXCEPTION 'No such sttype in NCC_match %', sttype;\n" +
+		"      END CASE;\n" +
+		
+		"      FOREACH lnk IN ARRAY lnkarray LOOP\n"+
+		"         IF match_arrows(lnk.arr,arrows) AND match_context(lnk.ctx,context) THEN\n"+
+		"            RETURN true;\n"+
+
+		"         END IF;\n"+
+		"      END LOOP;\n"+
+		"   END LOOP;\n"+
+		"END IF;\n"+
+
+		"RETURN false; \n"+
+		"END ;\n"+
+		"$fn$ LANGUAGE plpgsql;"
+
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -1907,7 +2230,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"RETURNS Link[] AS $fn$\n"+
 		"DECLARE \n"+
 		"    level Link[] := Array[] :: Link[];\n"+
-		"    lnk Link := (0,1.0,Array[]::text[],(0,0));\n"+
+		"    lnk Link := (0,1.0,0,(0,0));\n"+
 		"BEGIN\n"+
 		" lnk.Dst = start;\n"+
 		" level = array_append(level,lnk);\n"+
@@ -1915,7 +2238,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n"+
 		"$fn$ LANGUAGE plpgsql;"
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -1928,14 +2251,14 @@ func DefineStoredFunctions(ctx PoSST) {
 	qstr = "CREATE OR REPLACE FUNCTION GetSingletonAsLink(start NodePtr)\n"+
 		"RETURNS Link AS $fn$\n"+
 		"DECLARE \n"+
-		"    lnk Link := (0,1.0,Array[]::text[],(0,0));\n"+
+		"    lnk Link := (0,1.0,0,(0,0));\n"+
 		"BEGIN\n"+
 		" lnk.Dst = start;\n"+
 		"RETURN lnk; \n"+
 		"END ;\n"+
 		"$fn$ LANGUAGE plpgsql;"
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -1949,13 +2272,13 @@ func DefineStoredFunctions(ctx PoSST) {
 		"RETURNS Link[] AS $fn$\n"+
 		"DECLARE \n"+
 		"    fwdlinks Link[] := Array[] :: Link[];\n"+
-		"    lnk Link := (0,1.0,Array[]::text[],(0,0));\n"+
+		"    lnk Link := (0,1.0,0,(0,0));\n"+
 		"BEGIN\n"+
 		"   CASE sttype \n"
 	
 	for st := -EXPRESS; st <= EXPRESS; st++ {
 		qstr += fmt.Sprintf("WHEN %d THEN\n"+
-			"     SELECT %s INTO fwdlinks FROM Node WHERE Nptr=start LIMIT maxlimit;\n",st,STTypeDBChannel(st));
+			"     SELECT %s INTO fwdlinks FROM Node WHERE Nptr=start AND NOT L=0 LIMIT maxlimit;\n",st,STTypeDBChannel(st));
 	}
 	qstr += "ELSE RAISE EXCEPTION 'No such sttype %', sttype;\n" +
 		"END CASE;\n" +
@@ -1963,7 +2286,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2003,7 +2326,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n")
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2013,8 +2336,8 @@ func DefineStoredFunctions(ctx PoSST) {
 
 	// Basic quick neighbour probe
 
-	qstr = fmt.Sprintf("CREATE OR REPLACE FUNCTION GetFwdLinks(start NodePtr,exclude NodePtr[],sttype int,maxlimit int)\n"+
-		"RETURNS Link[] AS $fn$\n" +
+	qstr = fmt.Sprintf("CREATE OR REPLACE FUNCTION GetFwdLinks(start NodePtr,exclude NodePtr[],sttype int,maxlimit int)\n")
+	qstr +=	"RETURNS Link[] AS $fn$\n" +
 		"DECLARE \n" +
 		"    neighbours Link[];\n" +
 		"    fwdlinks Link[];\n" +
@@ -2038,9 +2361,9 @@ func DefineStoredFunctions(ctx PoSST) {
 		"    END LOOP;\n" +
 		"    RETURN neighbours; \n" +
 		"END ;\n" +
-		"$fn$ LANGUAGE plpgsql;\n")
+		"$fn$ LANGUAGE plpgsql;\n"
 	
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2101,7 +2424,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 	
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2109,20 +2432,7 @@ func DefineStoredFunctions(ctx PoSST) {
 	
 	row.Close()
 	
-          /* e.g. select unnest(fwdconeaslinks) from FwdConeAsLinks('(4,1)',1,4);
-                           unnest                           
-             ------------------------------------------------------------
-              (0,0,{},"(4,1)")
-              (77,0.34,"{ ""fairy castles"", ""angel air"" }","(4,2)")
-              (77,0.34,"{ ""fairy castles"", ""angel air"" }","(4,3)")
-              (77,0.34,"{ ""steamy hot tubs"" }","(4,5)")
-              (77,0.34,"{ ""fairy castles"", ""angel air"" }","(4,4)")
-              (77,0.34,"{ ""steamy hot tubs"", ""lady gaga"" }","(4,6)")
-             (6 rows)
-
-          */
-
-	qstr = "CREATE OR REPLACE FUNCTION FwdConeAsLinks(start NodePtr,sttype INT,maxdepth INT)\n"+
+	qstr = "CREATE OR REPLACE FUNCTION FwdConeAsLinks(start NodePtr,sttype INT,maxdepth INT,maxlimit int)\n"+
 		"RETURNS Link[] AS $fn$\n" +
 		"DECLARE \n" +
 		"    nextlevel Link[];\n" +
@@ -2160,7 +2470,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"    IF NOT neigh.Dst = ANY(exclude) THEN\n" +
 		"      cone = array_append(cone,neigh);\n" +
 		"      exclude := array_append(exclude,neigh.Dst);\n" +
-		"      partlevel := GetFwdLinks(neigh.Dst,exclude,sttype);\n" +
+		"      partlevel := GetFwdLinks(neigh.Dst,exclude,sttype,maxlimit);\n" +
 		"    END IF;" +
 		"    IF partlevel IS NOT NULL THEN\n" +
 		"         level = array_cat(level,partlevel);\n"+
@@ -2174,7 +2484,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2184,7 +2494,7 @@ func DefineStoredFunctions(ctx PoSST) {
 
 	// Orthogonal (depth first) paths from origin spreading out
 
-	qstr = "CREATE OR REPLACE FUNCTION FwdPathsAsLinks(start NodePtr,sttype INT,maxdepth INT)\n"+
+	qstr = "CREATE OR REPLACE FUNCTION FwdPathsAsLinks(start NodePtr,sttype INT,maxdepth INT, maxlimit INT)\n"+
 		"RETURNS Text AS $fn$\n" +
 		"DECLARE\n" +
 		"   hop Text;\n" +
@@ -2198,15 +2508,13 @@ func DefineStoredFunctions(ctx PoSST) {
 
 		"startlnk := GetSingletonAsLink(start);\n"+
 		"path := Format('%s',startlnk::Text);\n"+
-		"ret_paths := SumFwdPaths(startlnk,path,sttype,1,maxdepth,exclude);" +
+		"ret_paths := SumFwdPaths(startlnk,path,sttype,1,maxdepth,exclude, maxlimit);" +
 
 		"RETURN ret_paths; \n" +
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 
-        // select FwdPathsAsLinks('(4,1)',1,3)
-
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2216,7 +2524,7 @@ func DefineStoredFunctions(ctx PoSST) {
 
 	// Return end of path branches as aggregated text summaries
 
-	qstr = "CREATE OR REPLACE FUNCTION SumFwdPaths(start Link,path TEXT, sttype INT,depth int, maxdepth INT,exclude NodePtr[])\n"+
+	qstr = "CREATE OR REPLACE FUNCTION SumFwdPaths(start Link,path TEXT, sttype INT,depth int, maxdepth INT,exclude NodePtr[], maxlimit INT)\n"+
 		"RETURNS Text AS $fn$\n" +
 		"DECLARE \n" + 
 		"    fwdlinks Link[];\n" +
@@ -2226,6 +2534,8 @@ func DefineStoredFunctions(ctx PoSST) {
 		"    ret_paths Text;\n" +
 		"    appendix Text;\n" +
 		"    tot_path Text;\n"+
+		"    count    int = 0;\n"+
+		"    horizon  int = 0;\n"+
 		"BEGIN\n" +
 
 		"IF depth = maxdepth THEN\n"+
@@ -2233,23 +2543,33 @@ func DefineStoredFunctions(ctx PoSST) {
 		"  RETURN ret_paths;\n"+
 		"END IF;\n"+
 
-		"fwdlinks := GetFwdLinks(start.Dst,exclude,sttype);\n" +
+		"fwdlinks := GetFwdLinks(start.Dst,exclude,sttype, maxlimit);\n" +
+		
+		// limit recursion explosions
+		"horizon := maxlimit - array_length(fwdlinks,1);"+
+
+		"IF horizon < 0 THEN\n"+
+		"  horizon = 0;\n"+
+		"  maxdepth = depth + 1;"+
+		"END IF;\n"+
 
 		"FOREACH lnk IN ARRAY fwdlinks LOOP \n" +
 		"   IF NOT lnk.Dst = ANY(exclude) THEN\n"+
 		"      exclude = array_append(exclude,lnk.Dst);\n" +
-		"      IF lnk IS NULL THEN" +
+		"      IF lnk IS NULL OR count >= maxlimit THEN" +
 		          // set end of path as return val
 		"         ret_paths := Format('%s\n%s',ret_paths,path);\n"+
 		"         RETURN ret_paths;"+
 		"      ELSE\n"+
+		"         count = count + 1;"+
 		          // Add to the path and descend into new link
 		"         tot_path := Format('%s;%s',path,lnk::Text);\n"+
-		"         appendix := SumFwdPaths(lnk,tot_path,sttype,depth+1,maxdepth,exclude);\n" +
+		"         appendix := SumFwdPaths(lnk,tot_path,sttype,depth+1,maxdepth,exclude,horizon);\n" +
 		          // when we return, we reached the end of one path
 		"         IF appendix IS NOT NULL THEN\n"+
 	                     // append full path to list of all paths, separated by newlines
 		"            ret_paths := Format('%s\n%s',ret_paths,appendix);\n"+
+		"            count = count + regexp_count(appendix,';');"+
 		"         ELSE"+
 		"            ret_paths := Format('%s\n%s',ret_paths,tot_path);"+
 		"         END IF;"+
@@ -2261,7 +2581,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2271,7 +2591,7 @@ func DefineStoredFunctions(ctx PoSST) {
 
 	// Typeless cone searches
 
-	qstr = "CREATE OR REPLACE FUNCTION AllPathsAsLinks(start NodePtr,orientation text,maxdepth INT)\n"+
+	qstr = "CREATE OR REPLACE FUNCTION AllPathsAsLinks(start NodePtr,orientation text,maxdepth INT, maxlimit INT)\n"+
 		"RETURNS Text AS $fn$\n" +
 		"DECLARE\n" +
 		"   hop Text;\n" +
@@ -2285,7 +2605,7 @@ func DefineStoredFunctions(ctx PoSST) {
 
 		"startlnk := GetSingletonAsLink(start);\n"+
 		"path := Format('%s',startlnk::Text);\n"+
-		"ret_paths := SumAllPaths(startlnk,path,orientation,1,maxdepth,exclude);" +
+		"ret_paths := SumAllPaths(startlnk,path,orientation,1,maxdepth,exclude, maxlimit);" +
 		
 		"RETURN ret_paths; \n" +
 		"END ;\n" +
@@ -2293,7 +2613,7 @@ func DefineStoredFunctions(ctx PoSST) {
 	
         // select AllPathsAsLinks('(4,1)',3)
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2314,6 +2634,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"    ret_paths Text;\n" +
 		"    appendix Text;\n" +
 		"    tot_path Text;\n"+
+		"    counter int = 0;"+
 		"BEGIN\n" +
 
 		"IF depth = maxdepth THEN\n"+
@@ -2359,6 +2680,9 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END CASE;\n" +
 
 		"FOREACH lnk IN ARRAY fwdlinks LOOP \n" +
+		"   IF counter > maxlimit THEN\n"+
+		"      RETURN ret_paths;"+
+		"   END IF;"+
 		"   IF NOT lnk.Dst = ANY(exclude) THEN\n"+
 		"      exclude = array_append(exclude,lnk.Dst);\n" +
 		"      IF lnk IS NULL THEN\n" +
@@ -2366,12 +2690,13 @@ func DefineStoredFunctions(ctx PoSST) {
 		"         RETURN ret_paths;"+
 		"      ELSE\n"+
 		"         tot_path := Format('%s;%s',path,lnk::Text);\n"+
-		"         appendix := SumAllPaths(lnk,tot_path,orientation,depth+1,maxdepth,exclude);\n" +
+		"         appendix := SumAllPaths(lnk,tot_path,orientation,depth+1,maxdepth,exclude,maxlimit);\n" +
 		"         IF appendix IS NOT NULL THEN\n"+
 		"            ret_paths := Format('%s\n%s',ret_paths,appendix);\n"+
 		"         ELSE\n"+
 		"            ret_paths := Format('%s\n%s',ret_paths,tot_path);"+
 		"         END IF;\n"+
+		"         counter = counter + 1;\n"+
 		"      END IF;\n"+
 		"   END IF;\n"+
 		"END LOOP;\n"+
@@ -2380,7 +2705,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2400,7 +2725,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2412,9 +2737,11 @@ func DefineStoredFunctions(ctx PoSST) {
 	// the client/lookup set is user_set - both COULD use AND expressions.
 	// We are looking for sets that overlap for a true result
 
-	qstr = "CREATE OR REPLACE FUNCTION match_context(db_set text[],user_set text[])\n"+
+	qstr = "CREATE OR REPLACE FUNCTION match_context(thisctxptr int,user_set text[])\n"+
 		"RETURNS boolean AS $fn$\n" +
 		"DECLARE\n" +
+		"   ctxstr text;\n" +
+		"   db_set text[];\n" +
 		"   notes text[];\n" +
 		"   client text[];\n" +
 		"   pattern text;\n" +
@@ -2424,32 +2751,51 @@ func DefineStoredFunctions(ctx PoSST) {
 		"   end_result int = 0;\n"+
 		"   or_list text[] = ARRAY[]::text[];\n"+
 		"   item text;\n" +
+		"   item_db text;\n" +
+		"   item_us text;\n" +
 		"   ref text;\n" +
 		"   c text;\n"+
 		"BEGIN \n" +
 
 		// If no constraints at all, then match
-		"IF array_length(user_set,1) IS NULL THEN\n"+
+
+		"IF array_length(user_set,1) IS NULL THEN\n" +  // Shouldn't happen anymore
 		"   RETURN true;\n"+
 		"END IF;\n"+
 
-		"IF array_length(db_set,1) IS NULL THEN\n"+
+		"IF user_set[0] = '' THEN\n"+
+		"   RETURN true;\n"+
+		"END IF;\n"+
+
+		// Convert context ptr into a list from the new factored cache
+		"SELECT Context INTO ctxstr FROM ContextDirectory WHERE ctxPtr=thisctxptr;" +
+		"db_set = regexp_split_to_array(ctxstr,',');\n" +
+
+		// If there is a constraint, but no db membership, then no match
+		"IF array_length(db_set,1) IS NULL AND array_length(user_set,1) IS NOT NULL THEN\n"+
+		"   RETURN false;\n"+
+		"END IF;\n"+
+
+		// if both are empty, then match
+		"IF array_length(db_set,1) IS NULL AND array_length(user_set,1) IS NULL THEN\n"+
 		"   RETURN true;\n"+
 		"END IF;\n"+
 
 		// clean and unaccent sets
 
+		"FOREACH item_db IN ARRAY db_set LOOP\n" +
+		"   FOREACH item_us IN ARRAY user_set LOOP\n" +
+		"      IF item_db = item_us THEN\n" +
+		"         RETURN true;\n"+
+		"      END IF;\n"+
+		"   END LOOP;\n" +
+		"END LOOP;\n" +
+
 		"FOREACH item IN ARRAY db_set LOOP\n" +
-		"   IF item = 'any' OR item = '' THEN\n" +
-		"      RETURN true;\n"+
-		"   END IF;\n"+
 		"   notes = array_append(notes,lower(unaccent(item)));\n" +
 		"END LOOP;\n" +
 
 		"FOREACH item IN ARRAY user_set LOOP\n" +
-		"   IF item = 'any' OR item = '' THEN\n" +
-		"      RETURN true;\n"+
-		"   END IF;\n"+
 		"   client = array_append(client,lower(unaccent(item)));\n" +
 		"END LOOP;\n" +
 
@@ -2506,7 +2852,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2529,7 +2875,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2556,7 +2902,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2575,7 +2921,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"   RETURN false;"+
 		"END IF;"+
 		"FOREACH lnk IN ARRAY links LOOP\n"+
-		"  IF lnk.Arr = arrow AND match_context(lnk.Ctx::text[],context) THEN\n"+
+		"  IF lnk.Arr = arrow AND match_context(lnk.Ctx,context) THEN\n"+
 		"     RETURN true;\n"+
 		"  END IF;\n"+
 		"END LOOP;"+
@@ -2583,7 +2929,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2591,39 +2937,7 @@ func DefineStoredFunctions(ctx PoSST) {
 
 	row.Close()
 
-	// ***********************************
-	// Find the start of story paths, where outgoing nodes match but no incoming
-	// This means we've reached the top of a hierarchy
-	// ***********************************
-
-	// Find the node that sit's at the start/top of a causal chain
-
-	qstr =  "CREATE OR REPLACE FUNCTION GetStoryStartNodes(arrow int,inverse int,sttype int)\n"+
-		"RETURNS NodePtr[] AS $fn$\n"+
-		"DECLARE \n"+
-		"   retval nodeptr[] = ARRAY[]::nodeptr[];\n"+
-		"BEGIN\n"+
-		"   CASE sttype \n"
-	
-	for st := -EXPRESS; st <= EXPRESS; st++ {
-		qstr += fmt.Sprintf("WHEN %d THEN\n"+
-			"   SELECT array_agg(Nptr) into retval FROM Node WHERE ArrowInList(arrow,%s) AND NOT ArrowInList(inverse,%s);\n",st,STTypeDBChannel(st),STTypeDBChannel(-st));
-	}
-	qstr += "ELSE RAISE EXCEPTION 'No such sttype %', sttype;\n" +
-		"END CASE;\n" +
-		"    RETURN retval; \n" +
-		"END ;\n" +
-		"$fn$ LANGUAGE plpgsql;\n"
-
-	row,err = ctx.DB.Query(qstr)
-	
-	if err != nil {
-		fmt.Println("FAILED \n",qstr,err)
-	}
-
-	row.Close()
-
-	// HELPER
+	//
 
 	qstr =  "CREATE OR REPLACE FUNCTION UnCmp(value text,unacc boolean)\n"+
 		"RETURNS text AS $fn$\n"+
@@ -2639,39 +2953,10 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("FAILED UnCmp definition\n",qstr,err)
-	}
-
-	row.Close()
-
-
-	// Find the node that sits at the start/top of a causal chain
-
-	qstr =  "CREATE OR REPLACE FUNCTION GetNCCStoryStartNodes(arrow int,inverse int,sttype int,name text,chapter text,context text[],rm_nm boolean, rm_ch boolean)\n"+
-		"RETURNS NodePtr[] AS $fn$\n"+
-		"DECLARE \n"+
-		"   retval nodeptr[] = ARRAY[]::nodeptr[];\n"+
-		"   lowname text = lower(name);"+
-		"   lowchap text = lower(chapter);"+
-		"BEGIN\n"+
-		"     CASE sttype \n"
-	for st := -EXPRESS; st <= EXPRESS; st++ {
-		qstr += fmt.Sprintf("WHEN %d THEN\n"+
-			"     SELECT array_agg(Nptr) into retval FROM Node WHERE (UnCmp(S,rm_nm) LIKE lower(name)) AND (UnCmp(Chap,rm_ch) LIKE lower(chapter)) AND ArrowInContextList(arrow,%s,context) AND NOT ArrowInContextList(inverse,%s,context);\n",st,STTypeDBChannel(st),STTypeDBChannel(-st));
-	}
-	qstr += "        ELSE RAISE EXCEPTION 'No such sttype %', sttype;\n" +
-		"     END CASE;\n" +
-		"  RETURN retval; \n" +
-		"END ;\n" +
-		"$fn$ LANGUAGE plpgsql;\n"
-
-	row,err = ctx.DB.Query(qstr)
-	
-	if err != nil {
-		fmt.Println("FAILED \n",qstr,err)
 	}
 
 	row.Close()
@@ -2681,36 +2966,8 @@ func DefineStoredFunctions(ctx PoSST) {
 	// ...................................................................
 
         // A more detailed path search that includes checks for chapter/context boundaries (NC/C functions)
-
-	qstr = "CREATE OR REPLACE FUNCTION AllNCPathsAsLinks(start NodePtr,chapter text,rm_acc boolean,context text[],orientation text,maxdepth INT,maxlimit int)\n"+
-		"RETURNS Text AS $fn$\n" +
-		"DECLARE\n" +
-		"   hop Text;\n" +
-		"   path Text;\n"+
-		"   summary_path Text[];\n"+
-		"   exclude NodePtr[] = ARRAY[start]::NodePtr[];\n" +
-		"   ret_paths Text;\n" +
-		"   startlnk Link;"+
-		"BEGIN\n" +
-		"startlnk := GetSingletonAsLink(start);\n"+
-		"path := Format('%s',startlnk::Text);"+
-		"ret_paths := SumAllNCPaths(startlnk,path,orientation,1,maxdepth,chapter,rm_acc,context,exclude,maxlimit);" +
-
-		"RETURN ret_paths; \n" +
-		"END ;\n" +
-		"$fn$ LANGUAGE plpgsql;\n"
-	
-        // select AllNCPathsAsLinks('(1,46)','chinese','{"food","example"}','fwd',4);
-
-	row,err = ctx.DB.Query(qstr)
-	
-	if err != nil {
-		fmt.Println("Error defining postgres function:",qstr,err)
-	}
-
-	row.Close()
-
 	// SumAllNCPaths - a filtering version of the SumAllPaths recursive helper function, slower but more powerful
+
 	qstr = "CREATE OR REPLACE FUNCTION SumAllNCPaths(start Link,path TEXT,orientation text,depth int, maxdepth INT,chapter text,rm_acc boolean,context text[],exclude NodePtr[],maxlimit int)\n"+
 		"RETURNS Text AS $fn$\n" +
 		"DECLARE \n" + 
@@ -2722,6 +2979,8 @@ func DefineStoredFunctions(ctx PoSST) {
 		"    ret_paths Text;\n" +
 		"    appendix Text;\n" +
 		"    tot_path Text;\n"+
+		"    count    int = 0;\n"+
+		"    horizon  int = 0;\n"+
 		"BEGIN\n" +
 
 		"IF depth = maxdepth THEN\n"+
@@ -2769,23 +3028,31 @@ func DefineStoredFunctions(ctx PoSST) {
 		"     fwdlinks := array_cat(fwdlinks,stlinks);\n" +
 		"END CASE;\n" +
 
+		"horizon := maxlimit - array_length(fwdlinks,1);"+
+
+		"IF horizon < 0 THEN\n"+
+		"  horizon = 0;\n"+
+		"  maxdepth = depth + 1;"+
+		"END IF;\n"+
+
 		"FOREACH lnk IN ARRAY fwdlinks LOOP \n" +
 		"   IF NOT lnk.Dst = ANY(exclude) THEN\n"+
 		"      exclude = array_append(exclude,lnk.Dst);\n" +
-		"      IF lnk IS NULL THEN\n" +
+		"      IF lnk IS NULL OR count > maxlimit THEN\n" +
 		"         ret_paths := Format('%s\n%s',ret_paths,path);\n"+
 		"      ELSE\n"+
-		"         IF context is not NULL AND NOT match_context(lnk.Ctx::text[],context::text[]) THEN\n"+
+		"         count = count + 1;"+
+		"         IF context is not NULL AND NOT match_context(lnk.Ctx,context::text[]) THEN\n"+
                 "            CONTINUE;\n"+
                 "         END IF;\n"+
 
 		"         tot_path := Format('%s;%s',path,lnk::Text);\n"+
-		"         appendix := SumAllNCPaths(lnk,tot_path,orientation,depth+1,maxdepth,chapter,rm_acc,context,exclude);\n" +
+		"         appendix := SumAllNCPaths(lnk,tot_path,orientation,depth+1,maxdepth,chapter,rm_acc,context,exclude,horizon);\n" +
 
 		"         IF appendix IS NOT NULL THEN\n"+
 		"            ret_paths := Format('%s\n%s',ret_paths,appendix);\n"+
+		"            count = count + regexp_count(appendix,';');"+
 		"         ELSE\n"+
-//		"            ret_paths := tot_path;\n"+
 		"            ret_paths := Format('%s\n%s',ret_paths,tot_path);"+
 		"         END IF;\n"+
 		"      END IF;\n"+
@@ -2796,7 +3063,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2811,31 +3078,31 @@ func DefineStoredFunctions(ctx PoSST) {
         // A more detailed path search that includes checks for chapter/context boundaries (NC/C functions)
         // with a start set of more than one node
 
-	qstr = "CREATE OR REPLACE FUNCTION AllSuperNCPathsAsLinks(start NodePtr[],chapter text,rm_acc boolean,context text[],orientation text,maxdepth INT)\n"+
+	qstr = "CREATE OR REPLACE FUNCTION AllNCPathsAsLinks(start NodePtr[],chapter text,rm_acc boolean,context text[],orientation text,maxdepth INT,maxlimit int)\n"+
 		"RETURNS Text AS $fn$\n" +
 		"DECLARE\n" +
 		"   root Text;\n" +
 		"   path Text;\n"+
-		"   node NodePtr;"+
+		"   node NodePtr;\n"+
 		"   summary_path Text[];\n"+
 		"   exclude NodePtr[] = start;\n" +
 		"   ret_paths Text;\n" +
-		"   startlnk Link;"+
+		"   startlnk Link;\n"+
 		"BEGIN\n" +
 
 		// Aggregate array of starting set
 		"FOREACH node IN ARRAY start LOOP\n"+
 		"   startlnk := GetSingletonAsLink(node);\n"+
-		"   path := Format('%s',startlnk::Text);"+
-		"   root := SumAllNCPaths(startlnk,path,orientation,1,maxdepth,chapter,rm_acc,context,exclude);" +
+		"   path := Format('%s',startlnk::Text);\n"+
+		"   root := SumAllNCPaths(startlnk,path,orientation,1,maxdepth,chapter,rm_acc,context,exclude,maxlimit);\n" +
 		"   ret_paths := Format('%s\n%s',ret_paths,root);\n"+
 		"END LOOP;"+
 
-		"RETURN ret_paths; \n" +
+		"RETURN ret_paths;\n" +
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2843,7 +3110,182 @@ func DefineStoredFunctions(ctx PoSST) {
 
 	row.Close()
 
+	// ...................................................................
+	// Now add in the more complex context/chapter filters in searching
+	// ...................................................................
+
+        // A more detailed path search that includes checks for chapter/context boundaries (NC/C functions)
+        // with a start set of more than one node
+
+	qstr = "CREATE OR REPLACE FUNCTION ConstraintPathsAsLinks(start NodePtr[],chapter text,rm_acc boolean,context text[],arrows int[],sttypes int[],maxdepth INT,maxlimit int)\n"+
+		"RETURNS Text AS $fn$\n" +
+		"DECLARE\n" +
+		"   root Text;\n" +
+		"   path Text;\n"+
+		"   node NodePtr;\n"+
+		"   summary_path Text[];\n"+
+		"   exclude NodePtr[] = start;\n" +
+		"   ret_paths Text;\n" +
+		"   startlnk Link;\n"+
+		"BEGIN\n" +
+
+		"IF sttypes IS NULL OR array_length(sttypes,1) IS NULL THEN\n" +
+		"   sttypes = ARRAY[-3,-2,-1,0,1,2,3];\n" +
+		"END IF;\n"+
+
+		// Aggregate array of starting set
+
+		"FOREACH node IN ARRAY start LOOP\n"+
+		"   startlnk := GetSingletonAsLink(node);\n"+
+		"   path := Format('%s',startlnk::Text);\n"+
+		"   root := SumConstraintPaths(startlnk,path,1,maxdepth,chapter,rm_acc,context,arrows,sttypes,exclude,maxlimit);\n" +
+		"   ret_paths := Format('%s\n%s',ret_paths,root);\n"+
+		"END LOOP;"+
+
+		"RETURN ret_paths;\n" +
+		"END ;\n" +
+		"$fn$ LANGUAGE plpgsql;\n"
+
+	row,err = sst.DB.Query(qstr)
+	
+	if err != nil {
+		fmt.Println("Error defining postgres function:",qstr,err)
+	}
+
+	row.Close()
+
+	// ...................................................................
+	// Now add in the more complex context/chapter filters in searching
+	// ...................................................................
+
+        // Generalized path search
+	// SumConstraintPaths - a filtering version of the SumAllPaths recursive helper function, slower but more powerful
+
+	qstr = "CREATE OR REPLACE FUNCTION SumConstraintPaths(start Link,path TEXT,depth int,maxdepth INT,chapter text,rm_acc boolean,context text[],arrows int[],sttypes int[],exclude NodePtr[],maxlimit int)\n"+
+		"RETURNS Text AS $fn$\n" +
+		"DECLARE \n" + 
+		"    fwdlinks Link[];\n" +
+		"    stlinks  Link[];\n" +
+		"    empty Link[] = ARRAY[]::Link[];\n" +
+		"    lnk Link;\n" +
+		"    fwd Link;\n" +
+		"    ret_paths Text;\n" +
+		"    appendix Text;\n" +
+		"    tot_path Text;\n"+
+		"    count    int = 0;\n"+
+		"    horizon  int = 0;\n"+
+		"    sttype   int;\n"+
+		"BEGIN\n" +
+
+		"IF depth = maxdepth THEN\n"+
+		"  ret_paths := Format('%s\n%s',ret_paths,path);\n"+
+		"  RETURN ret_paths;\n"+
+		"END IF;\n"+
+
+		"FOREACH sttype IN ARRAY sttypes LOOP\n"+
+		"   stlinks := GetConstrainedFwdLinks(start.Dst,chapter,rm_acc,context,exclude,sttype,arrows,maxlimit);\n" +
+		"   fwdlinks := array_cat(fwdlinks,stlinks);\n" +
+		"END LOOP;\n"+
+
+		"horizon := maxlimit - array_length(fwdlinks,1);"+
+
+		"IF horizon < 0 THEN\n"+
+		"  horizon = 0;\n"+
+		"  maxdepth = depth + 1;"+
+		"END IF;\n"+
+
+		"FOREACH lnk IN ARRAY fwdlinks LOOP \n" +
+		"   IF NOT lnk.Dst = ANY(exclude) THEN\n"+
+		"      exclude = array_append(exclude,lnk.Dst);\n" +
+		"      IF lnk IS NULL OR count > maxlimit THEN\n" +
+		"         ret_paths := Format('%s\n%s',ret_paths,path);\n"+
+		"      ELSE\n"+
+		"         count = count + 1;"+
+		"         IF context is not NULL AND NOT match_context(lnk.Ctx,context::text[]) THEN\n"+
+                "            CONTINUE;\n"+
+                "         END IF;\n"+
+
+		"         tot_path := Format('%s;%s',path,lnk::Text);\n"+
+		"         appendix := SumConstraintPaths(lnk,tot_path,depth+1,maxdepth,chapter,rm_acc,context,arrows,sttypes,exclude,horizon);\n" +
+
+		"         IF appendix IS NOT NULL THEN\n"+
+		"            ret_paths := Format('%s\n%s',ret_paths,appendix);\n"+
+		"            count = count + regexp_count(appendix,';');"+
+		"         ELSE\n"+
+		"            ret_paths := Format('%s\n%s',ret_paths,tot_path);"+
+		"         END IF;\n"+
+		"      END IF;\n"+
+		"   END IF;\n"+
+		"END LOOP;\n"+
+
+		"RETURN ret_paths; \n" +
+		"END ;\n" +
+		"$fn$ LANGUAGE plpgsql;\n"
+
+	row,err = sst.DB.Query(qstr)
+	
+	if err != nil {
+		fmt.Println("Error defining postgres function:",qstr,err)
+	}
+
+	row.Close()
+
+	// ****
+        // Fully filtering version of the neighbour scan
+	// ****
+
+	qstr = fmt.Sprintf("CREATE OR REPLACE FUNCTION GetConstrainedFwdLinks(start NodePtr,chapter text,rm_acc boolean,context text[],exclude NodePtr[],sttype int,arrows int[],maxlimit int)\n"+
+		"RETURNS Link[] AS $fn$\n" +
+		"DECLARE \n" +
+		"    neighbours Link[];\n" +
+		"    fwdlinks Link[];\n" +
+		"    lnk Link;\n" +
+		"BEGIN\n" +
+
+		"   fwdlinks = GetNCNeighboursByType(start,chapter,rm_acc,sttype,maxlimit);\n"+
+
+		"   IF fwdlinks IS NULL THEN\n" +
+		"       RETURN '{}';\n" +
+		"   END IF;\n" +
+
+		"    neighbours := ARRAY[]::Link[];\n" +
+
+		"    FOREACH lnk IN ARRAY fwdlinks\n" +
+		"    LOOP\n"+
+
+		"      IF lnk.Arr = 0 THEN\n"+
+		"         CONTINUE;"+
+		"      END IF;\n"+
+
+		"      IF arrows IS NOT NULL AND array_length(arrows,1) > 0 AND NOT lnk.Arr=ANY(arrows) THEN\n"+
+		"         CONTINUE;\n"+
+		"      END IF;\n"+
+
+                "      IF context is not NULL AND NOT match_context(lnk.Ctx,context::text[]) THEN\n"+
+                "         CONTINUE;\n"+
+                "      END IF;\n"+
+
+		"      IF exclude is not NULL AND NOT lnk.dst=ANY(exclude) THEN\n" +
+		"         neighbours := array_append(neighbours, lnk);\n" +
+		"      END IF; \n" + 
+
+		"    END LOOP;\n" +
+
+		"    RETURN neighbours; \n" +
+		"END ;\n" +
+		"$fn$ LANGUAGE plpgsql;\n")
+	
+	row,err = sst.DB.Query(qstr)
+	
+	if err != nil {
+		fmt.Println("Error defining postgres function:",qstr,err)
+	}
+
+	row.Close()
+
+	// ****
         // An NC/C filtering version of the neighbour scan
+	// ****
 
 	qstr = fmt.Sprintf("CREATE OR REPLACE FUNCTION GetNCFwdLinks(start NodePtr,chapter text,rm_acc boolean,context text[],exclude NodePtr[],sttype int,maxlimit int)\n"+
 		"RETURNS Link[] AS $fn$\n" +
@@ -2866,7 +3308,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"         CONTINUE;"+
 		"      END IF;\n"+
 
-                "      IF context is not NULL AND NOT match_context(lnk.Ctx::text[],context::text[]) THEN\n"+
+                "      IF context is not NULL AND NOT match_context(lnk.Ctx,context::text[]) THEN\n"+
                 "         CONTINUE;\n"+
                 "      END IF;\n"+
 		"      IF exclude is not NULL AND NOT lnk.dst=ANY(exclude) THEN\n" +
@@ -2877,7 +3319,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n")
 	
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2901,6 +3343,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"        RETURN '{}';\n" +
 		"    END IF;\n" +
 		"    neighbours := ARRAY[]::Link[];\n" +
+
 		"    FOREACH lnk IN ARRAY fwdlinks\n" +
 		"    LOOP\n"+
                 "      IF context is not NULL AND NOT match_context(lnk.Ctx,context) THEN\n"+
@@ -2914,19 +3357,18 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n")
 	
-	
         // This one includes an NC chapter filter
 	
 	qstr = "CREATE OR REPLACE FUNCTION GetNCNeighboursByType(start NodePtr, chapter text,rm_acc boolean,sttype int,maxlimit int)\n"+
 		"RETURNS Link[] AS $fn$\n"+
 		"DECLARE \n"+
 		"    fwdlinks Link[] := Array[] :: Link[];\n"+
-		"    lnk Link := (0,1.0,Array[]::text[],(0,0));\n"+
+		"    lnk Link := (0,1.0,0,(0,0));\n"+
 		"BEGIN\n"+
 		"   CASE sttype \n"
 	for st := -EXPRESS; st <= EXPRESS; st++ {
 		qstr += fmt.Sprintf("WHEN %d THEN\n"+
-			"     SELECT %s INTO fwdlinks FROM Node WHERE Nptr=start AND UnCmp(Chap,rm_acc) LIKE lower(chapter) LIMIT maxlimit;\n",st,STTypeDBChannel(st));
+			"     SELECT %s INTO fwdlinks FROM Node WHERE NOT L=0 AND Nptr=start AND UnCmp(Chap,rm_acc) LIKE lower(chapter) LIMIT maxlimit;\n",st,STTypeDBChannel(st));
 	}
 	
 	qstr += "ELSE RAISE EXCEPTION 'No such sttype %', sttype;\n" +
@@ -2935,9 +3377,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 	
-        // select GetNCNeighboursByType('(1,116)','chinese',-1);
-	
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -2946,7 +3386,7 @@ func DefineStoredFunctions(ctx PoSST) {
 	row.Close()
 	
 	// **************************************
-	// Looking for hub / authority search
+	// Looking for hub / appointed node matroid search
 	// **************************************
 	
 	qstr = "CREATE OR REPLACE FUNCTION GetAppointments(arrow int,sttype int,min int,chaptxt text,context text[],with_accents bool)\n"+
@@ -2970,7 +3410,6 @@ func DefineStoredFunctions(ctx PoSST) {
 		qstr += fmt.Sprintf("WHEN %d THEN\n",st);
 
 		qstr += "   IF with_accents THEN\n"
-		// -------------------------------------------------
 		qstr += fmt.Sprintf("      FOR this IN SELECT NPtr as thptr,Chap as thchap,%s as chn FROM Node WHERE lower(unaccent(chap)) LIKE lower(chaptxt)\n",STTypeDBChannel(st));
 		qstr += "      LOOP\n" +
 		"         count := 0;\n" +
@@ -2984,10 +3423,10 @@ func DefineStoredFunctions(ctx PoSST) {
 		"         IF this.chn::Link[] IS NOT NULL THEN\n"+
 		"           FOREACH lnk IN ARRAY this.chn::Link[]\n" +
 		"           LOOP\n" +
-		"	       IF arrow > 0 AND lnk.Arr = arrow AND match_context(lnk.Ctx::text[],context) THEN\n" +
+		"	       IF arrow > 0 AND lnk.Arr = arrow AND match_context(lnk.Ctx,context) THEN\n" +
 		"  	          count = count + 1;\n" +
 		" 	          app.NFrom = array_append(app.NFrom,lnk.Dst);\n" +
-		"              ELSIF arrow < 0 AND match_context(lnk.Ctx::text[],context) THEN\n"+
+		"              ELSIF arrow < 0 AND match_context(lnk.Ctx,context) THEN\n"+
 		"  	          count = count + 1;\n" +
 		"                 app.Arr = lnk.Arr;"+
 		" 	          app.NFrom = array_append(app.NFrom,lnk.Dst);\n" +
@@ -3000,9 +3439,9 @@ func DefineStoredFunctions(ctx PoSST) {
 		"	    appointed = array_append(appointed,app);\n" +
 		"         END IF;\n" +
 		"      END LOOP;\n"
-		// -------------------------------------------------
+
 		qstr += "   ELSE\n"
-		// -------------------------------------------------
+
 		qstr += fmt.Sprintf("      FOR this IN SELECT NPtr as thptr,Chap as thchap,%s as chn FROM Node WHERE lower(chap) LIKE lower(chaptxt)\n",STTypeDBChannel(st));
 		qstr += "      LOOP\n" +
 		"         count := 0;\n" +
@@ -3016,10 +3455,10 @@ func DefineStoredFunctions(ctx PoSST) {
 		"         IF this.chn::Link[] IS NOT NULL THEN\n"+
 		"           FOREACH lnk IN ARRAY this.chn::Link[]\n" +
 		"           LOOP\n" +
-		"	       IF arrow > 0 AND lnk.Arr = arrow AND match_context(lnk.Ctx::text[],context) THEN\n" +
+		"	       IF arrow > 0 AND lnk.Arr = arrow AND match_context(lnk.Ctx,context) THEN\n" +
 		"  	          count = count + 1;\n" +
 		" 	          app.NFrom = array_append(app.NFrom,lnk.Dst);\n" +
-		"              ELSIF arrow < 0 AND match_context(lnk.Ctx::text[],context) THEN\n"+
+		"              ELSIF arrow < 0 AND match_context(lnk.Ctx,context) THEN\n"+
 		"  	          count = count + 1;\n" +
 		"                 app.Arr = lnk.Arr;"+
 		" 	          app.NFrom = array_append(app.NFrom,lnk.Dst);\n" +
@@ -3031,7 +3470,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"	    appointed = array_append(appointed,app);\n" +
 		"         END IF;\n" +
 		"      END LOOP;\n" +
-		// -------------------------------------------------
+
 		"   END IF;\n"
 	}
 	
@@ -3040,7 +3479,7 @@ func DefineStoredFunctions(ctx PoSST) {
 	qstr += "END ;\n"
 	qstr += "$fn$ LANGUAGE plpgsql;\n"
 	
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -3049,7 +3488,7 @@ func DefineStoredFunctions(ctx PoSST) {
 	row.Close()
 
 	// **************************************
-	// Maintenance/deletion
+	// Maintenance/deletion transactions
 	// **************************************
 
 	qstr = "CREATE OR REPLACE FUNCTION DeleteChapter(chapter text)\n"+
@@ -3079,8 +3518,6 @@ func DefineStoredFunctions(ctx PoSST) {
 		"IF autoset IS NULL THEN\n"+
 		"   RETURN false;\n"+
 		"END IF;\n"+
-
-		"DELETE FROM NodeArrowNode WHERE NFrom = ANY(autoset) AND NTo = ANY(autoset);\n"+
 
 		// Look for overlapping chapters
 
@@ -3139,7 +3576,7 @@ func DefineStoredFunctions(ctx PoSST) {
 		"END ;\n" +
 		"$fn$ LANGUAGE plpgsql;\n"
 
-	row,err = ctx.DB.Query(qstr)
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("Error defining postgres function:",qstr,err)
@@ -3147,201 +3584,124 @@ func DefineStoredFunctions(ctx PoSST) {
 
 	row.Close()
 
-}
+	// ************ LAST SEEN **************'
 
-// **************************************************************************
-// Retrieve structural parts
-// **************************************************************************
-
-func GetDBChaptersMatchingName(ctx PoSST,src string) []string {
-
-	var qstr string
-
-	remove_accents,stripped := IsBracketedSearchTerm(src)
-
-	if remove_accents {
-		search := "%"+stripped+"%"
-		qstr = fmt.Sprintf("SELECT DISTINCT Chap FROM Node WHERE lower(unaccent(Chap)) LIKE lower('%s')",search)
-	} else {
-		search := "%"+src+"%"
-		qstr = fmt.Sprintf("SELECT DISTINCT Chap FROM Node WHERE lower(Chap) LIKE lower('%s')",search)
-	}
-
-	row, err := ctx.DB.Query(qstr)
+	qstr = "CREATE OR REPLACE FUNCTION LastSawSection(this text)\n"+
+		"RETURNS bool AS $fn$\n"+
+		"DECLARE \n"+
+		"  prev      timestamp = NOW();\n"+
+		"  prevdelta int;\n"+
+		"  deltat    int;\n"+
+		"  avdeltat  real;\n"+
+		"  nowt      int;\n"+
+		"  f         int = 0;"+
+		"BEGIN\n"+
+		"  SELECT last,EXTRACT(EPOCH FROM NOW()-last),delta,freq INTO prev,deltat,prevdelta,f FROM LastSeen WHERE section=this;\n"+
+		"  IF NOT FOUND THEN\n"+
+		"     INSERT INTO LastSeen (section,first,last,delta,freq,nptr) VALUES (this,NOW(),NOW(),0,1,'(-1,-1)');\n"+
+		"  ELSE\n"+
+		"     avdeltat = 0.5 * deltat::real + 0.5 * prevdelta::real;\n"+
+		"     f = f + 1;\n"+
+		      // 1 minute dead time
+		"     IF deltat > 60 THEN\n"+
+		"       UPDATE LastSeen SET last=NOW(),delta=avdeltat,freq=f WHERE section = this;\n"+
+		"     ELSE\n"+
+		"        return false;\n"+
+		"     END IF;\n"+
+		"  END IF;\n"+
+		"  RETURN true;\n"+
+		"END ;\n" +
+		"$fn$ LANGUAGE plpgsql;\n"
+	
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
-		fmt.Println("QUERY GetDBChaptersMatchingName",err)
+		fmt.Println("Error defining postgres function:",qstr,err)
 	}
-
-	var whole string
-	var chapters = make(map[string]int)
-	var retval []string
-
-	for row.Next() {		
-		err = row.Scan(&whole)
-		several := strings.Split(whole,",")
-
-		for s := range several {
-			chapters[several[s]]++
-		}
-	}
-
-	for c := range chapters {
-		if strings.Contains(c,src) {
-			if len(c) > 0 {
-				retval = append(retval,c)
-			}
-		}
-	}
-
-	sort.Strings(retval)
+	
 	row.Close()
-	return retval
-}
-
-// **************************************************************************
-
-func GetDBContextsMatchingName(ctx PoSST,src string) []string {
-
-	var qstr string
-
-	remove_accents,stripped := IsBracketedSearchTerm(src)
-
-	if remove_accents {
-		search := stripped
-		qstr = fmt.Sprintf("SELECT DISTINCT Ctx FROM NodeArrowNode WHERE match_context(Ctx,'{%s}')",search)
-	} else {
-		search := src
-		qstr = fmt.Sprintf("SELECT DISTINCT Ctx FROM NodeArrowNode WHERE match_context(Ctx,'{%s}')",search)
-	}
-
-	row, err := ctx.DB.Query(qstr)
+	
+	qstr = "CREATE OR REPLACE FUNCTION LastSawNPtr(this NodePtr,name text)\n"+
+		"RETURNS bool AS $fn$\n"+
+		"DECLARE \n"+
+		"  prev      timestamp = NOW();\n"+
+		"  prevdelta int;\n"+
+		"  avdeltat  real;\n"+
+		"  deltat    int;\n"+
+		"  nowt      int;\n"+
+		"  ep        int = 0;"+
+		"  f         int = 0;"+
+		"BEGIN\n"+
+		"  SELECT last,EXTRACT(EPOCH FROM NOW()-last),delta,freq INTO prev,deltat,prevdelta,f FROM LastSeen WHERE nptr=this;\n"+
+		"  IF NOT FOUND THEN\n"+
+		"     INSERT INTO LastSeen (section,nptr,first,last,freq,delta) VALUES (name,this,NOW(),NOW(),1,0);\n"+
+		"  ELSE\n"+
+		"     avdeltat = 0.5 * deltat::real + 0.5 * prevdelta::real;\n"+
+		"     f = f + 1;\n"+
+		      // 1 minute dead time
+		"     IF deltat > 60 THEN\n"+
+		"        UPDATE LastSeen SET last=NOW(),delta=avdeltat,freq=f WHERE nptr = this;\n"+
+		"     ELSE\n"+
+		"        return false;\n"+
+		"     END IF;\n"+
+		"  END IF;\n"+
+		"  RETURN true;\n"+
+		"END ;\n" +
+		"$fn$ LANGUAGE plpgsql;\n"
+	
+	row,err = sst.DB.Query(qstr)
 	
 	if err != nil {
-		fmt.Println("QUERY GetDBContextssMatchingName",err)
+		fmt.Println("Error defining postgres function:",qstr,err)
 	}
-
-	var whole string
-	var retval []string
-	var idemp = make(map[string]int)
-
-	for row.Next() {		
-		err = row.Scan(&whole)
-		a := ParseSQLArrayString(whole)
-		for i := range a {
-			idemp[a[i]]++
-		}
-	}
-
-	for s := range idemp {
-		retval = append(retval,s)
-	}
-
+	
 	row.Close()
 
-	sort.Strings(retval)
-	return retval
+	// Finally an immutable wrapper
 
-}
-
-// **************************************************************************
-
-func GetDBNodePtrMatchingName(ctx PoSST,src,chap string) []NodePtr {
-
-	var qstr string
-
-	remove_accents,stripped := IsBracketedSearchTerm(src)
-
-	if remove_accents {
-		search := "%"+stripped+"%"
-		qstr = fmt.Sprintf("select NPtr from Node where lower(unaccent(S)) LIKE lower('%s')",search)
-	} else {
-		search := "%"+src+"%"
-		qstr = fmt.Sprintf("select NPtr from Node where lower(S) LIKE lower('%s')",search)
-	}
-
-	if chap != "any" && chap != "" {
-
-		remove_accents,stripped := IsBracketedSearchTerm(chap)
-		if remove_accents {
-			chapter := "%"+stripped+"%"
-			qstr += fmt.Sprintf(" AND lower(unaccent(chap)) LIKE '%s'",chapter)
-		} else {
-			chapter := "%"+chap+"%"
-			qstr += fmt.Sprintf(" AND lower(chap) LIKE '%s'",chapter)
-		}
-	} else {
-		if src == "" || src == "empty" {
-			return nil
-		}
-	}
-
-	row, err := ctx.DB.Query(qstr)
-	fmt.Println("QSR",qstr)	
+	qstr = "CREATE OR REPLACE FUNCTION sst_unaccent(this text)\n"+
+		"RETURNS text AS $fn$\n"+
+		"DECLARE \n"+
+		"  s text;\n"+
+		"BEGIN\n"+
+		"  s = unaccent(this);\n"+
+		"  RETURN s;\n"+
+		"END ;\n" +
+		"$fn$ LANGUAGE plpgsql IMMUTABLE;\n"
+	
+	row,err = sst.DB.Query(qstr)
+	
 	if err != nil {
-		fmt.Println("QUERY GetNodePtrMatchingName Failed",err)
+		fmt.Println("Error defining postgres function:",qstr,err)
 	}
-
-	var whole string
-	var n NodePtr
-	var retval []NodePtr
-
-	for row.Next() {		
-		err = row.Scan(&whole)
-		fmt.Sscanf(whole,"(%d,%d)",&n.Class,&n.CPtr)
-		retval = append(retval,n)
-	}
-
+	
 	row.Close()
-	return retval
 
 }
 
 // **************************************************************************
+// Query / Retrieve structural parts
+// **************************************************************************
 
-func GetDBNodePtrMatchingNCC(ctx PoSST,nm,chap string,cn []string,arrow []ArrowPtr) []NodePtr {
+func GetDBNodePtrMatchingName(sst PoSST,name,chap string) []NodePtr {
 
-	// Match name, context, chapter, with arrows
+	// simplified, retain for compatibility
 
-	var chap_col, nm_col string
-	var context string
-	var qstr string
+	return GetDBNodePtrMatchingNCCS(sst,name,chap,nil,nil,false,CAUSAL_CONE_MAXLIMIT)
+}
 
-	remove_name_accents,nm_stripped := IsBracketedSearchTerm(nm)
+// **************************************************************************
 
-	if remove_name_accents {
-		nm_search := "%"+nm_stripped+"%"
-		nm_col = fmt.Sprintf("AND lower(unaccent(S)) LIKE lower('%s')",nm_search)
-	} else {
-		nm_search := "%"+nm+"%"
-		nm_col = fmt.Sprintf("AND lower(S) LIKE lower('%s')",nm_search)
-	}
+func GetDBNodePtrMatchingNCCS(sst PoSST,nm,chap string,cn []string,arrow []ArrowPtr,seq bool,limit int) []NodePtr {
 
-	if chap != "any" && chap != "" {
+	// Order by L to favour exact matches
 
-		remove_chap_accents,chap_stripped := IsBracketedSearchTerm(chap)
+	nm = SQLEscape(nm)
+	chap = SQLEscape(chap)
 
-		if remove_chap_accents {
-			chap_search := "%"+chap_stripped+"%"
-			chap_col = fmt.Sprintf("AND lower(unaccent(chap)) LIKE lower('%s')",chap_search)
-		} else {
-			chap_search := "%"+chap+"%"
-			chap_col = fmt.Sprintf("AND lower(chap) LIKE lower('%s')",chap_search)
-		}
-	}
+	qstr := fmt.Sprintf("SELECT NPtr FROM Node WHERE %s ORDER BY L ASC,(CARDINALITY(Ie3)+CARDINALITY(Im3)+CARDINALITY(Il1)) DESC LIMIT %d",NodeWhereString(nm,chap,cn,arrow,seq),limit)
 
-	_,cn_stripped := IsBracketedSearchList(cn)
-	context = FormatSQLStringArray(cn_stripped)
-
-	arrows := FormatSQLIntArray(Arrow2Int(arrow))
-
-	qstr = fmt.Sprintf("WITH matching_nodes AS "+
-		"  (SELECT NFrom,ctx,match_context(ctx,%s) AS match,match_arrows(Arr,%s) AS matcha FROM NodeArrowNode)"+
-		"     SELECT DISTINCT nfrom FROM matching_nodes "+
-		"      JOIN Node ON nptr=nfrom WHERE match=true AND matcha=true %s %s",
-		context,arrows,nm_col,chap_col)
-
-	row, err := ctx.DB.Query(qstr)
+	row, err := sst.DB.Query(qstr)
 
 	if err != nil {
 		fmt.Println("QUERY GetNodePtrMatchingNCC Failed",err,qstr)
@@ -3351,20 +3711,241 @@ func GetDBNodePtrMatchingNCC(ctx PoSST,nm,chap string,cn []string,arrow []ArrowP
 	var n NodePtr
 	var retval []NodePtr
 
-	for row.Next() {		
-		err = row.Scan(&whole)
-		fmt.Sscanf(whole,"(%d,%d)",&n.Class,&n.CPtr)
-		retval = append(retval,n)
+	if row != nil {
+		for row.Next() {		
+			err = row.Scan(&whole)
+			fmt.Sscanf(whole,"(%d,%d)",&n.Class,&n.CPtr)
+			retval = append(retval,n)
+		}
+
+		row.Close()
 	}
 
-	row.Close()
 	return retval
+}
+
+// **************************************************************************
+
+func NodeWhereString(name,chap string,context []string,arrow []ArrowPtr,seq bool) string {
+
+	var chap_col, nm_col string
+	var ctx_col string
+	var qstr string
+
+	// Format a WHERE clause for a Node search satisfying constraints
+
+	// Chapter first to limit search by block
+
+	if chap != "any" && chap != "" {
+
+		remove_chap_accents,chap_stripped := IsBracketedSearchTerm(chap)
+
+		if remove_chap_accents {
+			chap_search := "%"+chap_stripped+"%"
+			chap_col = fmt.Sprintf("lower(unaccent(Chap)) LIKE lower('%s')",chap_search)
+		} else {
+			chap_search := "%"+chap+"%"
+			chap_col = fmt.Sprintf("lower(Chap) LIKE lower('%s')",chap_search)
+		}
+	} else {
+		chap_col = "true"
+	}
+
+	// Name search using tsquery for wildcards and additional S = exact_constraint for !exact!
+
+	outer_exact_match,nopling := IsExactMatch(name)
+	remove_name_accents,nobrack := IsBracketedSearchTerm(nopling)
+	inner_exact_match,bare_name := IsExactMatch(nobrack)
+
+	is_exact_match := outer_exact_match || inner_exact_match
+
+	// First ignore technical references from ad hoc search results, like img paths
+
+	if !strings.HasPrefix(bare_name,"/") {
+		nm_col = "AND S NOT LIKE '/%'"
+	}
+
+	if is_exact_match {
+
+		nm_col += fmt.Sprintf(" AND lower(S) = '%s'",bare_name)
+
+	} else if IsStringFragment(bare_name) {
+
+		if name == "any" || name == "%%" {
+			nm_col = fmt.Sprintf(" AND lower(S) LIKE '%%%%'")
+		} else {
+			nm_col = fmt.Sprintf(" AND lower(S) LIKE '%%%s%%'",bare_name)
+		}
+	} else {
+
+		if name == "any" || name == "%%" {
+			nm_col = ""
+		} else {
+			if remove_name_accents {
+				nm_col = fmt.Sprintf(" AND Unsearch @@ to_tsquery('english', '%s')",bare_name)
+			} else {
+				nm_col = fmt.Sprintf(" AND Search @@ to_tsquery('english', '%s')",bare_name)
+			}
+		}
+	}
+
+        var seq_col string
+        
+        if seq {
+                seq_col = "AND Seq=true"
+        }
+
+	// context and arrows
+
+	_,cn_stripped := IsBracketedSearchList(context)
+	ctx_col = FormatSQLStringArray(cn_stripped)
+
+	arrows := FormatSQLIntArray(Arrow2Int(arrow))
+	sttypes := FormatSQLIntArray(GetSTtypesFromArrows(arrow))
+
+	dbcols := I_MEXPR+","+I_MCONT+","+I_MLEAD+","+I_NEAR +","+I_PLEAD+","+I_PCONT+","+I_PEXPR
+
+	qstr = fmt.Sprintf("%s %s %s AND NCC_match(NPtr,%s,%s,%s,%s)",
+		chap_col,nm_col,seq_col, ctx_col,arrows,sttypes,dbcols)
+
+	return qstr
+}
+
+// **************************************************************************
+
+func GetDBChaptersMatchingName(sst PoSST,src string) []string {
+
+	var qstr string
+
+	remove_accents,stripped := IsBracketedSearchTerm(SQLEscape(src))
+
+	if remove_accents {
+		search := "%"+stripped+"%"
+		qstr = fmt.Sprintf("SELECT DISTINCT Chap FROM Node WHERE lower(unaccent(Chap)) LIKE lower('%s')",search)
+	} else {
+		search := "%"+src+"%"
+		qstr = fmt.Sprintf("SELECT DISTINCT Chap FROM Node WHERE lower(Chap) LIKE lower('%s')",search)
+	}
+
+	row, err := sst.DB.Query(qstr)
+	
+	if err != nil {
+		fmt.Println("QUERY GetDBChaptersMatchingName",err)
+	}
+
+	var whole string
+	var chapters = make(map[string]int)
+	var retval []string
+
+	if row != nil {
+		for row.Next() {		
+			err = row.Scan(&whole)
+			several := strings.Split(whole,",")
+			
+			for s := range several {
+				chapters[several[s]]++
+			}
+		}
+
+		for c := range chapters {
+			if strings.Contains(c,src) {
+				if len(c) > 0 {
+					retval = append(retval,c)
+				}
+			}
+		}
+
+		sort.Strings(retval)
+		row.Close()
+	}
+
+	return retval
+}
+
+// **************************************************************************
+
+func GetDBContextByName(sst PoSST,src string) (string,ContextPtr) {
+
+	var qstr string
+
+	remove_accents,stripped := IsBracketedSearchTerm(src)
+
+	if remove_accents {
+		search := stripped
+		qstr = fmt.Sprintf("SELECT DISTINCT Context,CtxPtr FROM ContextDirectory WHERE unaccent(Context)='%s'",search)
+	} else {
+		search := src
+		qstr = fmt.Sprintf("SELECT DISTINCT Context,CtxPtr FROM ContextDirectory WHERE Context='%s'",search)
+	}
+
+	row, err := sst.DB.Query(qstr)
+
+	if err != nil {
+		fmt.Println("QUERY GetDBContextByName",err)
+	}
+
+	var whole string
+	var ptr int
+
+	// Assume unique match for this, to be fixed elsewhere
+
+	if row != nil {
+		for row.Next() {
+			err = row.Scan(&whole,&ptr)
+		}
+		row.Close()
+	}
+
+	return whole,ContextPtr(ptr)
 
 }
 
 // **************************************************************************
 
-func GetDBNodeByNodePtr(ctx PoSST,db_nptr NodePtr) Node {
+func GetDBContextByPtr(sst PoSST,ptr ContextPtr) (string,ContextPtr) {
+
+	qstr := fmt.Sprintf("SELECT DISTINCT Context,CtxPtr FROM ContextDirectory WHERE CtxPtr=%d",ptr)
+
+	row, err := sst.DB.Query(qstr)
+	
+	if err != nil {
+		fmt.Println("QUERY GetDBContextssByPtr",err)
+	}
+
+	var retctx string
+	var retptr int
+
+	// Assume unique match for this, to be fixed elsewhere
+
+	if row != nil {
+		for row.Next() {
+			err = row.Scan(&retctx,&retptr)
+		}
+
+		row.Close()
+	}
+
+	return retctx,ContextPtr(retptr)
+}
+
+// **************************************************************************
+
+func GetSTtypesFromArrows(arrows []ArrowPtr) []int {
+
+	var sttypes []int
+
+	for a := range arrows {
+		sta := ARROW_DIRECTORY[arrows[a]].STAindex
+		st := STIndexToSTType(sta)
+		sttypes = append(sttypes,st)
+	}
+
+	return sttypes
+}
+
+// **************************************************************************
+
+func GetDBNodeByNodePtr(sst PoSST,db_nptr NodePtr) Node {
 
 	im_nptr,cached := NODE_CACHE[db_nptr]
 
@@ -3372,11 +3953,11 @@ func GetDBNodeByNodePtr(ctx PoSST,db_nptr NodePtr) Node {
 		return GetMemoryNodeFromPtr(im_nptr)
 	}
 
-	// This ony works if we insert non-null arrays in initialization
+	// This ony works if we insert non-null arrays like '[]' during initialization
 	cols := I_MEXPR+","+I_MCONT+","+I_MLEAD+","+I_NEAR +","+I_PLEAD+","+I_PCONT+","+I_PEXPR
-	qstr := fmt.Sprintf("select L,S,Chap,%s from Node where NPtr='(%d,%d)'::NodePtr",cols,db_nptr.Class,db_nptr.CPtr)
+	qstr := fmt.Sprintf("select L,S,Chap,%s from Node where NPtr='(%d,%d)'::NodePtr AND NOT L=0",cols,db_nptr.Class,db_nptr.CPtr)
 
-	row, err := ctx.DB.Query(qstr)
+	row, err := sst.DB.Query(qstr)
 
 	var n Node
 	var count int = 0
@@ -3388,27 +3969,35 @@ func GetDBNodeByNodePtr(ctx PoSST,db_nptr NodePtr) Node {
 
 	var whole [ST_TOP]string
 
-	// NB, there seems to be a bug in the SQL package, which cannot always populate the links, so try not to
+	// NB, there seems to be a "bug" in the SQL package, which cannot always populate the links, so try not to
 	//     rely on this and work around when needed using GetEntireCone(any,2..) separately
 
-	for row.Next() {
-		err = row.Scan(&n.L,&n.S,&n.Chap,&whole[0],&whole[1],&whole[2],&whole[3],&whole[4],&whole[5],&whole[6])
+	if row != nil {
+		for row.Next() {
+			err = row.Scan(&n.L,&n.S,&n.Chap,&whole[0],&whole[1],&whole[2],&whole[3],&whole[4],&whole[5],&whole[6])
 
-		for i := 0; i < ST_TOP; i++ {
-			n.I[i] = ParseLinkArray(whole[i])
+			for i := 0; i < ST_TOP; i++ {
+				n.I[i] = ParseLinkArray(whole[i])
+			}
+			count++
 		}
-		count++
-	}
 
-	if count > 1 {
-		fmt.Println("GetDBNodeByNodePtr returned too many matches (multi-model conflict?):",count,"for ptr",db_nptr)
-		os.Exit(-1)
-	}
+		if count > 1 {
+			fmt.Println("GetDBNodeByNodePtr returned too many matches (multi-model conflict?):",count,"for ptr",db_nptr)
+			os.Exit(-1)
+		}
 
-	row.Close()
+		// Expand any dynamic inbuilt functions
 
-	if !cached {
-		CacheNode(n)
+		if strings.HasPrefix(n.S,"Dynamic: ") {
+			n.S = ExpandDynamicFunctions(n.S)
+		}
+
+		row.Close()
+
+		if !cached {
+			CacheNode(n)
+		}
 	}
 
 	n.NPtr = db_nptr
@@ -3417,13 +4006,15 @@ func GetDBNodeByNodePtr(ctx PoSST,db_nptr NodePtr) Node {
 
 // **************************************************************************
 
-func GetDBSingletonBySTType(ctx PoSST,sttypes []int,chap string,cn []string) ([]NodePtr,[]NodePtr) {
+func GetDBSingletonBySTType(sst PoSST,sttypes []int,chap string,cn []string) ([]NodePtr,[]NodePtr) {
+
+	// Used in graph report, analysis
 
 	var qstr,qwhere string
 	var dim = len(sttypes)
 
 	context := FormatSQLStringArray(cn)
-	chapter := "%"+chap+"%"
+	chapter := "%"+SQLEscape(chap)+"%"
 
 	if dim == 0 || dim > 4 {
 		fmt.Println("Maximum 4 sttypes in GetDBSingletonBySTType")
@@ -3439,7 +4030,7 @@ func GetDBSingletonBySTType(ctx PoSST,sttypes []int,chap string,cn []string) ([]
 
 		stname := STTypeDBChannel(sttypes[st])
 		stinv := STTypeDBChannel(-sttypes[st])
-		qwhere += fmt.Sprintf("(array_length(%s::text[],1) IS NOT NULL AND array_length(%s::text[],1) IS NULL AND match_context((%s)[0].Ctx::text[],%s))",stname,stinv,stname,context)
+		qwhere += fmt.Sprintf("(array_length(%s::text[],1) IS NOT NULL AND array_length(%s::text[],1) IS NULL AND match_context((%s)[0].Ctx,%s))",stname,stinv,stname,context)
 		
 		if st != dim-1 {
 			qwhere += " OR "
@@ -3448,7 +4039,7 @@ func GetDBSingletonBySTType(ctx PoSST,sttypes []int,chap string,cn []string) ([]
 
 	qstr = fmt.Sprintf("SELECT NPtr FROM Node WHERE lower(Chap) LIKE lower('%s') AND (%s)",chapter,qwhere)
 
-	row, err := ctx.DB.Query(qstr)
+	row, err := sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("QUERY GetDBSingletonBySTType Failed",err,"IN",qstr)
@@ -3457,24 +4048,26 @@ func GetDBSingletonBySTType(ctx PoSST,sttypes []int,chap string,cn []string) ([]
 
 	var src_nptrs,snk_nptrs []NodePtr
 
-	for row.Next() {		
+	if row != nil {
+		for row.Next() {		
 		
-		var n NodePtr
-		var nstr string
+			var n NodePtr
+			var nstr string
+			
+			err = row.Scan(&nstr)
 		
-		err = row.Scan(&nstr)
+			if err != nil {
+				fmt.Println("Error scanning sql data case",dim,"gave error",err,qstr)
+				row.Close()
+				return nil,nil
+			}
 		
-		if err != nil {
-			fmt.Println("Error scanning sql data case",dim,"gave error",err,qstr)
-			row.Close()
-			return nil,nil
+			fmt.Sscanf(nstr,"(%d,%d)",&n.Class,&n.CPtr)
+		
+			src_nptrs = append(src_nptrs,n)
 		}
-		
-		fmt.Sscanf(nstr,"(%d,%d)",&n.Class,&n.CPtr)
-		
-		src_nptrs = append(src_nptrs,n)
+		row.Close()
 	}
-	row.Close()
 
 	// and sinks  -> -
 
@@ -3484,7 +4077,7 @@ func GetDBSingletonBySTType(ctx PoSST,sttypes []int,chap string,cn []string) ([]
 
 		stname := STTypeDBChannel(-sttypes[st])
 		stinv := STTypeDBChannel(sttypes[st])
-		qwhere += fmt.Sprintf("(array_length(%s::text[],1) IS NOT NULL AND array_length(%s::text[],1) IS NULL AND match_context((%s)[0].Ctx::text[],%s))",stname,stinv,stname,context)
+		qwhere += fmt.Sprintf("(array_length(%s::text[],1) IS NOT NULL AND array_length(%s::text[],1) IS NULL AND match_context((%s)[0].Ctx,%s))",stname,stinv,stname,context)
 		
 		if st != dim-1 {
 			qwhere += " OR "
@@ -3493,279 +4086,61 @@ func GetDBSingletonBySTType(ctx PoSST,sttypes []int,chap string,cn []string) ([]
 
 	qstr = fmt.Sprintf("SELECT NPtr FROM Node WHERE lower(Chap) LIKE lower('%s') AND (%s)",chapter,qwhere)
 
-	row, err = ctx.DB.Query(qstr)
+	row, err = sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("QUERY GetDBSingletonBySTType 2 Failed",err,"IN",qstr)
 		return nil,nil
 	}
 
-	for row.Next() {		
+	if row != nil {
+		for row.Next() {		
 		
-		var n NodePtr
-		var nstr string
+			var n NodePtr
+			var nstr string
+			
+			err = row.Scan(&nstr)
 		
-		err = row.Scan(&nstr)
-		
-		if err != nil {
-			fmt.Println("Error scanning sql data case",dim,"gave error",err,qstr)
-			row.Close()
-			return nil,nil
+			if err != nil {
+				fmt.Println("Error scanning sql data case",dim,"gave error",err,qstr)
+				row.Close()
+				return nil,nil
+			}
+			
+			fmt.Sscanf(nstr,"(%d,%d)",&n.Class,&n.CPtr)
+			
+			snk_nptrs = append(snk_nptrs,n)
 		}
-		
-		fmt.Sscanf(nstr,"(%d,%d)",&n.Class,&n.CPtr)
-		
-		snk_nptrs = append(snk_nptrs,n)
+		row.Close()
 	}
-	row.Close()
-	
+
 	return src_nptrs,snk_nptrs
 	
 }
 
 // **************************************************************************
 
-func GetDBNodeArrowNodeMatchingArrowPtrs(ctx PoSST,chap string,cn []string,arrows []ArrowPtr) []NodeArrowNode {
-
-	var intarrows []int
-
-	for i := range arrows {
-		intarrows = append(intarrows,int(arrows[i]))
-	}
-
-	qstr := fmt.Sprintf("SELECT NFrom,STType,Arr,Wgt,Ctx,NTo FROM NodeArrowNode where Arr=ANY(%s::int[])",FormatSQLIntArray(intarrows))
-
-	if cn != nil {
-		context := FormatSQLStringArray(cn)
-		chapter := "%"+chap+"%"
-		
-		qstr = fmt.Sprintf("WITH matching_rel AS "+
-			" (SELECT NFrom,STType,Arr,Wgt,Ctx,NTo,match_context(ctx,%s) AS match FROM NodeArrowNode)"+
-			"   SELECT DISTINCT NFrom,STType,Arr,Wgt,Ctx,NTo FROM matching_rel "+
-			"    JOIN Node ON nptr=nfrom WHERE match=true AND lower(chap) LIKE lower('%s')",context,chapter)	
-	}
-
-	row, err := ctx.DB.Query(qstr)
-	
-	if err != nil {
-		fmt.Println("GetDBNodeArrowNodeMatchingArrowPtrs Failed:",err,qstr)
-	}
-
-	var from_node string
-	var to_node string
-	var actx string
-	var st,arr int
-	var wgt float32
-
-	var nfr,nto NodePtr
-	var nan NodeArrowNode
-	var nanlist []NodeArrowNode
-
-	for row.Next() {		
-		err = row.Scan(&from_node,&st,&arr,&wgt,&actx,&to_node)
-
-		fmt.Sscanf(from_node,"(%d,%d)",&nfr.Class,&nfr.CPtr)
-		fmt.Sscanf(to_node,"(%d,%d)",&nto.Class,&nto.CPtr)
-
-		nan.NFrom = nfr
-		nan.STType = st
-		nan.Arr = ArrowPtr(arr)
-		nan.Wgt = wgt
-		nan.Ctx = ParseSQLArrayString(actx)
-		nan.NTo = nto
-
-		nanlist = append(nanlist,nan)
-
-	}
-
-	row.Close()
-
-	return nanlist
-}
-
-// **************************************************************************
-
-func GetDBNodeContextsMatchingArrow(ctx PoSST,searchtext string,chap string,cn []string,arrow []ArrowPtr,page int) []QNodePtr {
-	var qstr string
-
-	context := FormatSQLStringArray(cn)
-	chapter := "%"+chap+"%"
-	arrows := FormatSQLIntArray(Arrow2Int(arrow))
-
-	const hits_per_page = 60
-	offset := (page-1) * hits_per_page;
-
-	// sufficient to search NFrom to get all nodes in context, as +/- relations complete
-	
-	qstr = fmt.Sprintf("WITH matching_nodes AS \n"+
-		" (SELECT DISTINCT NFrom,Arr,Ctx,match_context(Ctx,%s) AS matchc,match_arrows(Arr,%s) AS matcha FROM NodeArrowNode)\n"+
-		"   SELECT DISTINCT NFrom,Ctx,Chap FROM matching_nodes \n"+
-		"    JOIN Node ON nptr=nfrom WHERE matchc=true AND matcha=true AND lower(Chap) LIKE lower('%s') ORDER BY Ctx,NFrom DESC OFFSET %d LIMIT %d",context,arrows,chapter,offset,hits_per_page)
-
-	row, err := ctx.DB.Query(qstr)
-
-	if err != nil {
-		fmt.Println("GetDBNodeArrowNodeByContext Failed:",err,qstr)
-	}
-
-	var return_value []QNodePtr
-
-	var qptr QNodePtr
-	var nptr NodePtr
-	var nctx string
-	var nchap string
-	var nptrs string
-
-	for row.Next() {		
-
-		nctx = ""
-		nchap = ""
-		err = row.Scan(&nptrs,&nctx,&nchap)
-		fmt.Sscanf(nptrs,"(%d,%d)",&nptr.Class,&nptr.CPtr)
-		qptr.NPtr = nptr
-		qptr.Chapter = nchap
-
-		if nctx == "" {
-			nctx = "(no context)"
-		}
-
-		qptr.Context = nctx
-
-		return_value = append(return_value,qptr)
-	}
-
-	row.Close()
-	return return_value
-}
-
-// **************************************************************************
-
-func GetDBNodeArrowNodeByContexts(ctx PoSST,chap string,cn []string) []NodeArrowNode {
-
-	var qstr string
-
-	_,cn_stripped := IsBracketedSearchList(cn)
-	context := FormatSQLStringArray(cn_stripped)
-
-	qstr = fmt.Sprintf("SELECT DISTINCT NFrom,Arr,STType,NTo,Ctx FROM NodeArrowNode WHERE match_context(Ctx,%s)",context)
-	row, err := ctx.DB.Query(qstr)
-
-	if err != nil {
-		fmt.Println("GetDBNodesInContexts Failed:",err,qstr)
-	}
-
-	var return_value []NodeArrowNode
-
-	var nan NodeArrowNode
-	var fromptr NodePtr
-	var toptr NodePtr
-	var from string
-	var to string
-	var nctx string
-	var arr ArrowPtr
-	var sttype int
-
-	for row.Next() {
-		nctx = ""
-		err = row.Scan(&from,&arr,&sttype,&to,&nctx)
-
-		fmt.Sscanf(from,"(%d,%d)",&fromptr.Class,&fromptr.CPtr)
-		nan.NFrom = fromptr
-		fmt.Sscanf(to,"(%d,%d)",&toptr.Class,&toptr.CPtr)
-		nan.NTo = toptr
-		nan.Ctx = ParseSQLArrayString(nctx)
-		nan.Arr = arr
-		nan.STType = sttype
-		return_value = append(return_value,nan)
-	}
-
-	row.Close()
-	return return_value
-}
-
-// **************************************************************************
-
-func GetNodesStartingStoriesForArrow(ctx PoSST,arrow string) ([]NodePtr,int) {
-
-	// Find the head / starting node matching an arrow sequence.
-	// It has outgoing (+sttype) but not incoming (-sttype) arrow
+func SelectStoriesByArrow(sst PoSST,nodeptrs []NodePtr, arrowptrs []ArrowPtr, sttypes []int, limit int) []NodePtr {
 
 	var matches []NodePtr
 
-	arrowptr,sttype := GetDBArrowsWithArrowName(ctx,arrow)
+	// Need to take each arrow type at a time. We can't possibly know if an
+	// intentionally promised sequence start (in Node) refers to one arrow or another,
+	// but, the chance of being a start for several different independent stories is unlikely.
 
-	qstr := fmt.Sprintf("select GetStoryStartNodes(%d,%d,%d)",arrowptr,INVERSE_ARROWS[arrowptr],sttype)
-		
-	row,err := ctx.DB.Query(qstr)
-	
-	if err != nil {
-		fmt.Println("GetNodesStartingStoriesForArrow failed\n",qstr,err)
-		return nil,0
+	// We can always search for ad hoc cases with dream/post-processing if not from N4L
+	// Thus a valid story is defined from a start node. It is normally a node with an out-arrow
+	// |- NODE --ARROW-->, i.e. no in-arrow entering, but this may be false if the story has
+	// loops, like a repeated line in a song chorus.
+
+	for _,n := range nodeptrs {
+
+		// After changes, all these nodes should have Seq = true already from "SolveNodePtrs()"
+		// So all the searching is finished, we just need to match the requested arrow
+
+		node := GetDBNodeByNodePtr(sst,n)  // we are now caching this for later
+		matches = append(matches,node.NPtr)
 	}
-	
-	var nptrstring string
-	
-	for row.Next() {		
-		err = row.Scan(&nptrstring)
-		matches = ParseSQLNPtrArray(nptrstring)
-	}
-	
-	row.Close()
-
-	return matches,sttype
-}
-
-// **************************************************************************
-
-func GetNCCNodesStartingStoriesForArrow(ctx PoSST,arrow string,name,chapter string,context []string) []NodePtr {
-
-	// Filtered version of function
-	// Find the head / starting node matching an arrow sequence.
-	// It has outgoing (+sttype) but not incoming (-sttype) arrow
-
-	var matches []NodePtr
-	var qstr string
-
-	arrowptr,sttype := GetDBArrowsWithArrowName(ctx,arrow)
-
-	remove_name_accents,nm_stripped := IsBracketedSearchTerm(name)
-	remove_chap_accents,chap_stripped := IsBracketedSearchTerm(chapter)
-
-	chp := "%"+chap_stripped+"%"
-	nm := "%"+nm_stripped+"%"
-	cntx := FormatSQLStringArray(context)
-
-	rm_nm := "false"
-	rm_ch := "false"
-
-	if remove_name_accents {
-		rm_nm = "true"
-	}
-
-	if remove_chap_accents {
-		rm_ch = "true"
-	}
-
-	// look for _title_ in context
-
-	qstr = fmt.Sprintf("select GetNCCStoryStartNodes(%d,%d,%d,'%s','%s',%s,%s,%s)",arrowptr,INVERSE_ARROWS[arrowptr],sttype,nm,chp,cntx,rm_nm,rm_ch)
-
-	row,err := ctx.DB.Query(qstr)
-
-	if err != nil {
-		fmt.Println("GetNodesNCCStartingStoriesForArrow failed\n",qstr,err)
-		return nil
-	}
-	
-	var nptrstring string
-
-	for row.Next() {		
-		err = row.Scan(&nptrstring)
-		match := ParseSQLNPtrArray(nptrstring)
-		matches = append(matches,match...)
-	}
-	
-	row.Close()
 
 	return matches
 }
@@ -3774,10 +4149,17 @@ func GetNCCNodesStartingStoriesForArrow(ctx PoSST,arrow string,name,chapter stri
 // Retrieve Arrow type data
 // **************************************************************************
 
-func GetDBArrowsWithArrowName(ctx PoSST,s string) (ArrowPtr,int) {
+func GetDBArrowsWithArrowName(sst PoSST,s string) (ArrowPtr,int) {
 
 	if ARROW_DIRECTORY_TOP == 0 {
-		DownloadArrowsFromDB(ctx)
+		DownloadArrowsFromDB(sst)
+	}
+
+	s = strings.Trim(s,"!")
+
+	if s == "" {
+		fmt.Println("No such arrow found in database:",s)
+		return 0,0
 	}
 
 	for a := range ARROW_DIRECTORY {
@@ -3793,17 +4175,31 @@ func GetDBArrowsWithArrowName(ctx PoSST,s string) (ArrowPtr,int) {
 
 // **************************************************************************
 
-func GetDBArrowsMatchingArrowName(ctx PoSST,s string) []ArrowPtr {
+func GetDBArrowsMatchingArrowName(sst PoSST,s string) []ArrowPtr {
 
 	var list []ArrowPtr
 
 	if ARROW_DIRECTORY_TOP == 0 {
-		DownloadArrowsFromDB(ctx)
+		DownloadArrowsFromDB(sst)
 	}
 
-	for a := range ARROW_DIRECTORY {
-		if SimilarString(s,ARROW_DIRECTORY[a].Long) || SimilarString(s,ARROW_DIRECTORY[a].Short) {
-			list = append(list,ARROW_DIRECTORY[a].Ptr)
+	trimmed := strings.Trim(s,"!")
+
+	if trimmed == "" {
+		return list
+	}
+
+	if trimmed != s {
+		for a := range ARROW_DIRECTORY {
+			if ARROW_DIRECTORY[a].Long==trimmed || ARROW_DIRECTORY[a].Short==trimmed {
+				list = append(list,ARROW_DIRECTORY[a].Ptr)
+			}
+		}
+	} else {
+		for a := range ARROW_DIRECTORY {
+			if SimilarString(ARROW_DIRECTORY[a].Long,s) || SimilarString(ARROW_DIRECTORY[a].Short,s) {
+				list = append(list,ARROW_DIRECTORY[a].Ptr)
+			}
 		}
 	}
 
@@ -3812,10 +4208,16 @@ func GetDBArrowsMatchingArrowName(ctx PoSST,s string) []ArrowPtr {
 
 // **************************************************************************
 
-func GetDBArrowByName(ctx PoSST,name string) ArrowPtr {
+func GetDBArrowByName(sst PoSST,name string) ArrowPtr {
 
 	if ARROW_DIRECTORY_TOP == 0 {
-		DownloadArrowsFromDB(ctx)
+		DownloadArrowsFromDB(sst)
+	}
+
+	name = strings.Trim(name,"!")
+
+	if name == "" {
+		return 0
 	}
 
 	ptr, ok := ARROW_SHORT_DIR[name]
@@ -3843,10 +4245,10 @@ func GetDBArrowByName(ctx PoSST,name string) ArrowPtr {
 
 // **************************************************************************
 
-func GetDBArrowByPtr(ctx PoSST,arrowptr ArrowPtr) ArrowDirectory {
+func GetDBArrowByPtr(sst PoSST,arrowptr ArrowPtr) ArrowDirectory {
 
 	if int(arrowptr) > len(ARROW_DIRECTORY) {
-		DownloadArrowsFromDB(ctx)
+		DownloadArrowsFromDB(sst)
 	}
 
 	if int(arrowptr) < len(ARROW_DIRECTORY) {
@@ -3862,11 +4264,11 @@ func GetDBArrowByPtr(ctx PoSST,arrowptr ArrowPtr) ArrowDirectory {
 
 // **************************************************************************
 
-func GetDBArrowBySTType(ctx PoSST,sttype int) []ArrowDirectory {
+func GetDBArrowBySTType(sst PoSST,sttype int) []ArrowDirectory {
 
 	var retval []ArrowDirectory
 
-	DownloadArrowsFromDB(ctx)
+	DownloadArrowsFromDB(sst)
 
 	for a := range ARROW_DIRECTORY {
 		sta := ARROW_DIRECTORY[a].STAindex
@@ -3882,7 +4284,7 @@ func GetDBArrowBySTType(ctx PoSST,sttype int) []ArrowDirectory {
 // Parsing and handling of search strings
 //******************************************************************
 
-func ArrowPtrFromArrowsNames(ctx PoSST,arrows []string) ([]ArrowPtr,[]int) {
+func ArrowPtrFromArrowsNames(sst PoSST,arrows []string) ([]ArrowPtr,[]int) {
 
 	// Parse input and discern arrow types, best guess
 
@@ -3897,12 +4299,13 @@ func ArrowPtrFromArrowsNames(ctx PoSST,arrows []string) ([]ArrowPtr,[]int) {
 		notnumber := err != nil
 
 		if notnumber {
-			arrs := GetDBArrowsMatchingArrowName(ctx,arrows[a])
+			arrs := GetDBArrowsMatchingArrowName(sst,arrows[a])
 			for  ar := range arrs {
 				arrowptr := arrs[ar]
 				if arrowptr > 0 {
-					arrdir := GetDBArrowByPtr(ctx,arrowptr)
+					arrdir := GetDBArrowByPtr(sst,arrowptr)
 					arr = append(arr,arrdir.Ptr)
+					stt = append(stt,STIndexToSTType(arrdir.STAindex))
 				}
 			}
 		} else {
@@ -3912,8 +4315,9 @@ func ArrowPtrFromArrowsNames(ctx PoSST,arrows []string) ([]ArrowPtr,[]int) {
 				stt = append(stt,number)
 			} else {
 				// whatever remains can only be an arrowpointer
-				arrdir := GetDBArrowByPtr(ctx,ArrowPtr(number))
+				arrdir := GetDBArrowByPtr(sst,ArrowPtr(number))
 				arr = append(arr,arrdir.Ptr)
+				stt = append(stt,STIndexToSTType(arrdir.STAindex))
 			}
 		}
 	}
@@ -3923,7 +4327,11 @@ func ArrowPtrFromArrowsNames(ctx PoSST,arrows []string) ([]ArrowPtr,[]int) {
 
 //******************************************************************
 
-func SolveNodePtrs(ctx PoSST,nodenames []string,chap string,cntx []string, arr []ArrowPtr) []NodePtr {
+func SolveNodePtrs(sst PoSST,nodenames []string,search SearchParameters,arr []ArrowPtr,limit int) []NodePtr {
+
+	chap := search.Chapter
+	cntx := search.Context
+	seq := search.Sequence
 
 	// This is a UI/UX wrapper for the underlying lookup, avoiding
 	// duplicate results and ordering according to interest
@@ -3939,13 +4347,13 @@ func SolveNodePtrs(ctx PoSST,nodenames []string,chap string,cntx []string, arr [
 		idempotence[nodeptrs[n]] = true
 	}
 
-	for r := range rest {
+	for r := 0; r < len(rest); r++ {
 
 		// Takes care of general context matching
 
-		nptrs := GetDBNodePtrMatchingNCC(ctx,rest[r],chap,cntx,arr)
+		nptrs := GetDBNodePtrMatchingNCCS(sst,rest[r],chap,cntx,arr,seq,limit)
 
-		for n := range nptrs {
+		for n := 0; n < len(nptrs); n++ {
 			idempotence[nptrs[n]] = true
 		}
 	}
@@ -3957,6 +4365,7 @@ func SolveNodePtrs(ctx PoSST,nodenames []string,chap string,cntx []string, arr [
 	}
 
 	sort.Slice(result, ScoreContext)
+
 	return result
 }
 
@@ -4029,7 +4438,7 @@ func ParseLiteralNodePtrs(names []string) ([]NodePtr,[]string) {
 // Page format, preserving N4L intent
 // **************************************************************************
 
-func GetDBPageMap(ctx PoSST,chap string,cn []string,page int) []PageMap {
+func GetDBPageMap(sst PoSST,chap string,cn []string,page int) []PageMap {
 
 	var qstr string
 
@@ -4042,10 +4451,9 @@ func GetDBPageMap(ctx PoSST,chap string,cn []string,page int) []PageMap {
 	offset := (page-1) * hits_per_page;
 
 	qstr = fmt.Sprintf("SELECT DISTINCT Chap,Ctx,Line,Path FROM PageMap\n"+
-		"WHERE match_context(Ctx,%s)=true AND lower(Chap) LIKE lower('%s') ORDER BY Line OFFSET %d LIMIT %d",
-		context,chapter,offset,hits_per_page)
+		"WHERE match_context(Ctx,%s)=true AND lower(Chap) LIKE lower('%s') ORDER BY Chap,Line OFFSET %d LIMIT %d",context,chapter,offset,hits_per_page)
 
-	row, err := ctx.DB.Query(qstr)
+	row, err := sst.DB.Query(qstr)
 
 	if err != nil {
 		fmt.Println("GetDBPageMap Failed:",err,qstr)
@@ -4054,23 +4462,31 @@ func GetDBPageMap(ctx PoSST,chap string,cn []string,page int) []PageMap {
 	var path string
 	var pagemap []PageMap
 	var line int
-	for row.Next() {		
+	var ctxptr ContextPtr
 
-		var event PageMap
-		err = row.Scan(&chap,&context,&line,&path)
+	if row != nil {
+		for row.Next() {		
 
-		if err != nil {
-			fmt.Println("Error reading GetDBPageMap",err)
+			var event PageMap
+
+			err = row.Scan(&chap,&ctxptr,&line,&path)
+
+			if err != nil {
+				fmt.Println("Error reading GetDBPageMap",err)
+			}
+
+			event.Path = ParseMapLinkArray(path)
+
+			event.Chapter = chap
+			event.Context = ctxptr
+			event.Line = line;
+
+			pagemap = append(pagemap,event)
 		}
 
-		event.Path = ParseMapLinkArray(path)
-
-		event.Chapter = chap
-		event.Context = ParseSQLArrayString(context)
-		pagemap = append(pagemap,event)
+		row.Close()
 	}
 
-	row.Close()
 	return pagemap
 }
 
@@ -4078,11 +4494,11 @@ func GetDBPageMap(ctx PoSST,chap string,cn []string,page int) []PageMap {
 // Bulk DB Retrieval
 // **************************************************************************
 
-func GetFwdConeAsNodes(ctx PoSST, start NodePtr, sttype,depth int,limit int) []NodePtr {
+func GetFwdConeAsNodes(sst PoSST, start NodePtr, sttype,depth int,limit int) []NodePtr {
 
 	qstr := fmt.Sprintf("select unnest(fwdconeasnodes) from FwdConeAsNodes('(%d,%d)',%d,%d,%d);",start.Class,start.CPtr,sttype,depth,limit)
 
-	row, err := ctx.DB.Query(qstr)
+	row, err := sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("QUERY to FwdConeAsNodes Failed",err)
@@ -4092,25 +4508,28 @@ func GetFwdConeAsNodes(ctx PoSST, start NodePtr, sttype,depth int,limit int) []N
 	var n NodePtr
 	var retval []NodePtr
 
-	for row.Next() {		
-		err = row.Scan(&whole)
-		fmt.Sscanf(whole,"(%d,%d)",&n.Class,&n.CPtr)
-		retval = append(retval,n)
+	if row != nil {
+		for row.Next() {		
+			err = row.Scan(&whole)
+			fmt.Sscanf(whole,"(%d,%d)",&n.Class,&n.CPtr)
+			retval = append(retval,n)
+		}
+
+		row.Close()
 	}
 
-	row.Close()
 	return retval
 }
 
 // **************************************************************************
 
-func GetFwdConeAsLinks(ctx PoSST, start NodePtr, sttype,depth int) []Link {
+func GetFwdConeAsLinks(sst PoSST, start NodePtr, sttype,depth int) []Link {
 
-	// This function may be misleading as it doesn't respect paths
+	// This function may be misleading as it doesn't respect paths, may be deprecated in future
 
 	qstr := fmt.Sprintf("select unnest(fwdconeaslinks) from FwdConeAsLinks('(%d,%d)',%d,%d);",start.Class,start.CPtr,sttype,depth)
 
-	row, err := ctx.DB.Query(qstr)
+	row, err := sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("QUERY to FwdConeAsLinks Failed",err)
@@ -4119,24 +4538,26 @@ func GetFwdConeAsLinks(ctx PoSST, start NodePtr, sttype,depth int) []Link {
 	var whole string
 	var retval []Link
 
-	for row.Next() {		
-		err = row.Scan(&whole)
-		l := ParseSQLLinkString(whole)
-		retval = append(retval,l)
-	}
+	if row != nil {
+		for row.Next() {		
+			err = row.Scan(&whole)
+			l := ParseSQLLinkString(whole)
+			retval = append(retval,l)
+		}
 
-	row.Close()
+		row.Close()
+	}
 
 	return retval
 }
 
 // **************************************************************************
 
-func GetFwdPathsAsLinks(ctx PoSST, start NodePtr, sttype,depth int) ([][]Link,int) {
+func GetFwdPathsAsLinks(sst PoSST, start NodePtr, sttype,depth int, maxlimit int) ([][]Link,int) {
 
-	qstr := fmt.Sprintf("select FwdPathsAsLinks from FwdPathsAsLinks('(%d,%d)',%d,%d);",start.Class,start.CPtr,sttype,depth)
+	qstr := fmt.Sprintf("SELECT FwdPathsAsLinks from FwdPathsAsLinks('(%d,%d)',%d,%d,%d);",start.Class,start.CPtr,sttype,depth,maxlimit)
 
-	row, err := ctx.DB.Query(qstr)
+	row, err := sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("QUERY to FwdPathsAsLinks Failed",err)
@@ -4145,27 +4566,30 @@ func GetFwdPathsAsLinks(ctx PoSST, start NodePtr, sttype,depth int) ([][]Link,in
 	var whole string
 	var retval [][]Link
 
-	for row.Next() {		
-		err = row.Scan(&whole)
-		retval = ParseLinkPath(whole)
+	if row != nil {
+		for row.Next() {		
+			err = row.Scan(&whole)
+			retval = ParseLinkPath(whole)
+		}
+
+		row.Close()
 	}
 
-	row.Close()
 	return retval,len(retval)
 }
 
 // **************************************************************************
 
-func GetEntireConePathsAsLinks(ctx PoSST,orientation string,start NodePtr,depth int,limit int) ([][]Link,int) {
+func GetEntireConePathsAsLinks(sst PoSST,orientation string,start NodePtr,depth int,limit int) ([][]Link,int) {
 
 	// orientation should be "fwd" or "bwd" else "both"
 
 	// Todo: how to limit path search? Usually solutions are small..?
 
-	qstr := fmt.Sprintf("select AllPathsAsLinks from AllPathsAsLinks('(%d,%d)','%s',%d);",
-		start.Class,start.CPtr,orientation,depth)
+	qstr := fmt.Sprintf("select AllPathsAsLinks from AllPathsAsLinks('(%d,%d)','%s',%d, %d);",
+		start.Class,start.CPtr,orientation,depth,limit)
 
-	row, err := ctx.DB.Query(qstr)
+	row, err := sst.DB.Query(qstr)
 
 	if err != nil {
 		fmt.Println("QUERY to AllPathsAsLinks Failed",err,qstr)
@@ -4174,12 +4598,14 @@ func GetEntireConePathsAsLinks(ctx PoSST,orientation string,start NodePtr,depth 
 	var whole string
 	var retval [][]Link
 
-	for row.Next() {		
-		err = row.Scan(&whole)
-		retval = ParseLinkPath(whole)
-	}
+	if row != nil {
+		for row.Next() {		
+			err = row.Scan(&whole)
+			retval = ParseLinkPath(whole)
+		}
 
-	row.Close()
+		row.Close()
+	}
 
 	sort.Slice(retval, func(i,j int) bool {
 		return len(retval[i]) < len(retval[j])
@@ -4190,8 +4616,9 @@ func GetEntireConePathsAsLinks(ctx PoSST,orientation string,start NodePtr,depth 
 
 // **************************************************************************
 
-func GetEntireNCConePathsAsLinks(ctx PoSST,orientation string,start NodePtr,depth int,chapter string,context []string,limit int) ([][]Link,int) {
+func GetEntireNCConePathsAsLinks(sst PoSST,orientation string,start []NodePtr,depth int,chapter string,context []string,limit int) ([][]Link,int) {
 
+	// See also GetConstraintConePathsAsLinks for an interface with arrow matching
 	// orientation should be "fwd" or "bwd" else "both"
 
 	remove_accents,stripped := IsBracketedSearchTerm(chapter)
@@ -4202,67 +4629,71 @@ func GetEntireNCConePathsAsLinks(ctx PoSST,orientation string,start NodePtr,dept
 		rm_acc = "true"
 	}
 
-	qstr := fmt.Sprintf("select AllNCPathsAsLinks from AllNCPathsAsLinks('(%d,%d)','%s',%s,%s,'%s',%d,%d);",
-		start.Class,start.CPtr,chapter,rm_acc,FormatSQLStringArray(context),orientation,depth,limit)
-	
-	row, err := ctx.DB.Query(qstr)
+	qstr := fmt.Sprintf("select AllNCPathsAsLinks(%s,'%s',%s,%s,'%s',%d,%d);",FormatSQLNodePtrArray(start),chapter,rm_acc,FormatSQLStringArray(context),orientation,depth,limit)
+
+	row, err := sst.DB.Query(qstr)
 
 	if err != nil {
 		fmt.Println("QUERY to AllNCPathsAsLinks Failed",err,qstr)
-	}
-
-	var whole string
-	var retval [][]Link
-
-	for row.Next() {		
-		err = row.Scan(&whole)
-		if err != nil {
-			fmt.Println("reading AllNCPathsAsLinks",err)
-		}
-
-		retval = ParseLinkPath(whole)
-	}
-
-	sort.Slice(retval, func(i,j int) bool {
-		return len(retval[i]) < len(retval[j])
-	})
-
-	row.Close()
-	return retval,len(retval)
-}
-
-// **************************************************************************
-
-func GetEntireNCSuperConePathsAsLinks(ctx PoSST,orientation string,start []NodePtr,depth int,chapter string,context []string) ([][]Link,int) {
-	// orientation should be "fwd" or "bwd" else "both"
-
-	remove_accents,stripped := IsBracketedSearchTerm(chapter)
-	chapter = "%"+stripped+"%"
-	rm_acc := "false"
-
-	if remove_accents {
-		rm_acc = "true"
-	}
-
-	qstr := fmt.Sprintf("select AllSuperNCPathsAsLinks(%s,'%s',%s,%s,'%s',%d);",FormatSQLNodePtrArray(start),
-		chapter,rm_acc,FormatSQLStringArray(context),orientation,depth)
-
-	row, err := ctx.DB.Query(qstr)
-
-	if err != nil {
-		fmt.Println("QUERY to AllSuperNCPathsAsLinks Failed",err,qstr)
 		os.Exit(-1)
 	}
 
 	var whole string
 	var retval [][]Link
 
-	for row.Next() {		
-		err = row.Scan(&whole)
-		retval = ParseLinkPath(whole)
+	if row != nil {
+		for row.Next() {		
+			err = row.Scan(&whole)
+			retval = ParseLinkPath(whole)
+		}
+
+		row.Close()
 	}
 
-	row.Close()
+	return retval,len(retval)
+}
+
+// **************************************************************************
+
+func GetConstraintConePathsAsLinks(sst PoSST,start []NodePtr,depth int,chapter string,context []string,arrowptrs []ArrowPtr,sttypes []int,limit int) ([][]Link,int) {
+
+	// See also GetEntireNCConePathsAsLinks() for a differently optimized interface
+	// orientation should be "fwd" or "bwd" else "both"
+
+	remove_accents,stripped := IsBracketedSearchTerm(chapter)
+	chapter = "%"+stripped+"%"
+	rm_acc := "false"
+
+	if remove_accents {
+		rm_acc = "true"
+	}
+
+	nod := FormatSQLNodePtrArray(start)
+	arr := FormatSQLIntArray(Arrow2Int(arrowptrs))
+	stt := FormatSQLIntArray(sttypes)
+	cnt := FormatSQLStringArray(context)
+
+	qstr := fmt.Sprintf("select ConstraintPathsAsLinks(%s,'%s',%s,%s,%s,%s,%d,%d);",nod,chapter,rm_acc,cnt,arr,stt,depth,limit)
+
+	row, err := sst.DB.Query(qstr)
+
+	if err != nil {
+		fmt.Println("QUERY to ConstraintPathsAsLinks Failed",err,qstr)
+		os.Exit(-1)
+	}
+
+	var whole string
+	var retval [][]Link
+
+	if row != nil {
+		for row.Next() {		
+			err = row.Scan(&whole)
+			retval = ParseLinkPath(whole)
+			break
+		}
+
+		row.Close()
+	}
 
 	return retval,len(retval)
 }
@@ -4288,13 +4719,13 @@ func CacheNode(n Node) {
 
 // **************************************************************************
 
-func DownloadArrowsFromDB(ctx PoSST) {
+func DownloadArrowsFromDB(sst PoSST) {
 
 	// These must be ordered to match in-memory array
 
 	qstr := fmt.Sprintf("SELECT STAindex,Long,Short,ArrPtr FROM ArrowDirectory ORDER BY ArrPtr")
 
-	row, err := ctx.DB.Query(qstr)
+	row, err := sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("QUERY Download Arrows Failed",err)
@@ -4309,54 +4740,100 @@ func DownloadArrowsFromDB(ctx PoSST) {
 	var ptr ArrowPtr
 	var ad ArrowDirectory
 
-	for row.Next() {		
-		err = row.Scan(&staidx,&long,&short,&ptr)
-		ad.STAindex = staidx
-		ad.Long = long
-		ad.Short = short
-		ad.Ptr = ptr
+	if row != nil {
+		for row.Next() {		
+			err = row.Scan(&staidx,&long,&short,&ptr)
+			ad.STAindex = staidx
+			ad.Long = long
+			ad.Short = short
+			ad.Ptr = ptr
 
-		ARROW_DIRECTORY = append(ARROW_DIRECTORY,ad)
-		ARROW_SHORT_DIR[short] = ARROW_DIRECTORY_TOP
-		ARROW_LONG_DIR[long] = ARROW_DIRECTORY_TOP
+			ARROW_DIRECTORY = append(ARROW_DIRECTORY,ad)
+			ARROW_SHORT_DIR[short] = ARROW_DIRECTORY_TOP
+			ARROW_LONG_DIR[long] = ARROW_DIRECTORY_TOP
 
-		if ad.Ptr != ARROW_DIRECTORY_TOP {
-			fmt.Println(ERR_MEMORY_DB_ARROW_MISMATCH,ad,ad.Ptr,ARROW_DIRECTORY_TOP)
-			os.Exit(-1)
+			if ad.Ptr != ARROW_DIRECTORY_TOP {
+				fmt.Println(ERR_MEMORY_DB_ARROW_MISMATCH,ad,ad.Ptr,ARROW_DIRECTORY_TOP)
+				os.Exit(-1)
+			}
+
+			ARROW_DIRECTORY_TOP++
 		}
 
-		ARROW_DIRECTORY_TOP++
+		row.Close()
 	}
-
-	row.Close()
 
 	// Get Inverses
 
 	qstr = fmt.Sprintf("SELECT Plus,Minus FROM ArrowInverses ORDER BY Plus")
 
-	row, err = ctx.DB.Query(qstr)
+	row, err = sst.DB.Query(qstr)
 	
-	if err != nil {
+	if err != nil {    
 		fmt.Println("QUERY Download Inverses Failed",err)
 	}
 
 	var plus,minus ArrowPtr
 
-	for row.Next() {		
+	if row != nil {
+		for row.Next() {		
 
-		err = row.Scan(&plus,&minus)
+			err = row.Scan(&plus,&minus)
 
-		if err != nil {
-			fmt.Println("QUERY Download Arrows Failed",err)
+			if err != nil {
+				fmt.Println("QUERY Download Arrows Failed",err)
+			}
+
+			INVERSE_ARROWS[plus] = minus
 		}
-
-		INVERSE_ARROWS[plus] = minus
+		row.Close()
 	}
 }
 
 // **************************************************************************
 
-func SynchronizeNPtrs(ctx PoSST) {
+func DownloadContextsFromDB(sst PoSST) {
+
+	qstr := fmt.Sprintf("SELECT Context,CtxPtr FROM ContextDirectory ORDER BY CtxPtr")
+
+	row, err := sst.DB.Query(qstr)
+	
+	if err != nil {
+		fmt.Println("QUERY Download Arrows Failed",err)
+	}
+
+	CONTEXT_DIRECTORY = nil
+	CONTEXT_TOP = 0
+
+	var context string
+	var ptr ContextPtr
+
+	if row != nil {
+		for row.Next() {		
+			err = row.Scan(&context,&ptr)
+
+			var c ContextDirectory
+
+			c.Context = context
+			c.Ptr = ptr
+
+			if c.Ptr != CONTEXT_TOP {
+				fmt.Println(ERR_MEMORY_DB_CONTEXT_MISMATCH,c,CONTEXT_TOP)
+				os.Exit(-1)
+			}
+
+			CONTEXT_DIRECTORY = append(CONTEXT_DIRECTORY,c)
+			CONTEXT_DIR[context] = CONTEXT_TOP
+			CONTEXT_TOP++
+		}
+
+		row.Close()
+	}
+}
+
+// **************************************************************************
+
+func SynchronizeNPtrs(sst PoSST) {
 
 	// If we're merging (not recommended) N4L into an existing db, we need to synch
 
@@ -4364,7 +4841,7 @@ func SynchronizeNPtrs(ctx PoSST) {
 		
 		qstr := fmt.Sprintf("SELECT max((Nptr).CPtr) FROM Node WHERE (Nptr).Chan=%d",channel)
 
-		row, err := ctx.DB.Query(qstr)
+		row, err := sst.DB.Query(qstr)
 		
 		if err != nil {
 			fmt.Println("QUERY Synchronizing nptrs",err)
@@ -4372,44 +4849,47 @@ func SynchronizeNPtrs(ctx PoSST) {
 
 		var cptr int
 
-		for row.Next() {			
-			err = row.Scan(&cptr)
+		if row != nil {
+			for row.Next() {			
+				err = row.Scan(&cptr)
 			
-			if err != nil {
-				continue // maybe not defined yet
-			}
+				if err != nil {
+					continue // maybe not defined yet
+				}
 
-			if cptr > 0 {
+				if cptr > 0 {
 
-				var empty Node
+					var empty Node
 
-				// Remember this for uploading later ..
-				BASE_DB_CHANNEL_STATE[channel] = ClassedNodePtr(cptr)
+					// Remember this for uploading later ..
+					BASE_DB_CHANNEL_STATE[channel] = ClassedNodePtr(cptr)
 
-				for n := 0; n <= cptr; n++ {
+					for n := 0; n <= cptr; n++ {
 
-					switch channel {
-					case N1GRAM:
-						NODE_DIRECTORY.N1_top++
-						NODE_DIRECTORY.N1directory = append(NODE_DIRECTORY.N1directory,empty)
-					case N2GRAM:
-						NODE_DIRECTORY.N2directory = append(NODE_DIRECTORY.N2directory,empty)
-						NODE_DIRECTORY.N2_top++
-					case N3GRAM:
-						NODE_DIRECTORY.N3directory = append(NODE_DIRECTORY.N3directory,empty)
-						NODE_DIRECTORY.N3_top++
-					case LT128:
-						NODE_DIRECTORY.LT128 = append(NODE_DIRECTORY.LT128,empty)
-						NODE_DIRECTORY.LT128_top++
-					case LT1024:
-						NODE_DIRECTORY.LT1024 = append(NODE_DIRECTORY.LT1024,empty)
-						NODE_DIRECTORY.LT1024_top++
-					case GT1024:
-						NODE_DIRECTORY.GT1024 = append(NODE_DIRECTORY.GT1024,empty)
-						NODE_DIRECTORY.GT1024_top++
+						switch channel {
+						case N1GRAM:
+							NODE_DIRECTORY.N1_top++
+							NODE_DIRECTORY.N1directory = append(NODE_DIRECTORY.N1directory,empty)
+						case N2GRAM:
+							NODE_DIRECTORY.N2directory = append(NODE_DIRECTORY.N2directory,empty)
+							NODE_DIRECTORY.N2_top++
+						case N3GRAM:
+							NODE_DIRECTORY.N3directory = append(NODE_DIRECTORY.N3directory,empty)
+							NODE_DIRECTORY.N3_top++
+						case LT128:
+							NODE_DIRECTORY.LT128 = append(NODE_DIRECTORY.LT128,empty)
+							NODE_DIRECTORY.LT128_top++
+						case LT1024:
+							NODE_DIRECTORY.LT1024 = append(NODE_DIRECTORY.LT1024,empty)
+							NODE_DIRECTORY.LT1024_top++
+						case GT1024:
+							NODE_DIRECTORY.GT1024 = append(NODE_DIRECTORY.GT1024,empty)
+							NODE_DIRECTORY.GT1024_top++
+						}
 					}
 				}
 			}
+			row.Close()
 		}
 	}
 
@@ -4560,8 +5040,8 @@ func AssignStoryCoordinates(axis []Link,nth,swimlanes int,limit int) map[NodePtr
 
 	for tz := 0; tz < maxlen_tz; tz++ {
 
-		var unique_section = make([]NodePtr,0)
-		
+		var unique_section = make([]NodePtr,0)	
+
 		if !already[axis[tz].Dst] {
 			unique_section = append(unique_section,axis[tz].Dst)
 			already[axis[tz].Dst] = true
@@ -4576,21 +5056,73 @@ func AssignStoryCoordinates(axis []Link,nth,swimlanes int,limit int) map[NodePtr
 
 // **************************************************************************
 
-func AssignPageCoordinates(mapline []Link,nth,swimlanes int) map[NodePtr]Coords {
+func AssignPageCoordinates(maplines []PageMap) map[NodePtr]Coords {
 
-	XChannels := make([]float64,len(mapline))        // node widths along the path
+	// Make a quasi causal cone [width][depth] to span the geometry
 
-	var unique = make([][]NodePtr,len(mapline))
-	var unique_section = make([]NodePtr,1)
+	var directory = make(map[NodePtr]Coords)
+	var already = make(map[NodePtr]bool)
+	var axis []NodePtr
+	var satellites = make(map[NodePtr][]NodePtr)
+	var allnotes int
 
-	for tz := 0; tz < len(mapline); tz++ {
-		nptr := mapline[tz].Dst
-		XChannels[tz] = 1
-		unique_section[0] = nptr
-		unique[tz] = unique_section
+	// Order unique axial leads and satellite notes
+
+	for depth := 0; depth < len(maplines); depth++ {
+
+		axial_nptr := maplines[depth].Path[0].Dst
+
+		if !already[axial_nptr] {
+			allnotes++
+			already[axial_nptr] = true
+			axis = append(axis,axial_nptr)
+		}
+
+		axis := maplines[depth].Path[0].Dst
+
+		for sat := 1; sat < len(maplines[depth].Path); sat++ {
+			orbit := maplines[depth].Path[sat].Dst
+			if !already[orbit] {
+				satellites[axis] = append(satellites[axis],orbit)
+				already[orbit] = true
+			}
+		}
 	}
 
-	return MakeCoordinateDirectory(XChannels,unique,len(mapline),nth,swimlanes)
+	const screen = 2.0
+	const z_start = -1.0
+	var zinc = screen / float64(allnotes)
+
+	for tz := 0; tz < len(axis); tz++ {
+
+		var leader Coords
+
+		leader.X = 0
+		leader.Y = 0
+		leader.Z = z_start + float64(tz) * zinc
+
+		directory[axis[tz]] = leader
+
+		// Arrange the notes orbitally around the leader
+
+		satrange := float64(len(satellites[axis[tz]]))
+
+		for i,sat := range(satellites[axis[tz]]) {
+
+			pos := float64(i)
+			radius := 0.3
+			var satc Coords
+			nptr := sat
+			satc.X = pos * radius * math.Cos(2.0 * pos * math.Pi/satrange)
+			satc.Y = pos * radius * math.Sin(2.0 * pos * math.Pi/satrange)
+			satc.Z = leader.Z
+
+			directory[nptr] = satc
+		}
+
+	}
+
+	return directory
 }
 
 // **************************************************************************
@@ -4700,11 +5232,12 @@ func MakeCoordinateDirectory(XChannels []float64, unique [][]NodePtr,maxzlen,nth
 
 	var directory = make(map[NodePtr]Coords)
 
-	const totwidth = 2.0 // This is the depth dimenion of the paths -1 to +1
+	const totwidth = 2.0 // This is the width dimenion of the paths -1 to +1
+	const totdepth = 2.0 // This is the depth dimenion of the paths -1 to +1
 	const arbitrary_elevation = 0.0
 
 	x_lanewidth := totwidth / (float64(swimlanes))
-	tz_steplength := totwidth / float64(maxzlen) 
+	tz_steplength := totdepth / float64(maxzlen) 
 
 	x_lane_start := float64(nth) * x_lanewidth - totwidth/2.0
 
@@ -4724,6 +5257,8 @@ func MakeCoordinateDirectory(XChannels []float64, unique [][]NodePtr,maxzlen,nth
 		xyz.Y = arbitrary_elevation
 		xyz.Z = z_left + tz_steplength * float64(tz)
 
+		// Each cross section, at depth tz
+
 		for uniqptr := 0; uniqptr < len(unique[tz]); uniqptr++ {
 			directory[unique[tz][uniqptr]] = xyz
 			xyz.X += x_increment
@@ -4737,25 +5272,212 @@ func MakeCoordinateDirectory(XChannels []float64, unique [][]NodePtr,maxzlen,nth
 // Path integral matrix and coarse graining
 // **************************************************************************
 
-func GetPathsAndSymmetries(ctx PoSST,start_set,end_set []NodePtr,chapter string,context []string,maxdepth int) [][]Link {
+func GetPathsAndSymmetries(sst PoSST,start_set,end_set []NodePtr,chapter string,context []string,arrowptrs []ArrowPtr,sttypes []int,mindepth,maxdepth int) [][]Link {
 
 	var left_paths, right_paths [][]Link
 	var ldepth,rdepth int = 1,1
 	var Lnum,Rnum int
 	var solutions [][]Link
+	var loop_corrections [][]Link
 
 	if start_set == nil || end_set == nil {
 		return nil
 	}
 
+	if sttypes == nil || len(sttypes)== 0 {
+		sttypes = []int{1,2,3,0,-1,-2,-3}
+	}
+
+	// Complete Adjoint types for inverse/acceptor wave
+
+	adj_arrowptrs := AdjointArrows(arrowptrs)
+	adj_sttypes := AdjointSTtype(sttypes)
+
+	// Prime paths - the different starting points could be parallelized in principle, but we might not win much
+
+	left_paths,Lnum = GetConstraintConePathsAsLinks(sst,start_set,ldepth,chapter,context,arrowptrs,sttypes,maxdepth)
+	right_paths,Rnum = GetConstraintConePathsAsLinks(sst,end_set,rdepth,chapter,context,adj_arrowptrs,adj_sttypes,maxdepth)
+
+	// Expand waves
+
 	for turn := 0; ldepth < maxdepth && rdepth < maxdepth; turn++ {
 
-		left_paths,Lnum = GetEntireNCSuperConePathsAsLinks(ctx,"fwd",start_set,ldepth,chapter,context)
-		right_paths,Rnum = GetEntireNCSuperConePathsAsLinks(ctx,"bwd",end_set,rdepth,chapter,context)		
-		solutions,_ = WaveFrontsOverlap(ctx,left_paths,right_paths,Lnum,Rnum,ldepth,rdepth)
+		fmt.Print("\r   ..Waves searching: ",ldepth,rdepth)
+
+		solutions,loop_corrections = WaveFrontsOverlap(sst,left_paths,right_paths,Lnum,Rnum,ldepth,rdepth)
+
+		if len(solutions) > mindepth {
+			fmt.Println("   ..DAG solutions:",ldepth,rdepth)
+			return solutions
+		}
+
+		if len(loop_corrections) > mindepth {
+			fmt.Println("   ..Only non-DAG solutions:",ldepth,rdepth)
+			return loop_corrections
+		}
+
+		if turn % 2 == 0 {
+			left_paths = IncConstraintConeLinks(sst,left_paths,chapter,context,arrowptrs,sttypes,maxdepth)
+			ldepth++
+		} else {
+			right_paths = IncConstraintConeLinks(sst,right_paths,chapter,context,adj_arrowptrs,adj_sttypes,maxdepth)
+			rdepth++
+		}
+	}
+
+	// Calculate the supernode layer sets S[path][depth], factoring process symmetries
+
+	fmt.Println("HINT: specify \\arrow fwd,bwd inverse-pairs to speed restrict search and speed up search")
+	return solutions
+}
+
+// **************************************************************************
+
+func IncConstraintConeLinks(sst PoSST,cone [][]Link,chapter string ,context []string,arrowptrs []ArrowPtr,sttypes []int,maxdepth int) [][]Link {
+
+	// Provide an incremental cone expander, so we can preserve state to avoid recomputation
+	// This will be increasingly effective as path length increases
+
+	var expanded_cone [][]Link
+
+	for p := 0; p < len(cone); p++ {
+
+		branch := cone[p]
+		var exclude = make(map[NodePtr]bool)
+
+		for _,prev := range branch {
+			exclude[prev.Dst] = true
+		}
+
+		tip := []NodePtr{branch[len(branch)-1].Dst}
+
+		shoots := GetConstrainedFwdLinks(sst,tip,chapter,context,sttypes,arrowptrs,maxdepth)
+
+		// unfurl branches, checking for retracing
+
+		for _,satellite := range shoots {
+
+			if !exclude[satellite.Dst] {
+				exclude[satellite.Dst] = true
+				var delta []Link
+				for _,prev := range branch {
+					delta = append(delta,prev)
+				}
+
+				delta = append(delta,satellite)
+				expanded_cone = append(expanded_cone,delta)
+			}
+		}
+	}
+
+	return expanded_cone
+}
+
+// **************************************************************************
+
+func GetConstrainedFwdLinks(sst PoSST,start []NodePtr,chapter string,context []string,sttypes []int,arrows []ArrowPtr,maxlimit int) []Link {
+
+	var ret []Link
+
+	remove_accents,stripped := IsBracketedSearchTerm(chapter)
+	chapter = "%"+stripped+"%"
+	rm_acc := "false"
+
+	if remove_accents {
+		rm_acc = "true"
+	}
+
+	start = append(start,NONODE)
+	excl := FormatSQLNodePtrArray(start)
+	arr := FormatSQLIntArray(Arrow2Int(arrows))
+	cnt := FormatSQLStringArray(context)
+
+	startnode := fmt.Sprintf("(%d,%d)",start[0].Class,start[0].CPtr)
+
+	for _,st := range sttypes { 
+
+		qstr := fmt.Sprintf("select GetConstrainedFwdLinks('%s','%s',%s,%s,%s,%d,%s,%d);",startnode,chapter,rm_acc,cnt,excl,st,arr,maxlimit)
+
+		row, err := sst.DB.Query(qstr)
+		
+		if err != nil {
+			fmt.Println("QUERY to ConstraintPathsAsLinks Failed",err,qstr)
+			return ret
+		}
+		
+		var whole string
+
+		if row != nil {		
+			for row.Next() {		
+				err = row.Scan(&whole)
+				orbit := ParseLinkArray(whole)
+				for _,lnk := range orbit {
+					ret = append(ret,lnk)
+				}
+			}
+			row.Close()
+		}
+	}
+
+	return ret
+}
+
+// **************************************************************************
+
+func GetPathsAndSymmetries_legacy(sst PoSST,start_set,end_set []NodePtr,chapter string,context []string,arrowptrs []ArrowPtr,sttypes []int,mindepth,maxdepth int) [][]Link {
+
+	var left_paths, right_paths [][]Link
+	var ldepth,rdepth int = 1,1
+	var Lnum,Rnum int
+	var solutions [][]Link
+	var loop_corrections [][]Link
+
+	if start_set == nil || end_set == nil {
+		return nil
+	}
+
+	// Complete Adjoint types for inverse/acceptor wave
+
+	adj_arrowptrs := AdjointArrows(arrowptrs)
+	adj_sttypes := AdjointSTtype(sttypes)
+
+	// Expand waves
+
+	for turn := 0; ldepth < maxdepth && rdepth < maxdepth; turn++ {
+
+		fmt.Println("   ..Waves searching",ldepth,rdepth)
+
+		// Keep these inside the loop, because there helps curtail exponential growth, despite repetition
+		// The interaction of limits can lead to obvious paths being dropped in favour of weird ones if we try 
+		// to actor out the search from the start. Compromise by parallelizing the waves.
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+
+		go func() {
+			defer wg.Done() 
+			left_paths,Lnum = GetConstraintConePathsAsLinks(sst,start_set,ldepth,chapter,context,arrowptrs,sttypes,maxdepth)
+		}()
+
+		go func() {
+			defer wg.Done() 
+			right_paths,Rnum = GetConstraintConePathsAsLinks(sst,end_set,rdepth,chapter,context,adj_arrowptrs,adj_sttypes,maxdepth)
+		}()
+
+		wg.Wait()
+
+		// end threads
+
+		solutions,loop_corrections = WaveFrontsOverlap(sst,left_paths,right_paths,Lnum,Rnum,ldepth,rdepth)
 
 		if len(solutions) > 0 {
-			break
+			fmt.Println("   ..DAG solutions:")
+			return solutions
+		}
+
+		if len(loop_corrections) > 0 {
+			fmt.Println("   ..Only non-DAG solutions:")
+			return loop_corrections
 		}
 
 		if turn % 2 == 0 {
@@ -4767,12 +5489,44 @@ func GetPathsAndSymmetries(ctx PoSST,start_set,end_set []NodePtr,chapter string,
 
 	// Calculate the supernode layer sets S[path][depth], factoring process symmetries
 
+	fmt.Println("HINT: specify \\arrow fwd,bwd inverse-pairs to speed restrict search and speed up search")
 	return solutions
 }
 
 // **************************************************************************
 
-func GetPathTransverseSuperNodes(ctx PoSST,solutions [][]Link,maxdepth int) [][]NodePtr {
+func AdjointArrows(arrowptrs []ArrowPtr) []ArrowPtr {
+
+	var idemp = make(map[ArrowPtr]bool)
+	var result []ArrowPtr
+
+	for _,a := range arrowptrs {
+		idemp[INVERSE_ARROWS[a]] = true
+	}
+
+	for a := range idemp {
+		result = append(result,a)
+	}
+
+	return result
+}
+
+// **************************************************************************
+
+func AdjointSTtype(sttypes []int) []int {
+
+	var result []int
+
+	for i := len(sttypes)-1; i >= 0; i-- {
+		result = append(result,-sttypes[i])
+	}
+
+	return result
+}
+
+// **************************************************************************
+
+func GetPathTransverseSuperNodes(sst PoSST,solutions [][]Link,maxdepth int) [][]NodePtr {
 
 	var supernodes [][]NodePtr
 
@@ -4809,7 +5563,7 @@ func GetPathTransverseSuperNodes(ctx PoSST,solutions [][]Link,maxdepth int) [][]
 
 // **********************************************************
 
-func WaveFrontsOverlap(ctx PoSST,left_paths,right_paths [][]Link,Lnum,Rnum,ldepth,rdepth int) ([][]Link,[][]Link) {
+func WaveFrontsOverlap(sst PoSST,left_paths,right_paths [][]Link,Lnum,Rnum,ldepth,rdepth int) ([][]Link,[][]Link) {
 
 	// The wave front consists of Lnum and Rnum points left_paths[len()-1].
 	// Any of the
@@ -4822,10 +5576,9 @@ func WaveFrontsOverlap(ctx PoSST,left_paths,right_paths [][]Link,Lnum,Rnum,ldept
 	leftfront := WaveFront(left_paths,Lnum)
 	rightfront := WaveFront(right_paths,Rnum)
 
-	incidence := NodesOverlap(ctx,leftfront,rightfront)
-
+	incidence := NodesOverlap(sst,leftfront,rightfront)
+	
 	for lp := range incidence {
-
 		for alternative := range incidence[lp] {
 
 			rp := incidence[lp][alternative]
@@ -4855,7 +5608,7 @@ func WaveFront(path [][]Link,num int) []NodePtr {
 
 	var front []NodePtr
 
-	for l := 0; l < num; l++ {
+	for l := 0; l < len(path); l++ {
 		front = append(front,path[l][len(path[l])-1].Dst)
 	}
 
@@ -4864,7 +5617,7 @@ func WaveFront(path [][]Link,num int) []NodePtr {
 
 // **********************************************************
 
-func NodesOverlap(ctx PoSST,left,right []NodePtr) map[int][]int {
+func NodesOverlap(sst PoSST,left,right []NodePtr) map[int][]int {
 
 	var LRsplice = make(map[int][]int)
 
@@ -4987,7 +5740,7 @@ func InNodeSet(list []NodePtr,node NodePtr) bool {
 //
 // **************************************************************************
 
-func GetDBAdjacentNodePtrBySTType(ctx PoSST,sttypes []int,chap string,cn []string,transpose bool) ([][]float32,[]NodePtr) {
+func GetDBAdjacentNodePtrBySTType(sst PoSST,sttypes []int,chap string,cn []string,transpose bool) ([][]float32,[]NodePtr) {
 
 	// Return a weighted adjacency matrix by nptr, and an index:nptr lookup table
 	// Returns a connected adjacency matrix for the subgraph and a lookup table
@@ -4997,7 +5750,7 @@ func GetDBAdjacentNodePtrBySTType(ctx PoSST,sttypes []int,chap string,cn []strin
 	var dim = len(sttypes)
 
 	context := FormatSQLStringArray(cn)
-	chapter := "%"+chap+"%"
+	chapter := "%"+SQLEscape(chap)+"%"
 
 	if dim > 4 {
 		fmt.Println("Maximum 4 sttypes in GetDBAdjacentNodePtrBySTType")
@@ -5007,7 +5760,7 @@ func GetDBAdjacentNodePtrBySTType(ctx PoSST,sttypes []int,chap string,cn []strin
 	for st := 0; st < len(sttypes); st++ {
 
 		stname := STTypeDBChannel(sttypes[st])
-		qwhere += fmt.Sprintf("array_length(%s::text[],1) IS NOT NULL AND match_context((%s)[0].Ctx::text[],%s)",stname,stname,context)
+		qwhere += fmt.Sprintf("array_length(%s::text[],1) IS NOT NULL AND match_context((%s)[0].Ctx,%s)",stname,stname,context)
 
 		if st != dim-1 {
 			qwhere += " OR "
@@ -5019,7 +5772,7 @@ func GetDBAdjacentNodePtrBySTType(ctx PoSST,sttypes []int,chap string,cn []strin
 
 	qstr = fmt.Sprintf("SELECT NPtr%s FROM Node WHERE lower(Chap) LIKE lower('%s') AND (%s)",qsearch,chapter,qwhere)
 
-	row, err := ctx.DB.Query(qstr)
+	row, err := sst.DB.Query(qstr)
 
 	if err != nil {
 		fmt.Println("QUERY GetDBAdjacentNodePtrBySTType Failed",err)
@@ -5033,72 +5786,75 @@ func GetDBAdjacentNodePtrBySTType(ctx PoSST,sttypes []int,chap string,cn []strin
 	var nodekey []NodePtr
 	var counter int
 
-	for row.Next() {		
+	if row != nil {
+		for row.Next() {		
 
-		var n NodePtr
-		var nstr string
+			var n NodePtr
+			var nstr string
 
-		switch dim {
+			switch dim {
 
-		case 1: err = row.Scan(&nstr,&linkstr[0])
-		case 2: err = row.Scan(&nstr,&linkstr[0],&linkstr[1])
-		case 3: err = row.Scan(&nstr,&linkstr[0],&linkstr[1],&linkstr[2])
-		case 4: err = row.Scan(&nstr,&linkstr[0],&linkstr[1],&linkstr[2],&linkstr[3])
+			case 1: err = row.Scan(&nstr,&linkstr[0])
+			case 2: err = row.Scan(&nstr,&linkstr[0],&linkstr[1])
+			case 3: err = row.Scan(&nstr,&linkstr[0],&linkstr[1],&linkstr[2])
+			case 4: err = row.Scan(&nstr,&linkstr[0],&linkstr[1],&linkstr[2],&linkstr[3])
 
-		default:
-			fmt.Println("Maximum 4 sttypes in GetDBAdjacentNodePtrBySTType - shouldn't happen")
-			row.Close()
-			return nil,nil
-		}
-
-		if err != nil {
-			fmt.Println("Error scanning sql data case",dim,"gave error",err,qstr)
-			row.Close()
-			return nil,nil
-		}
-
-		fmt.Sscanf(nstr,"(%d,%d)",&n.Class,&n.CPtr)
-
-		// idempotently gather nptrs into a map, keeping linked nodes close in order
-
-		index,already := lookup[n]
-
-		if already {
-			rowindex = index
-		} else {
-			rowindex = counter
-			lookup[n] = counter
-			counter++
-			nodekey = append(nodekey,n)
-		}
-
-		// Run through the nodes linked and add them now
-
-		for lnks := range linkstr {
-
-			links := ParseMapLinkArray(linkstr[lnks])
-
-			// we have to go through one by one to avoid duplicates
-			// and keep adjacent nodes closer in order
-			
-			for l := range links {	
-				_,already := lookup[links[l].Dst]
-				
-				if !already {
-					lookup[links[l].Dst] = counter
-					counter++
-					nodekey = append(nodekey,links[l].Dst)
-				}
+			default:
+				fmt.Println("Maximum 4 sttypes in GetDBAdjacentNodePtrBySTType - shouldn't happen")
+				row.Close()
+				return nil,nil
 			}
-			// Now we have a vector row for each NPtr, with a list of links
-			protoadj[rowindex] = append(protoadj[rowindex],links...)
+
+			if err != nil {
+				fmt.Println("Error scanning sql data case",dim,"gave error",err,qstr)
+				row.Close()
+				return nil,nil
+			}
+
+			fmt.Sscanf(nstr,"(%d,%d)",&n.Class,&n.CPtr)
+
+			// idempotently gather nptrs into a map, keeping linked nodes close in order
+
+			index,already := lookup[n]
+			
+			if already {
+				rowindex = index
+			} else {
+				rowindex = counter
+				lookup[n] = counter
+				counter++
+				nodekey = append(nodekey,n)
+			}
+
+			// Run through the nodes linked and add them now
+
+			for lnks := range linkstr {
+
+				links := ParseMapLinkArray(linkstr[lnks])
+
+				// we have to go through one by one to avoid duplicates
+				// and keep adjacent nodes closer in order
+			
+				for l := range links {	
+					_,already := lookup[links[l].Dst]
+					
+					if !already {
+						lookup[links[l].Dst] = counter
+						counter++
+						nodekey = append(nodekey,links[l].Dst)
+					}
+				}
+				// Now we have a vector row for each NPtr, with a list of links
+				protoadj[rowindex] = append(protoadj[rowindex],links...)
+			}
 		}
+		row.Close()
 	}
 
 	// Now we know the dimension of the square matrix = counter
-        // and an ordered directory vector[index] ->  NPtr, as well as lookup table
+	// and an ordered directory vector[index] ->  NPtr, as well as lookup table
 	// So we assemble the adjacency matrix (or its transpose on request)
-
+	
 	adj := make([][]float32,counter)
 
 	for r := 0; r < counter; r++ {
@@ -5106,7 +5862,7 @@ func GetDBAdjacentNodePtrBySTType(ctx PoSST,sttypes []int,chap string,cn []strin
 		adj[r] = make([]float32,counter)
 
 		row := protoadj[r]
-
+		
 		for l := 0; l < len(row); l++ {
 
 			lnk := row[l]
@@ -5119,8 +5875,6 @@ func GetDBAdjacentNodePtrBySTType(ctx PoSST,sttypes []int,chap string,cn []strin
 			}
 		}
 	}
-	
-	row.Close()
 	return adj,nodekey
 }
 
@@ -5454,7 +6208,7 @@ func AdjointLinkPath(LL []Link) []Link {
 
 // **************************************************************************
 
-func NextLinkArrow(ctx PoSST,path []Link,arrows []ArrowPtr) string {
+func NextLinkArrow(sst PoSST,path []Link,arrows []ArrowPtr) string {
 
 	var rstring string
 
@@ -5466,9 +6220,9 @@ func NextLinkArrow(ctx PoSST,path []Link,arrows []ArrowPtr) string {
 				break
 			}
 
-			nextnode := GetDBNodeByNodePtr(ctx,path[l].Dst)
+			nextnode := GetDBNodeByNodePtr(sst,path[l].Dst)
 			
-			arr := GetDBArrowByPtr(ctx,path[l].Arr)
+			arr := GetDBArrowByPtr(sst,path[l].Arr)
 			
 			if l < len(path) {
 				rstring += fmt.Sprint("  -(",arr.Long,")->  ")
@@ -5482,62 +6236,49 @@ func NextLinkArrow(ctx PoSST,path []Link,arrows []ArrowPtr) string {
 }
 
 // **************************************************************************
-
-func IdempAddNote(list []Orbit, item Orbit) []Orbit {
-
-	for o := range list {
-		if list[o].Dst == item.Dst && list[o].Arrow == item.Arrow &&
-			list[o].Text == item.Text {
-			return list
-		}
-	}
-
-	return append(list,item)
-}
-
-// **************************************************************************
 //
 // Part 3: Model data retrieval, and data marshalling, with JSON etc
 //
 // **************************************************************************
 
-func GetSequenceContainers(ctx PoSST,arrname string,search,chapter string,context []string, limit int) []Story {
+func GetSequenceContainers(sst PoSST,nodeptrs []NodePtr, arrowptrs []ArrowPtr, sttypes []int, limit int) []Story {
+
+	// Story search
 
 	var stories []Story
 
-	if arrname == "" {
-		arrname = "then"
-	}
+	openings := SelectStoriesByArrow(sst,nodeptrs,arrowptrs,sttypes,limit)
 
-	var count int
-
-	arrowptr,_ := GetDBArrowsWithArrowName(ctx,arrname)
-	openings := GetNCCNodesStartingStoriesForArrow(ctx,arrname,search,chapter,context)
+	arrname := ""
+	count := 0
 
 	for nth := range openings {
 
 		var story Story
 
-		node := GetDBNodeByNodePtr(ctx,openings[nth])
+		node := GetDBNodeByNodePtr(sst,openings[nth])
 
 		story.Chapter = node.Chap
 
-		axis := GetLongestAxialPath(ctx,openings[nth],arrowptr)
+		axis := GetLongestAxialPath(sst,openings[nth],arrowptrs[0],limit)
 
 		directory := AssignStoryCoordinates(axis,nth,len(openings),limit)
 
 		for lnk := 0; lnk < len(axis); lnk++ {
 			
 			// Now add the orbit at this node, not including the axis
+
 			var ne NodeEvent
-			nd := GetDBNodeByNodePtr(ctx,axis[lnk].Dst)
+
+			nd := GetDBNodeByNodePtr(sst,axis[lnk].Dst)
+
 			ne.Text = nd.S
 			ne.L = nd.L
 			ne.Chap = nd.Chap
-			ne.Context = axis[lnk].Ctx
+			ne.Context = GetContext(axis[lnk].Ctx)
 			ne.NPtr = axis[lnk].Dst
 			ne.XYZ = directory[ne.NPtr]
-			ne.Orbits = GetNodeOrbit(ctx,axis[lnk].Dst,arrname,limit)
+			ne.Orbits = GetNodeOrbit(sst,axis[lnk].Dst,arrname,limit)
 			ne.Orbits = SetOrbitCoords(ne.XYZ,ne.Orbits)
 
 			if lnk > limit {
@@ -5565,95 +6306,138 @@ func GetSequenceContainers(ctx PoSST,arrname string,search,chapter string,contex
 
 // **************************************************************************
 
-func GetNodeOrbit(ctx PoSST,nptr NodePtr,exclude_vector string,limit int) [ST_TOP][]Orbit {
-
-	// Start with properties of node, within orbit
-
-	const probe_radius = 3
+func GetNodeOrbit(sst PoSST,nptr NodePtr,exclude_vector string,limit int) [ST_TOP][]Orbit {
 
 	// radius = 0 is the starting node
 
-	sweep,_ := GetEntireConePathsAsLinks(ctx,"any",nptr,probe_radius,limit)
+	const probe_radius = 3
 
-	var notes [ST_TOP][]Orbit
+	// Find the orbiting linked nodes of NPtr, start with properties of node
 
-	// Organize by the leading nearest-neighbour by vector/link type
+	sweep,_ := GetEntireConePathsAsLinks(sst,"any",nptr,probe_radius,limit)
+
+	var satellites [ST_TOP][]Orbit
+	var thread_wg sync.WaitGroup
 
 	for stindex := 0; stindex < ST_TOP; stindex++ {
 
-		// Sweep different radial paths
+		// Go routines remain a mystery
+		thread_wg.Add(1)
+		
+		go func(idx int) {
+			defer thread_wg.Done()  // threading
+			
+			satellites[idx] = AssembleSatellitesBySTtype(sst,idx,satellites[idx],sweep,exclude_vector,probe_radius,limit)
+			
+		} (stindex)
+	}
+	
+	thread_wg.Wait()
 
-		for angle := 0; angle < len(sweep); angle++ {
+	return satellites
+}
 
-			// len(sweep[angle]) is the length of the probe path at angle
+// **************************************************************************
 
-			if sweep[angle] != nil && len(sweep[angle]) > 1 {
+func AssembleSatellitesBySTtype(sst PoSST,stindex int,satellite []Orbit,sweep [][]Link,exclude_vector string,probe_radius int,limit int) []Orbit {
 
-				const nearest_satellite = 1
-				start := sweep[angle][nearest_satellite]
+	var already = make(map[string]bool)
 
-				arrow := GetDBArrowByPtr(ctx,start.Arr)
+	// Sweep different radial paths [angle][depth]
+	
+	for angle := 0; angle < len(sweep); angle++ {
+		
+		// len(sweep[angle]) is the length of the probe path at angle
+		
+		if sweep[angle] != nil && len(sweep[angle]) > 1 {
+			
+			const nearest_satellite = 1
+			start := sweep[angle][nearest_satellite]
+			
+			arrow := GetDBArrowByPtr(sst,start.Arr)
+			
+			if arrow.STAindex == stindex {
 
-				if arrow.STAindex == stindex {
-					txt := GetDBNodeByNodePtr(ctx,start.Dst)
+				txt := GetDBNodeByNodePtr(sst,start.Dst)
 
-					var nt Orbit
-
-					nt.Arrow = arrow.Long
-                                        nt.STindex = arrow.STAindex
-					nt.Dst = start.Dst
-					nt.Text = txt.S
-					nt.Radius = 1
+				var nt Orbit				
+				nt.Arrow = arrow.Long
+				nt.STindex = arrow.STAindex
+				nt.Dst = start.Dst
+				nt.Text = txt.S
+				if txt.I[LEADSTO] != nil {
+					nt.Ctx = GetContext(txt.I[LEADSTO][0].Ctx)  // node context
+				} else {
+					nt.Ctx = "any"
+				}
+				nt.Radius = 1
+				if arrow.Long == exclude_vector || arrow.Short == exclude_vector {
+					continue
+				}
+				
+				satellite = IdempAddSatellite(satellite,nt,already)
+				
+				// are there more satellites at this angle?
+				
+				for depth := 2; depth < probe_radius && depth < len(sweep[angle]); depth++ {
+					
+					arprev := STIndexToSTType(arrow.STAindex)
+					next := sweep[angle][depth]
+					arrow = GetDBArrowByPtr(sst,next.Arr)
+					subtxt := GetDBNodeByNodePtr(sst,next.Dst)
+					
 					if arrow.Long == exclude_vector || arrow.Short == exclude_vector {
-						continue
+						break
 					}
-
-					notes[stindex] = IdempAddNote(notes[stindex],nt)
-
-					// are there more satellites at this angle?
-
-					for depth := 2; depth < probe_radius && depth < len(sweep[angle]); depth++ {
-
-						arprev := STIndexToSTType(arrow.STAindex)
-						next := sweep[angle][depth]
-						arrow = GetDBArrowByPtr(ctx,next.Arr)
-						subtxt := GetDBNodeByNodePtr(ctx,next.Dst)
-
-						if arrow.Long == exclude_vector || arrow.Short == exclude_vector {
-							break
-						}
-
-						nt.Arrow = arrow.Long
-						nt.STindex = arrow.STAindex
-						nt.Dst = next.Dst
-						nt.Ctx = Array2Str(next.Ctx)
-						nt.Text = subtxt.S
-						nt.Radius = depth
-
-						arthis := STIndexToSTType(arrow.STAindex)
-						// No backtracking
-						if arthis != -arprev {	
-							notes[stindex] = IdempAddNote(notes[stindex],nt)
-							arprev = arthis
-						}
+					
+					nt.Arrow = arrow.Long
+					nt.STindex = arrow.STAindex
+					nt.Dst = next.Dst
+					nt.Ctx = GetContext(next.Ctx)
+					nt.Text = subtxt.S
+					nt.Radius = depth
+					
+					arthis := STIndexToSTType(arrow.STAindex)
+					// No backtracking
+					if arthis != -arprev {	
+						satellite = IdempAddSatellite(satellite,nt,already)
+						arprev = arthis
 					}
 				}
 			}
 		}
 	}
 
-	return notes
+	return satellite
 }
 
 // **************************************************************************
 
-func GetLongestAxialPath(ctx PoSST,nptr NodePtr,arrowptr ArrowPtr) []Link {
+func IdempAddSatellite(list []Orbit, item Orbit,already map[string]bool) []Orbit {
+
+	// crude check but effective, since the list is fairly short unless the graph is sick
+
+	key := fmt.Sprintf("%v,%s",item.Dst,item.Arrow)
+
+	if already[key] {
+		return list
+	} else {
+		already[key] = true
+		return append(list,item)
+	}
+}
+
+// **************************************************************************
+
+func GetLongestAxialPath(sst PoSST,nptr NodePtr,arrowptr ArrowPtr,limit int) []Link {
+
+	// Used in story search along extended STtype paths
 
 	var max int = 1
-	const maxdepth = 100 // Hard limit on story length, what?
 
 	sttype := STIndexToSTType(ARROW_DIRECTORY[arrowptr].STAindex)
-	paths,dim := GetFwdPathsAsLinks(ctx,nptr,sttype,maxdepth)
+
+	paths,dim := GetFwdPathsAsLinks(sst,nptr,sttype,limit,limit)
 
 	for pth := 0; pth < dim; pth++ {
 
@@ -5739,7 +6523,132 @@ func ContextIntentAnalysis(spectrum map[string]int,clusters []string) ([]string,
 }
 
 // *********************************************************************
-// STM context tracking
+// Access stats, LTM progress tracking
+// *********************************************************************
+
+func UpdateLastSawSection(sst PoSST,name string) {
+
+	s := fmt.Sprintf("select LastSawSection('%s')",name)
+	sst.DB.QueryRow(s)
+}
+
+// *********************************************************************
+
+func UpdateLastSawNPtr(sst PoSST,class,cptr int,name string) {
+
+	s := fmt.Sprintf("select LastSawNPtr('(%d,%d)','%s')",class,cptr,name)
+	sst.DB.QueryRow(s)
+}
+
+//******************************************************************
+
+func GetLastSawSection(sst PoSST) []LastSeen {
+
+	qstr := fmt.Sprintf("SELECT section,nptr,EXTRACT(EPOCH FROM first),EXTRACT(EPOCH FROM last),freq,delta as pdelta,EXTRACT(EPOCH FROM NOW()-last) as ndelta from Lastseen ORDER BY section")
+
+	row,err := sst.DB.Query(qstr)
+
+	if err != nil {
+		fmt.Println("GetLastSawSection failed\n",qstr,err)
+		return nil
+	}
+
+	var ret []LastSeen
+
+	if row != nil {
+		for row.Next() {		
+			var ls LastSeen
+			var nptrstr string // last because if empty fails
+			var first,last float64
+			err = row.Scan(&ls.Section,&nptrstr,&first,&last,&ls.Freq,&ls.Pdelta,&ls.Ndelta)
+			ls.Last = int64(last)
+			ls.First = int64(first)
+			fmt.Sscanf(nptrstr,"(%d,%d)",&ls.NPtr.Class,&ls.NPtr.CPtr)
+			ret = append(ret,ls)
+		}
+
+		for c := 0; c < len(ret); c++ {
+			ret[c].XYZ = AssignChapterCoordinates(c,len(ret))
+		}
+
+		row.Close()
+	}
+
+	return ret
+}
+
+//******************************************************************
+
+func GetLastSawNPtr(sst PoSST, nptr NodePtr) LastSeen {
+
+	var ls LastSeen
+
+	qstr := fmt.Sprintf("SELECT section,EXTRACT(EPOCH FROM first),EXTRACT(EPOCH FROM last),freq,delta as pdelta,EXTRACT(EPOCH FROM NOW()-last) as ndelta from Lastseen WHERE NPTR='(%d,%d)'::NodePtr",nptr.Class,nptr.CPtr)
+
+	row,err := sst.DB.Query(qstr)
+
+	if err != nil {
+		fmt.Println("GetLastSawNPtr failed\n",qstr,err)
+		return ls
+	}
+
+	if row != nil {
+		for row.Next() {
+			var first,last float64
+			err = row.Scan(&ls.Section,&first,&last,&ls.Freq,&ls.Pdelta,&ls.Ndelta)
+			ls.Last = int64(last)
+			ls.First = int64(first)
+		}
+
+		ls.NPtr = nptr
+
+		row.Close()
+	}
+
+	return ls
+}
+
+// *********************************************************************
+
+func GetNewlySeenNPtrs(sst PoSST,search SearchParameters) map[NodePtr]bool {
+
+	var qstr string
+	var nptrs = make (map[NodePtr]bool)
+
+	switch search.Horizon {
+
+	case RECENT:
+		qstr = fmt.Sprintf("SELECT NPtr FROM LastSeen WHERE last > NOW() - INTERVAL '%d hour'",search.Horizon)
+	case NEVER:
+		qstr = "SELECT NPtr FROM LastSeen"
+	default:
+		return nptrs
+	}
+
+	row,err := sst.DB.Query(qstr)
+	
+	if err != nil {
+		fmt.Println("Failed to get LastSeen",err)
+	}
+
+	var whole string
+	var nptr NodePtr
+
+	if row != nil {
+		for row.Next() {
+			err = row.Scan(&whole)
+			fmt.Sscanf(whole,"(%d,%d)",&nptr.Class,&nptr.CPtr)
+			nptrs[nptr] = true
+		}
+		
+		row.Close()
+	}
+
+	return nptrs
+}
+
+// *********************************************************************
+// Dynamic context / sensory input evaluation STM tracking
 // *********************************************************************
 
 type History struct {
@@ -5761,7 +6670,7 @@ const TEXT_SIZE_LIMIT = 30
 
 // *********************************************************************
 
-func UpdateSTMContext(ctx PoSST,ambient,key string,now int64,params SearchParameters) string {
+func UpdateSTMContext(sst PoSST,ambient,key string,now int64,params SearchParameters) string {
 
 	var context []string
 
@@ -5770,7 +6679,7 @@ func UpdateSTMContext(ctx PoSST,ambient,key string,now int64,params SearchParame
 		context = append(context,params.Name...)
 		context = append(context,params.From...)
 		context = append(context,params.To...)
-		return AddContext(ctx,ambient,key,now,context)
+		return AddContext(sst,ambient,key,now,context)
 	} else {
 		// ongoing / adhoc are ambient
 		context = append(context,params.Name...)
@@ -5785,7 +6694,7 @@ func UpdateSTMContext(ctx PoSST,ambient,key string,now int64,params SearchParame
 			context = append(context,"Chapter:"+params.Chapter)
 		}
 
-		return AddContext(ctx,ambient,key,now,context)
+		return AddContext(sst,ambient,key,now,context)
 	}
 
 	return ""
@@ -5793,7 +6702,7 @@ func UpdateSTMContext(ctx PoSST,ambient,key string,now int64,params SearchParame
 
 // *********************************************************************
 
-func AddContext(ctx PoSST,ambient,key string,now int64,tokens []string) string {
+func AddContext(sst PoSST,ambient,key string,now int64,tokens []string) string {
 
 	for t := range tokens {
 
@@ -5810,7 +6719,7 @@ func AddContext(ctx PoSST,ambient,key string,now int64,tokens []string) string {
 			fmt.Sscanf(token,"(%d,%d)",&nptr.Class,&nptr.CPtr)
 
 			if nptr.Class > 0 {
-				node := GetDBNodeByNodePtr(ctx,nptr)
+				node := GetDBNodeByNodePtr(sst,nptr)
 				if node.L < TEXT_SIZE_LIMIT {
 					token = node.S
 				} else {
@@ -5888,7 +6797,7 @@ func CommitContextToken(token string,now int64,key string) {
 
 // *********************************************************************
 
-func ContextInterferometry(now_ctx string) {
+func ContextInterferometry(now_sst string) {
 
  // deleted
 
@@ -6024,43 +6933,43 @@ func GetContextTokenFrequencies(fraglist []string) map[string]int {
 // Presentation on command line
 // **************************************************************************
 
-func PrintNodeOrbit(ctx PoSST, nptr NodePtr,limit int) {
+func PrintNodeOrbit(sst PoSST, nptr NodePtr,limit int) {
 
-	node := GetDBNodeByNodePtr(ctx,nptr)		
+	node := GetDBNodeByNodePtr(sst,nptr)		
 	fmt.Print("\"")
 	ShowText(node.S,SCREENWIDTH)
 	fmt.Print("\"")
 	fmt.Println("\tin chapter:",node.Chap)
 	fmt.Println()
 
-	notes := GetNodeOrbit(ctx,nptr,"",limit)
+	satellites := GetNodeOrbit(sst,nptr,"",limit)
 
-	PrintLinkOrbit(notes,EXPRESS,0)
-	PrintLinkOrbit(notes,-EXPRESS,0)
-	PrintLinkOrbit(notes,-CONTAINS,0)
-	PrintLinkOrbit(notes,LEADSTO,0)
-	PrintLinkOrbit(notes,-LEADSTO,0)
-	PrintLinkOrbit(notes,NEAR,0)
+	PrintLinkOrbit(satellites,EXPRESS,0)
+	PrintLinkOrbit(satellites,-EXPRESS,0)
+	PrintLinkOrbit(satellites,-CONTAINS,0)
+	PrintLinkOrbit(satellites,LEADSTO,0)
+	PrintLinkOrbit(satellites,-LEADSTO,0)
+	PrintLinkOrbit(satellites,NEAR,0)
 
 	fmt.Println()
 }
 
 // **************************************************************************
 
-func PrintLinkOrbit(notes [ST_TOP][]Orbit,sttype int,indent_level int) {
+func PrintLinkOrbit(satellites [ST_TOP][]Orbit,sttype int,indent_level int) {
 
 	t := STTypeToSTIndex(sttype)
 
-	for n := range notes[t] {		
+	for n := range satellites[t] {		
 
-		r := notes[t][n].Radius + indent_level
+		r := satellites[t][n].Radius + indent_level
 
-		if notes[t][n].Ctx != "" {
-			txt := fmt.Sprintf(" -    (%s) - %s  \t.. in the context of %s\n",notes[t][n].Arrow,notes[t][n].Text,notes[t][n].Ctx)
+		if satellites[t][n].Ctx != "" {
+			txt := fmt.Sprintf(" -    (%s) - %s  \t.. in the context of %s\n",satellites[t][n].Arrow,satellites[t][n].Text,satellites[t][n].Ctx)
 			text := Indent(LEFTMARGIN * r) + txt
 			ShowText(text,SCREENWIDTH)
 		} else {
-			txt := fmt.Sprintf(" -    (%s) - %s\n",notes[t][n].Arrow,notes[t][n].Text)
+			txt := fmt.Sprintf(" -    (%s) - %s\n",satellites[t][n].Arrow,satellites[t][n].Text)
 			text := Indent(LEFTMARGIN * r) + txt
 			ShowText(text,SCREENWIDTH)
 		}
@@ -6071,20 +6980,20 @@ func PrintLinkOrbit(notes [ST_TOP][]Orbit,sttype int,indent_level int) {
 
 // **************************************************************************
 
-func PrintLinkPath(ctx PoSST, cone [][]Link, p int, prefix string,chapter string,context []string) {
+func PrintLinkPath(sst PoSST, cone [][]Link, p int, prefix string,chapter string,context []string) {
 
-	PrintSomeLinkPath(ctx,cone, p,prefix,chapter,context,10000)
+	PrintSomeLinkPath(sst,cone, p,prefix,chapter,context,10000)
 }
 
 // **************************************************************************
 
-func PrintSomeLinkPath(ctx PoSST, cone [][]Link, p int, prefix string,chapter string,context []string,limit int) {
+func PrintSomeLinkPath(sst PoSST, cone [][]Link, p int, prefix string,chapter string,context []string,limit int) {
 
 	count := 0
 
 	if len(cone[p]) > 1 {
 
-		path_start := GetDBNodeByNodePtr(ctx,cone[p][0].Dst)		
+		path_start := GetDBNodeByNodePtr(sst,cone[p][0].Dst)		
 		
 		start_shown := false
 
@@ -6106,6 +7015,7 @@ func PrintSomeLinkPath(ctx PoSST, cone [][]Link, p int, prefix string,chapter st
 			}
 
 			if !start_shown {
+
 				if len(cone) > 1 {
 					fmt.Printf("%s (%d) %s",prefix,p+1,path_start.S)
 				} else {
@@ -6114,13 +7024,13 @@ func PrintSomeLinkPath(ctx PoSST, cone [][]Link, p int, prefix string,chapter st
 				start_shown = true
 			}
 
-			nextnode := GetDBNodeByNodePtr(ctx,cone[p][l].Dst)
+			nextnode := GetDBNodeByNodePtr(sst,cone[p][l].Dst)
 
 			if !SimilarString(nextnode.Chap,chapter) {
 				break
 			}
-			
-			arr := GetDBArrowByPtr(ctx,cone[p][l].Arr)
+
+			arr := GetDBArrowByPtr(sst,cone[p][l].Arr)
 
 			if arr.Short == "then" {
 				fmt.Print("\n   >>> ")
@@ -6151,30 +7061,27 @@ func PrintSomeLinkPath(ctx PoSST, cone [][]Link, p int, prefix string,chapter st
 }
 
 // **************************************************************************
-// Presentation in JSON
+// Rendering, Marshalling, Presentation in JSON
 // **************************************************************************
 
-func JSONNodeEvent(ctx PoSST, nptr NodePtr,xyz Coords,orbits [ST_TOP][]Orbit) string {
+func JSONNodeEvent(sst PoSST, nptr NodePtr,xyz Coords,orbits [ST_TOP][]Orbit) NodeEvent {
 
-	node := GetDBNodeByNodePtr(ctx,nptr)
+	node := GetDBNodeByNodePtr(sst,nptr)
 
 	var event NodeEvent
 	event.Text = node.S
 	event.L = node.L
 	event.Chap = node.Chap
-	event.Context = GetNodeContext(ctx,node)
+	event.Context = GetNodeContextString(sst,node)
 	event.NPtr = nptr
 	event.XYZ = xyz
 	event.Orbits = orbits
-
-	jstr,_ := json.Marshal(event)
-
-	return strings.ReplaceAll(string(jstr),"null","[]")
+	return event
 }
 
 // **************************************************************************
 
-func LinkWebPaths(ctx PoSST,cone [][]Link,nth int,chapter string,context []string,swimlanes,limit int) [][]WebPath {
+func LinkWebPaths(sst PoSST,cone [][]Link,nth int,chapter string,context []string,swimlanes,limit int) [][]WebPath {
 
 	// This is dealing in good faith with one of swimlanes cones, assigning equal width to all
 	// The cone is a flattened array, we can assign spatial coordinates for visualization
@@ -6187,7 +7094,7 @@ func LinkWebPaths(ctx PoSST,cone [][]Link,nth int,chapter string,context []strin
 
 	for p := 0; p < len(cone); p++ {
 
-		path_start := GetDBNodeByNodePtr(ctx,cone[p][0].Dst)		
+		path_start := GetDBNodeByNodePtr(sst,cone[p][0].Dst)		
 		
 		start_shown := false
 
@@ -6199,7 +7106,7 @@ func LinkWebPaths(ctx PoSST,cone [][]Link,nth int,chapter string,context []strin
 				break
 			}
 
-			nextnode := GetDBNodeByNodePtr(ctx,cone[p][l].Dst)
+			nextnode := GetDBNodeByNodePtr(sst,cone[p][l].Dst)
 
 			if !SimilarString(nextnode.Chap,chapter) {
 				break
@@ -6209,12 +7116,13 @@ func LinkWebPaths(ctx PoSST,cone [][]Link,nth int,chapter string,context []strin
 				var ws WebPath
 				ws.Name = path_start.S
 				ws.NPtr = cone[p][0].Dst
+				ws.Chp = nextnode.Chap
 				ws.XYZ = directory[cone[p][0].Dst]
 				path = append(path,ws)
 				start_shown = true
 			}
 
-			arr := GetDBArrowByPtr(ctx,cone[p][l].Arr)
+			arr := GetDBArrowByPtr(sst,cone[p][l].Arr)
 	
 			if l < len(cone[p]) {
 				var wl WebPath
@@ -6227,6 +7135,7 @@ func LinkWebPaths(ctx PoSST,cone [][]Link,nth int,chapter string,context []strin
 
 			var wn WebPath
 			wn.Name = nextnode.S
+			wn.Chp = nextnode.Chap
 			wn.NPtr = cone[p][l].Dst
 			wn.XYZ = directory[cone[p][l].Dst]
 			path = append(path,wn)
@@ -6240,7 +7149,7 @@ func LinkWebPaths(ctx PoSST,cone [][]Link,nth int,chapter string,context []strin
 
 // **************************************************************************
 
-func GetChaptersByChapContext(ctx PoSST,chap string,cn []string,limit int) map[string][]string {
+func GetChaptersByChapContext(sst PoSST,chap string,cn []string,limit int) map[string][]string {
 
 	qstr := ""
 	chap_col := ""
@@ -6267,94 +7176,116 @@ func GetChaptersByChapContext(ctx PoSST,chap string,cn []string,limit int) map[s
 	_,cn_stripped := IsBracketedSearchList(cn)
 	context := FormatSQLStringArray(cn_stripped)
 
-	qstr = fmt.Sprintf("WITH matching_nodes AS "+
-		"  (SELECT NFrom,ctx,match_context(ctx,%s) AS match FROM NodeArrowNode)"+
-		"     SELECT DISTINCT chap,ctx FROM matching_nodes "+
-		"      JOIN Node ON nptr=nfrom WHERE match=true %s ORDER BY Chap",
-		context,chap_col)
+	qstr = fmt.Sprintf("SELECT DISTINCT chap,ctx FROM PageMap WHERE match_context(ctx,%s) %s ORDER BY Chap",context,chap_col)
 
-	row, err := ctx.DB.Query(qstr)
+	row, err := sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("QUERY GetChaptersByChapContext Failed",err,qstr)
 	}
 
-	var rchap,rcontext string
+	var rchap string
+	var rcontext ContextPtr
 	var toc = make(map[string][]string)
 
-	for row.Next() {		
-		err = row.Scan(&rchap,&rcontext)
+	if row != nil {
+		for row.Next() {		
+			err = row.Scan(&rchap,&rcontext)
 
-		// Each chapter can be a comma separated list
+			// Each chapter can be a comma separated list
 
-		chps := SplitChapters(rchap)
+			chps := SplitChapters(rchap)
 
-		for c := 0; c < len(chps); c++ {
+			for c := 0; c < len(chps); c++ {
 
-			if len(toc) == limit {
-				row.Close()
-				return toc
-			}
+				if len(toc) == limit {
+					row.Close()
+					return toc
+				}
 
-			rc := chps[c]
+				rc := chps[c]
 
-			cn := ParseSQLArrayString(rcontext)
-			ctx_grp := ""
+				cn := strings.Split(GetContext(rcontext),",")
+				ctx_grp := ""
 
-			for s := 0; s < len(cn); s++ {
-				ctx_grp += cn[s]
-				if s < len(cn)-1 {
-					ctx_grp += ", "
+				for s := 0; s < len(cn); s++ {
+					ctx_grp += cn[s]
+					if s < len(cn)-1 {
+						ctx_grp += ", "
+					}
+				}
+
+				if len(ctx_grp) > 0 {
+					toc[rc] = append(toc[rc],ctx_grp)
 				}
 			}
-
-			if len(ctx_grp) > 0 {
-				toc[rc] = append(toc[rc],ctx_grp)
-			}
 		}
+
+		row.Close()
 	}
 
-	row.Close()
 	return toc
 }
 
 // **************************************************************************
 
-func JSONPage(ctx PoSST, maplines []PageMap) string {
+func JSONPage(sst PoSST, maplines []PageMap) string {
 
 	var webnotes PageView
-	var last,lastc string
+	var lastchap,lastctx string
+	var signalchap, signalctx, signalchange string
+	var warned bool = false
+
+	directory := AssignPageCoordinates(maplines)
 
 	for n := 0; n < len(maplines); n++ {
 
 		var path []WebPath
 
-		txtctx := ContextString(maplines[n].Context)
+		txtctx := GetContext(maplines[n].Context)
 
-		if last != maplines[n].Chapter || lastc != txtctx {
-			webnotes.Title = maplines[n].Chapter
-			webnotes.Context = txtctx
-			last = maplines[n].Chapter
-			lastc = txtctx
+		// Format superheader aggregate summary
+
+		if lastchap != maplines[n].Chapter {
+			if !warned {
+				webnotes.Title = webnotes.Title
+				warned = true
+			}
+			webnotes.Title += maplines[n].Chapter + ", "
+			lastchap = maplines[n].Chapter
+			signalchap = maplines[n].Chapter
+		} else {
+			signalchap = ""
 		}
 
-		directory := AssignPageCoordinates(maplines[n].Path,n,len(maplines))
+		if lastctx != txtctx {
+			webnotes.Context += txtctx + ", " 
+			lastctx = txtctx
+			signalctx = txtctx
+		} else {
+			signalctx = txtctx
+		}
+
+		signalchange = signalchap + " :: " + signalctx
 
 		// Next line item
 
 		for lnk := 0; lnk < len(maplines[n].Path); lnk++ {
 			
-			text := GetDBNodeByNodePtr(ctx,maplines[n].Path[lnk].Dst)
+			text := GetDBNodeByNodePtr(sst,maplines[n].Path[lnk].Dst)
 			
 			if lnk == 0 {
 				var ws WebPath
 				ws.Name = text.S
 				ws.NPtr = maplines[n].Path[lnk].Dst
 				ws.XYZ = directory[ws.NPtr]
+				ws.Chp = maplines[n].Chapter
+				ws.Line = maplines[n].Line
+				ws.Ctx = GetContext(maplines[n].Context)
 				path = append(path,ws)
 				
 			} else {// ARROW
-				arr := GetDBArrowByPtr(ctx,maplines[n].Path[lnk].Arr)
+				arr := GetDBArrowByPtr(sst,maplines[n].Path[lnk].Arr)
 				var wl WebPath
 				wl.Name = arr.Long
 				wl.Arr = maplines[n].Path[lnk].Arr
@@ -6365,8 +7296,9 @@ func JSONPage(ctx PoSST, maplines []PageMap) string {
 				ws.Name = text.S
 				ws.NPtr = maplines[n].Path[lnk].Dst
 				ws.XYZ = directory[ws.NPtr]
+				ws.Chp = maplines[n].Chapter
+				ws.Ctx = signalchange
 				path = append(path,ws)
-				
 			}
 		}
 		// Next line
@@ -6383,13 +7315,13 @@ func JSONPage(ctx PoSST, maplines []PageMap) string {
 // Retrieve cluster Analysis
 // **************************************************************************
 
-func GetAppointedNodesByArrow(ctx PoSST,arrow ArrowPtr,cn []string,chap string,size int) map[ArrowPtr][]Appointment {
+func GetAppointedNodesByArrow(sst PoSST,arrow ArrowPtr,cn []string,chap string,size int) map[ArrowPtr][]Appointment {
 
 	// return a map of all the nodes in chap,context that are pointed to by the same type of arrow
         // grouped by arrow
 
 	reverse_arrow := INVERSE_ARROWS[arrow]
-	arr := GetDBArrowByPtr(ctx,reverse_arrow)
+	arr := GetDBArrowByPtr(sst,reverse_arrow)
 	sttype := STIndexToSTType(arr.STAindex)
 
 	_,cn_stripped := IsBracketedSearchList(cn)
@@ -6410,7 +7342,7 @@ func GetAppointedNodesByArrow(ctx PoSST,arrow ArrowPtr,cn []string,chap string,s
 
 	qstr := fmt.Sprintf("SELECT unnest(GetAppointments(%d,%d,%d,'%s',%s,%v))",int(reverse_arrow),sttype,size,chap_col,context,remove_chap_accents)
 
-	row, err := ctx.DB.Query(qstr)
+	row, err := sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("QUERY GetAppointedNodesByArrow Failed",err,qstr)
@@ -6420,21 +7352,23 @@ func GetAppointedNodesByArrow(ctx PoSST,arrow ArrowPtr,cn []string,chap string,s
 
 	var retval = make(map[ArrowPtr][]Appointment)
 	
-	for row.Next() {
-		err = row.Scan(&whole) //arrint,&sttype,&rchap,&rctx,&apex,&arry)
+	if row != nil {
+		for row.Next() {
+			err = row.Scan(&whole) //arrint,&sttype,&rchap,&rctx,&apex,&arry)
 
-		next := ParseAppointedNodeCluster(whole)
-		retval[next.Arr] = append(retval[next.Arr],next)
+			next := ParseAppointedNodeCluster(whole)
+			retval[next.Arr] = append(retval[next.Arr],next)
+		}
+	
+		row.Close()
 	}
-	
-	row.Close()
-	
+
 	return retval
 }
 
 // **************************************************************************
 
-func GetAppointedNodesBySTType(ctx PoSST,sttype int,cn []string,chap string,size int) map[ArrowPtr][]Appointment {
+func GetAppointedNodesBySTType(sst PoSST,sttype int,cn []string,chap string,size int) map[ArrowPtr][]Appointment {
 
 	// return a map of all the nodes in chap,context that are pointed to by the same type of arrow
         // grouped by arrow
@@ -6457,7 +7391,7 @@ func GetAppointedNodesBySTType(ctx PoSST,sttype int,cn []string,chap string,size
 
 	qstr := fmt.Sprintf("SELECT unnest(GetAppointments(%d,%d,%d,'%s',%s,%v))",-1,sttype,size,chap_col,context,remove_chap_accents)
 
-	row, err := ctx.DB.Query(qstr)
+	row, err := sst.DB.Query(qstr)
 	
 	if err != nil {
 		fmt.Println("QUERY GetAppointedNodesByArrow Failed",err,qstr)
@@ -6467,15 +7401,16 @@ func GetAppointedNodesBySTType(ctx PoSST,sttype int,cn []string,chap string,size
 
 	var retval = make(map[ArrowPtr][]Appointment)
 	
-	for row.Next() {
-		err = row.Scan(&whole) //arrint,&sttype,&rchap,&rctx,&apex,&arry)
+	if row != nil {
+		for row.Next() {
+			err = row.Scan(&whole) //arrint,&sttype,&rchap,&rctx,&apex,&arry)
 
-		next := ParseAppointedNodeCluster(whole)
-		retval[next.Arr] = append(retval[next.Arr],next)
+			next := ParseAppointedNodeCluster(whole)
+			retval[next.Arr] = append(retval[next.Arr],next)
+		}	
+		row.Close()
 	}
-	
-	row.Close()
-	
+
 	return retval
 }
 
@@ -6550,12 +7485,12 @@ func ParseAppointedNodeCluster(whole string) Appointment {
 // CENTRALITY
 // **************************************************************************
 
-func TallyPath(ctx PoSST,path []Link,between map[string]int) map[string]int {
+func TallyPath(sst PoSST,path []Link,between map[string]int) map[string]int {
 
 	// count how often each node appears in the different path solutions
 
 	for leg := range path {
-		n := GetDBNodeByNodePtr(ctx,path[leg].Dst)
+		n := GetDBNodeByNodePtr(sst,path[leg].Dst)
 		between[n.S]++
 	}
 
@@ -6564,12 +7499,12 @@ func TallyPath(ctx PoSST,path []Link,between map[string]int) map[string]int {
 
 // **************************************************************************
 
-func BetweenNessCentrality(ctx PoSST,solutions [][]Link) string {
+func BetweenNessCentrality(sst PoSST,solutions [][]Link) []string {
 
 	var betweenness = make(map[string]int)
 
 	for s := 0; s < len(solutions); s++ {
-		betweenness = TallyPath(ctx,solutions[s],betweenness)
+		betweenness = TallyPath(sst,solutions[s],betweenness)
 	}
 
 	var inv = make(map[int][]string)
@@ -6585,20 +7520,22 @@ func BetweenNessCentrality(ctx PoSST,solutions [][]Link) string {
 
 	sort.Ints(order)
 
-	var betw,retval string
+	var retval []string
+	var betw string
 
 	for key := len(order)-1; key >= 0; key-- {
+
 		betw = fmt.Sprintf("%.2f : ",float32(order[key])/float32(len(solutions)))
+
 		for el := 0; el < len(inv[order[key]]); el++ {
+
 			betw += fmt.Sprintf("%s",inv[order[key]][el])
 			if el < len(inv[order[key]])-1 {
 				betw += ", "
 			}
 		}
-		retval += fmt.Sprintf("\"%s\"",betw)
-		if key > 0 {
-			retval += ","
-		}
+
+		retval =  append(retval,betw)
 	}
 	return retval
 }
@@ -6642,26 +7579,26 @@ func SuperNodesByConicPath(solutions [][]Link, maxdepth int) [][]NodePtr {
 
 // **************************************************************************
 
-func SuperNodes(ctx PoSST,solutions [][]Link, maxdepth int) string {
+func SuperNodes(sst PoSST,solutions [][]Link, maxdepth int) []string {
 
 	supernodes := SuperNodesByConicPath(solutions,maxdepth)
 
-	var retval string
+	var retval []string
 
 	for g := range supernodes {
 
 		super := ""
 
 		for n := range supernodes[g] {
-			node := GetDBNodeByNodePtr(ctx,supernodes[g][n])
+			node := GetDBNodeByNodePtr(sst,supernodes[g][n])
 			super += fmt.Sprintf("%s",node.S)
 			if n < len(supernodes[g])-1 {
 				super += ", "
 			}
 		}
-		retval += fmt.Sprintf("\"%s\"",super)
+
 		if g < len(supernodes)-1 {
-			retval += ", "
+			retval = append(retval,super)
 		}
 	}
 
@@ -6684,7 +7621,12 @@ type SearchParameters struct {
 	Arrows   []string
 	PageNr   int
 	Range    int
+	Min      []int
+	Max      []int
+	Finds    []string
 	Sequence bool
+	Stats    bool
+	Horizon  int
 }
 
 // ******************************************************************
@@ -6701,27 +7643,61 @@ type STM struct {
 
 const (
 
-	CMD_ON = "on"
-	CMD_FOR = "for"
-	CMD_ABOUT = "about"
-	CMD_NOTES = "notes"
-	CMD_PAGE = "page"
-	CMD_PATH = "path"
-	CMD_SEQ1 = "sequence"
-	CMD_SEQ2 = "seq"
-	CMD_FROM = "from"
-	CMD_TO = "to"
-	CMD_CTX = "ctx"
-	CMD_CONTEXT = "context"
-	CMD_AS = "as"
-	CMD_CHAPTER = "chapter"
-	CMD_SECTION = "section"
-	CMD_IN = "in"
-	CMD_ARROW = "arrow"
-	CMD_LIMIT = "limit"
-	CMD_DEPTH = "depth"
-	CMD_RANGE = "range"
-	CMD_DISTANCE = "distance"
+	CMD_ON = "\\on"
+	CMD_ON_2 = "on"    // _2 are too short to be intentional
+	CMD_FOR = "\\for"  // so double these for "smarter" accident avoidance
+	CMD_FOR_2 = "for"
+	CMD_ABOUT = "\\about"
+	CMD_NOTES = "\\notes"
+	CMD_BROWSE = "\\browse"
+	CMD_PAGE = "\\page"
+	CMD_PATH = "\\path"
+	CMD_PATH2 = "\\paths"
+	CMD_SEQ1 = "\\sequence"
+	CMD_SEQ2 = "\\seq"
+	CMD_STORY = "\\story"
+	CMD_STORIES = "\\stories"
+	CMD_FROM = "\\from"
+	CMD_TO = "\\to"
+	CMD_TO_2 = "to"
+	CMD_CTX = "\\ctx"
+	CMD_CONTEXT = "\\context"
+	CMD_AS = "\\as"
+	CMD_AS_2 = "as"
+	CMD_CHAPTER = "\\chapter"
+	CMD_CONTENTS = "\\contents"
+	CMD_TOC = "\\toc"
+	CMD_TOC_2 = "toc"
+	CMD_MAP = "\\map"
+	CMD_SECTION = "\\section"
+	CMD_IN = "\\in"
+	CMD_IN_2 = "in"
+	CMD_ARROW = "\\arrow"
+	CMD_ARROWS = "\\arrows"
+	CMD_LIMIT = "\\limit"
+	CMD_DEPTH = "\\depth"
+	CMD_RANGE = "\\range"
+	CMD_DISTANCE = "\\distance"
+	CMD_STATS = "\\stats"
+	CMD_STATS_2 = "stats"
+	CMD_REMIND = "\\remind"
+	CMD_HELP = "\\help"
+	CMD_HELP_2 = "help"
+	// What to find in orbit
+	CMD_FINDS = "\\finds"
+	CMD_FINDING = "\\finding"
+	// bounding linear path and parallel arrows
+	CMD_GT = "\\gt"
+	CMD_LT = "\\lt"
+	CMD_MIN = "\\min"	
+	CMD_MAX = "\\max"
+	CMD_ATLEAST = "\\atleast"
+	CMD_ATMOST = "\\atmost"
+	CMD_NEVER = "\\never"
+	CMD_NEW = "\\new"
+
+	RECENT = 4  // Four hours between a morning and afternoon
+        NEVER = -1   // Haven't seen in this long
 )
 
 //******************************************************************
@@ -6731,18 +7707,26 @@ const (
 func DecodeSearchField(cmd string) SearchParameters {
 
 	var keywords = []string{ 
-		CMD_NOTES, CMD_PATH,
-		CMD_PATH,CMD_FROM,CMD_TO,
-		CMD_SEQ1,CMD_SEQ2,
-		CMD_CONTEXT,CMD_CTX,CMD_AS,
-		CMD_CHAPTER,CMD_IN,CMD_SECTION,
-		CMD_ARROW,
-		CMD_ON,CMD_ABOUT,CMD_FOR,
+		CMD_NOTES, CMD_BROWSE,
+		CMD_PATH,CMD_FROM,CMD_TO,CMD_TO_2,
+		CMD_SEQ1,CMD_SEQ2,CMD_STORY,CMD_STORIES,
+		CMD_CONTEXT,CMD_CTX,CMD_AS,CMD_AS_2,
+		CMD_CHAPTER,CMD_IN,CMD_IN_2,CMD_SECTION,CMD_CONTENTS,CMD_TOC,CMD_TOC_2,CMD_MAP,
+		CMD_ARROW,CMD_ARROWS,
+		CMD_GT,CMD_MIN,CMD_ATLEAST,
+		CMD_LT,CMD_MAX,CMD_ATMOST,
+		CMD_ON,CMD_ON_2,CMD_ABOUT,CMD_FOR,CMD_FOR_2,
 		CMD_PAGE,
 		CMD_LIMIT,CMD_RANGE,CMD_DISTANCE,CMD_DEPTH,
+		CMD_STATS,CMD_STATS_2,
+		CMD_REMIND,CMD_NEVER,CMD_NEW,
+		CMD_HELP,CMD_HELP_2,
+		CMD_FINDS,CMD_FINDING,
         }
 	
 	// parentheses are reserved for unaccenting
+
+	cmd = strings.ToLower(cmd)
 
 	m := regexp.MustCompile("[ \t]+") 
 	cmd = m.ReplaceAllString(cmd," ") 
@@ -6815,9 +7799,26 @@ func FillInParameters(cmd_parts [][]string,keywords []string) SearchParameters {
 
 			switch SomethingLike(cmd_parts[c][p],keywords) {
 
-			case CMD_CHAPTER, CMD_IN:
+			case CMD_STATS, CMD_STATS_2:
+				param.Stats = true
+				continue
+
+			case CMD_HELP, CMD_HELP_2:
+				param.Chapter = "SSTorytime help"
+				param.Name = []string{"any"}
+				continue
+
+			case CMD_CHAPTER,CMD_SECTION,CMD_IN,CMD_IN_2,CMD_CONTENTS,CMD_TOC,CMD_TOC_2,CMD_MAP:
+
 				if lenp > p+1 {
-					param.Chapter = cmd_parts[c][p+1]
+					str := cmd_parts[c][p+1]
+					str = strings.TrimSpace(str)
+					str = strings.Trim(str,"'")
+					str = strings.Trim(str,"\"")
+					if str == "any" {
+						str = "%%"
+					}
+					param.Chapter = str
 					break
 				} else {
 					param.Chapter = "TableOfContents"
@@ -6825,13 +7826,17 @@ func FillInParameters(cmd_parts [][]string,keywords []string) SearchParameters {
 				}
 				continue
 
-			case CMD_NOTES:
+			case CMD_NOTES, CMD_BROWSE:
 				if param.PageNr < 1 {
 					param.PageNr = 1
 				}
-			
+
 				if lenp > p+1 {
-					param.Chapter = cmd_parts[c][p+1]
+					if cmd_parts[c][p+1] == "any" {
+						param.Chapter = "%%"
+					} else {
+						param.Chapter = cmd_parts[c][p+1]
+					}
 				} else {
 					if lenp > 1 {
 						param = AddOrphan(param,cmd_parts[c][p+1])
@@ -6873,7 +7878,41 @@ func FillInParameters(cmd_parts [][]string,keywords []string) SearchParameters {
 				}
 				continue
 
-			case CMD_ARROW:
+			case CMD_GT,CMD_MIN,CMD_ATLEAST:
+				// if followed by a number, else could be search term
+				if lenp > p+1 {
+					p++
+					var no int = -1
+					fmt.Sscanf(cmd_parts[c][p],"%d",&no)
+					if no > 0 {
+						param.Min = append(param.Min,no)
+					} else {
+						param = AddOrphan(param,cmd_parts[c][p-1])
+						param = AddOrphan(param,cmd_parts[c][p])
+					}
+				} else {
+					param = AddOrphan(param,cmd_parts[c][p])
+				}
+				continue
+
+			case CMD_LT,CMD_MAX,CMD_ATMOST:
+				// if followed by a number, else could be search term
+				if lenp > p+1 {
+					p++
+					var no int = -1
+					fmt.Sscanf(cmd_parts[c][p],"%d",&no)
+					if no > 0 {
+						param.Max = append(param.Max,no)
+					} else {
+						param = AddOrphan(param,cmd_parts[c][p-1])
+						param = AddOrphan(param,cmd_parts[c][p])
+					}
+				} else {
+					param = AddOrphan(param,cmd_parts[c][p])
+				}
+				continue
+
+			case CMD_ARROW,CMD_ARROWS:
 				if lenp > p+1 {
 					for pp := p+1; IsParam(pp,lenp,cmd_parts[c],keywords); pp++ {
 						p++
@@ -6887,13 +7926,16 @@ func FillInParameters(cmd_parts [][]string,keywords []string) SearchParameters {
 				}
 				continue
 				
-			case CMD_CONTEXT,CMD_CTX,CMD_AS:
+				case CMD_CONTEXT,CMD_CTX,CMD_AS,CMD_AS_2:
 				if lenp > p+1 {
 					for pp := p+1; IsParam(pp,lenp,cmd_parts[c],keywords); pp++ {
 						p++
 						ult := strings.Split(cmd_parts[c][pp],",")
 						for u := range ult {
-							param.Context = append(param.Context,DeQ(ult[u]))
+							class := strings.TrimSpace(DeQ(ult[u]))
+							if len(class) > 0 {
+								param.Context = append(param.Context,class)
+							}
 						}
 					}
 				} else {
@@ -6901,7 +7943,12 @@ func FillInParameters(cmd_parts [][]string,keywords []string) SearchParameters {
 				}
 				continue
 
-			case CMD_FROM:
+		case CMD_PATH,CMD_PATH2,CMD_FROM:
+				if lenp-1 == p {
+					// redundant word if empty
+					continue
+				}
+
 				if lenp > p+1 {
 					for pp := p+1; IsParam(pp,lenp,cmd_parts[c],keywords); pp++ {
 						p++
@@ -6919,7 +7966,7 @@ func FillInParameters(cmd_parts [][]string,keywords []string) SearchParameters {
 				}
 				continue
 
-			case CMD_TO:
+			case CMD_TO,CMD_TO_2:
 				if p > 0 && lenp > p+1 {
 					if param.From == nil {
 						param.From = append(param.From,cmd_parts[c][p-1])
@@ -6951,11 +7998,18 @@ func FillInParameters(cmd_parts [][]string,keywords []string) SearchParameters {
 					continue
 				}
 
-			case CMD_PATH,CMD_SEQ1,CMD_SEQ2:
+			case CMD_SEQ1,CMD_SEQ2,CMD_STORY,CMD_STORIES:
 				param.Sequence = true
 				continue
 
-			case CMD_ON,CMD_ABOUT,CMD_FOR:
+			case CMD_NEW:
+				param.Horizon = RECENT
+				continue
+			case CMD_NEVER:
+				param.Horizon = NEVER
+				continue
+
+			case CMD_ON,CMD_ON_2,CMD_ABOUT,CMD_FOR,CMD_FOR_2:
 				if lenp > p+1 {
 					for pp := p+1; IsParam(pp,lenp,cmd_parts[c],keywords); pp++ {
 						p++
@@ -6970,6 +8024,20 @@ func FillInParameters(cmd_parts [][]string,keywords []string) SearchParameters {
 					}
 				} else {
 					param = AddOrphan(param,cmd_parts[c][p])
+				}
+				continue
+
+			case CMD_FINDS,CMD_FINDING:
+
+				for pp := p+1; IsParam(pp,lenp,cmd_parts[c],keywords); pp++ {
+					p++
+					ult := SplitQuotes(cmd_parts[c][pp])
+					for u := range ult {
+						if ult[u] == "any" {
+							ult[u] = "%%"
+						}
+						param.Finds = append(param.Finds,DeQ(ult[u]))
+					}
 				}
 				continue
 
@@ -7021,13 +8089,116 @@ func IsParam(i,lenp int,keys []string,keywords []string) bool {
 
 //******************************************************************
 
+func MinMaxPolicy(search SearchParameters) (int,int) {
+
+	// The min max doubles as context dependent role as
+	// i) limits on path length and ii) limits on matches arrow matches
+
+	minlimit := 1
+	maxlimit := 0
+	from := search.From != nil
+	to := search.To != nil
+
+	// Validate
+
+	if len(search.Min) > 4 {
+		fmt.Println("\nWARNING: minimum arrow matches exceeds the number of ST-types")
+	}
+
+	if len(search.Max) > 4 {
+		fmt.Println("\nWARNING: maximum arrow matches exceeds the number of ST-types")
+	}
+
+	if len(search.Min) != 4 && len(search.Max) != 4 {
+
+		// Only "abusing" the min max for linear path length or search depth
+
+		if len(search.Min) > 0 && len(search.Max) > 0 {
+			if search.Min[0] > search.Max[0] {
+				fmt.Println("\nWARNING: minimum arrow limit greater than maximum limit!")
+				fmt.Println("Depth/range:","min =",search.Min[0],", max =",search.Max[0])
+			}
+			
+			if len(search.Min) == 1 {
+				minlimit = search.Min[0]
+			}
+			
+		} else if len(search.Max) == 1 && search.Range > 0 {
+			fmt.Println("\nWARNING: conflict between \\depth,\\range and \\max,\\lt,\\atmost ")
+		}
+	} else {
+		// Full ST-type arrow match limits
+
+		for i := 0; i < 4; i++ {
+			if search.Min[i] > search.Max[i] {
+				fmt.Println("\nWARNING: minimum arrow limit greater than maximum limit!")
+				fmt.Println("ST-type:",i,"min =",search.Min[i],", max =",search.Max[i])
+			}
+		}
+	}
+
+	// Defaults
+
+	if search.Chapter == "TableOfContents" {
+
+		// We want to see all contents
+		maxlimit = 50
+
+	} else if search.Range > 0 {
+
+		maxlimit = search.Range
+
+	} else if len(search.Max) == 1 {  // if only one, we probably meant Range
+
+		maxlimit = search.Max[0]
+
+	} else {
+
+		if from || to || search.Sequence {
+			maxlimit = 30 // many paths make hard work
+		} else {
+			const common_word = 5
+
+			if SearchTermLen(search.Name) < common_word {
+				maxlimit = 5
+			} else {
+				maxlimit = 10
+			}
+
+			if len(search.Name) < 3 && AllExact(search.Name) {
+				maxlimit = 30
+			}
+		}
+	}
+
+	return minlimit,maxlimit
+}
+
+//******************************************************************
+
+func AllExact(list []string) bool {
+
+	is_exact := false
+
+	for _,s := range list {
+		is,_ := IsExactMatch(s)
+		is_exact = is_exact || is
+	}
+
+	return is_exact
+}
+
+//******************************************************************
+
 func IsLiteralNptr(s string) bool {
 	
 	var a,b int = -1,-1
+
+	s = strings.TrimSpace(s)
 	
 	fmt.Sscanf(s,"(%d,%d)",&a,&b)
 	
-	if a > 0 && b > 0 {
+	if a >= 0 && b >= 0 {
 		return true
 	}
 	
@@ -7059,7 +8230,7 @@ func SomethingLike(s string,keywords []string) string {
 
 func IsCommand(s string,list []string) bool {
 
-	const min_sense = 4
+	const min_sense = 5
 
 	for w := range list {
 		if list[w] == s {
@@ -7182,6 +8353,7 @@ var GR_DAY_TEXT = []string{
     }
         
 var GR_MONTH_TEXT = []string{
+	"NONE",
         "January",
         "February",
         "March",
@@ -7237,7 +8409,7 @@ func DoNowt(then time.Time) (string,string) {
 	// so prefix temporal classes with a :
 
 	year := fmt.Sprintf("Yr%d",then.Year())
-	month := GR_MONTH_TEXT[int(then.Month())-1]
+	month := GR_MONTH_TEXT[int(then.Month())]
 	day := then.Day()
 	hour := fmt.Sprintf("Hr%02d",then.Hour())
 	quarter := fmt.Sprintf("Qu%d",then.Minute()/15 + 1)
@@ -7268,26 +8440,12 @@ func DoNowt(then time.Time) (string,string) {
 
 // ****************************************************************************
 
-func GetContext() (string,string,int64) {
+func GetTimeContext() (string,string,int64) {
 
 	now := time.Now()
 	context,keyslot := DoNowt(now)
 
 	return context,keyslot,now.Unix()
-}
-
-// ****************************************************************************
-
-func GetUnixTimeKey(now int64) string {
-
-	// Time on the torus (donut/doughnut) (CFEngine style)
-	// The argument is in traditional UNIX "time_t" unit e.g. then := time.Unix()
-	// This is a simple wrapper to DoNowt() returning only a db-suitable keyname
-
-	t := time.Unix(now, 0)
-	_,slot := DoNowt(t)
-
-	return slot
 }
 
 // ****************************************************************************
@@ -7307,6 +8465,111 @@ func Season (month string) (string,string) {
 	}
 
 	return "hurricane","typhoon"
+}
+
+// ****************************************************************************
+ 
+func GetTimeFromSemantics(speclist []string,now time.Time) time.Time {
+
+	day := 0
+	hour := 0
+	mins := 0
+	weekday := 0
+	month := time.Month(0)
+	year := 0
+	days_to_next := 0
+
+	hasweekday := false
+	hasmonth := false
+
+	// Parse semantic time array
+
+	for i,v := range speclist {
+
+		if i == 0 {
+			continue
+		}
+
+		if strings.HasPrefix(v,"Day") {
+			fmt.Sscanf(v[3:],"%d",&day)
+			continue
+		}
+
+		if strings.HasPrefix(v,"Yr") {
+			fmt.Sscanf(v[2:],"%d",&year)
+			continue
+		}
+
+		if strings.HasPrefix(v,"Min") {
+			fmt.Sscanf(v[3:],"%d",&mins)
+			continue
+		}
+
+		if strings.HasPrefix(v,"Hr") {
+			fmt.Sscanf(v[2:],"%d",&hour)
+			continue
+		}
+
+		if !hasweekday {
+			weekday,hasweekday = InList(v,GR_DAY_TEXT)
+			if hasweekday {
+				intended := weekday
+				todayis := fmt.Sprintf("%s",now.Weekday())
+				actual,_ := InList(todayis,GR_DAY_TEXT)
+				days_to_next = (intended - actual + 7) % 7
+				continue
+			}
+		}
+
+		if !hasmonth {
+			var index int
+			index,hasmonth = InList(v,GR_MONTH_TEXT)
+			if hasmonth {
+				month = time.Month(index)
+				continue
+			}
+		}
+
+		fmt.Println("Semantic time parameter without semantic prefix (Day,Hr,Min, etc)",v)
+	}
+
+	if hasweekday && (day > 0 || hasmonth || year > 0) {
+		fmt.Println("Weekday only makes sense as the next applicable occurrence, without a date")
+	} else if hasweekday {
+
+		// We're looking for the next upcoming day
+		day = now.Day()
+		month = now.Month()
+		year = now.Year()
+		newnow := time.Date(year,month,day,0,0,0,0,time.UTC)
+		newnow = newnow.AddDate(0,0,days_to_next)
+		return newnow
+	}
+
+	if year == 0 {
+		year = now.Year()
+	}
+
+	if day == 0 {
+		day = now.Day()
+	}
+
+	if month == 0 {
+		month = now.Month()
+	}
+
+	if hour == 0 {
+		hour = now.Hour()
+	}
+
+	// Note the local timezone is very problematic in Go
+
+	_,offset_secs := now.Zone()
+
+	offset := offset_secs / 3600
+
+	newnow := time.Date(year,month,day,hour-offset,mins,0,0,time.UTC)
+	return newnow
 }
 
 //*****************************************************************
@@ -8012,7 +9275,7 @@ func CleanNgram(s string) string {
 
 //**************************************************************
 
-func ExtractIntentionalTokens(L int,selected []TextRank) ([][]string,[][]string,[]string,[]string) {
+func ExtractIntentionalTokens(L int,selected []TextRank,Nmin,Nmax int) ([][]string,[][]string,[]string,[]string) {
 
 	// This function examines a fractionation of text for fractions, only for
 	// sentences that are selected, and extracts some shared context
@@ -8033,14 +9296,14 @@ func ExtractIntentionalTokens(L int,selected []TextRank) ([][]string,[][]string,
 	var fastwhole []string
 	var slowwhole []string
 
-	for n := 1; n < N_GRAM_MAX; n++ {
+	for n := 1; n < Nmax; n++ {
 		grad_amb[n] = make(map[string]float64)
 		grad_oth[n] = make(map[string]float64)
 	}
 
 	for p := 0; p < doc_parts; p++ {
 
-		for n := N_GRAM_MIN; n < N_GRAM_MAX; n++ {
+		for n := Nmin; n < Nmax; n++ {
 
 			var amb []string
 			var other []string
@@ -8091,7 +9354,7 @@ func ExtractIntentionalTokens(L int,selected []TextRank) ([][]string,[][]string,
 	
 	// Summary ranking of whole doc, but pick only if selected
 	
-	for n := N_GRAM_MIN; n < N_GRAM_MAX; n++ {
+	for n := Nmin; n < Nmax; n++ {
 		
 		var amb []string
 		var other []string
@@ -8326,7 +9589,7 @@ func List2String(list []string) string {
 	for i := 0; i < len(list); i++ {
 		s += list[i]
 		if i < len(list)-1 {
-			s+= ", "
+			s+= ","
 		}
 	}
 
@@ -8337,7 +9600,10 @@ func List2String(list []string) string {
 
 func SQLEscape(s string) string {
 
-	return strings.Replace(s, `'`, `''`, -1)
+	undo := strings.ReplaceAll(s,"''","'")
+	escaped := strings.ReplaceAll(undo,"'","''")
+
+	return string(escaped)
 }
 
 // **************************************************************************
@@ -8520,24 +9786,39 @@ func FormatSQLNodePtrArray(array []NodePtr) string {
 
 // **************************************************************************
 
+func FormatSQLLinkArray(array []Link) string {
+
+	// {"(81,1,2,\"(1,0)\")","(108,1,2,\"(3,11)\")","(118,1,2,\"(2,1348)\")"}
+
+	var s string
+
+	for _,lnk := range array {
+
+		l := fmt.Sprintf("(%d, %f, %d, \\\"(%d,%d)\\\")",lnk.Arr,lnk.Wgt,lnk.Ctx,lnk.Dst.Class,lnk.Dst.CPtr)
+		s += fmt.Sprintf("\"%s\",",l)
+	}
+
+	s = "{" + strings.Trim(s,",") + "}"
+
+	return s
+}
+
+// **************************************************************************
+
 func ParseSQLLinkString(s string) Link {
 
-        // e.g. (77,0.34,"{ ""fairy castles"", ""angel air"" }","(4,2)")
-	// This feels dangerous. Is postgres consistent here?
+        // e.g. (77,0.34,334,"(4,2)")
 
       	var l Link
 
-    	s = strings.Replace(s,"(","",-1)
-    	s = strings.Replace(s,")","",-1)
-	s = strings.Replace(s,"\"\"",";",-1)
 	s = strings.Replace(s,"\"","",-1)
 	s = strings.Replace(s,"\\","",-1)
+	s = strings.Replace(s,"(","",-1)
+	s = strings.Replace(s,")","",-1)
 	
         items := strings.Split(s,",")
 
 	for i := 0; i < len(items); i++ {
-		items[i] = strings.Replace(items[i],"{","",-1)
-		items[i] = strings.Replace(items[i],"}","",-1)
 		items[i] = strings.Replace(items[i],";","",-1)
 		items[i] = strings.TrimSpace(items[i])
 	}
@@ -8548,20 +9829,12 @@ func ParseSQLLinkString(s string) Link {
 	// Link weight
 	fmt.Sscanf(items[1],"%f",&l.Wgt)
 
-	// These are the context array
+	// Context pointer
+	fmt.Sscanf(items[2],"%d",&l.Ctx)
 
-	var array []string
-
-	for i := 2; i <= len(items)-3; i++ {
-		array = append(array,items[i])
-	}
-
-	l.Ctx = array
-
-	// the last two are the NPtr
-
-	fmt.Sscanf(items[len(items)-2],"%d",&l.Dst.Class)
-	fmt.Sscanf(items[len(items)-1],"%d",&l.Dst.CPtr)
+	// DstNPtr
+	fmt.Sscanf(items[3],"%d",&l.Dst.Class)
+	fmt.Sscanf(items[4],"%d",&l.Dst.CPtr)
 
 	return l
 }
@@ -8573,12 +9846,14 @@ func ParseLinkArray(s string) []Link {
 	var array []Link
 
 	s = strings.TrimSpace(s)
+	s = strings.ReplaceAll(s,"{","")
+	s = strings.ReplaceAll(s,"}","")
 
 	if len(s) <= 2 {
 		return array
 	}
 
-	strarray := strings.Split(s,"\n")
+	strarray := strings.Split(s,"\",\"")
 
 	for i := 0; i < len(strarray); i++ {
 		link := ParseSQLLinkString(strarray[i])
@@ -8628,14 +9903,15 @@ func ParseLinkPath(s string) [][]Link {
 
 			links := strings.Split(lines[line],";")
 
-			if len(links) < 2 {
+			// Actual paths need len > 1, but this is also used to seed longer paths
+
+			if len(links) < 1 {
 				continue
 			}
 
 			array = append(array,make([]Link,0))
 
 			for l := 0; l < len(links); l++ {
-
 				lnk := ParseSQLLinkString(links[l])
 				array[index] = append(array[index],lnk)
 			}
@@ -8808,24 +10084,37 @@ func STTypeName(sttype int) string {
 // String matching - keep this simple for now
 // **************************************************************************
 
-func SimilarString(s1,s2 string) bool {
+func SimilarString(full,like string) bool {
 
 	// Placeholder
 	// Need to handle pluralisation patterns etc... multi-language
 
-	if s1 == s2 {
+	if full == like {
 		return true
 	}
 
-	if s1 == "" || s2 == "" || s1 == "any" || s2 == "any" {  // same as any
+	if full == "" || like == "" || full == "any" || like == "any" {  // same as any
 		return true
 	}
 
-	if strings.Contains(s2,s1) {
+	if strings.Contains(full,like) {
 		return true
 	}
 
 	return false
+}
+
+//****************************************************************************
+
+func InList(s string, list []string) (int,bool) {
+
+	for i,v := range list {
+		if s == v {
+			return i,true
+		}
+	}
+
+	return -1,false
 }
 
 //****************************************************************************
@@ -8843,11 +10132,13 @@ func MatchArrows(arrows []ArrowPtr,arr ArrowPtr) bool {
 
 //****************************************************************************
 
-func MatchContexts(context1 []string,context2 []string) bool {
+func MatchContexts(context1 []string,context2ptr ContextPtr) bool {
 
-	if context1 == nil || context2 == nil {
+	if context1 == nil || context2ptr == 0 {
 		return true
 	}
+
+	context2 := strings.Split(GetContext(context2ptr),",")
 
 	for c := range context1 {
 
@@ -8855,6 +10146,7 @@ func MatchContexts(context1 []string,context2 []string) bool {
 			return true
 		}
 	}
+
 	return false 
 }
 
@@ -8872,6 +10164,37 @@ func MatchesInContext(s string,context []string) bool {
 
 // **************************************************************************
 // Misc tools
+// **************************************************************************
+
+func SearchTermLen(names []string) int {
+
+	var maxlen int
+
+	for _,s := range names {
+		if !IsNPtrStr(s) && len(s) > maxlen {
+			maxlen = len(s)
+		}
+	}
+
+	return maxlen
+}
+
+// **************************************************************************
+
+func IsNPtrStr(s string) bool {
+
+	s = strings.TrimSpace(s)
+
+	if s[0] == '(' && s[len(s)-1] == ')' {
+		var a,b int = -1,-1
+		fmt.Sscanf(s,"(%d,%d)",&a,&b)
+		if a >= 0 && b >= 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // **************************************************************************
 
 func RunErr(message string) {
@@ -9016,30 +10339,36 @@ func Waiting(output bool,total int) {
 
 	percent := float64(SILLINESS_COUNTER) / float64(total) * 100
 
-	const propaganda = "IT.ISN'T.KNOWLEDGE.IF.YOU.DON'T.KNOW.IT.!!"
-	const interval = 4
+	var propaganda = []string{"\n1) JOT IT DOWN WHEN YOU THINK OF IT. . .\n","\n2) TYPE IT INTO N4L AS SOON AS YOU CAN. . .\n","\n3) ORGANIZE AND TIDY YOUR NOTES EVERY DAY. . .\n","\n4) UPLOAD AND BROWSE THEM ONLINE. . .\n","\n5) AND REMEMBER, IT ISN'T KNOWLEDGE IF YOU DON'T ACTUALLY KNOW IT !!\n"}
+
+	const interval = 2
 
 	if SILLINESS {
 		if SILLINESS_COUNTER % interval != 0 {
-			fmt.Print(".")
+			fmt.Print(" ")
 		} else {
-			fmt.Print(string(propaganda[SILLINESS_POS]))
+			fmt.Print(string(propaganda[SILLINESS_SLOGAN][SILLINESS_POS]))
 			SILLINESS_POS++
-			if SILLINESS_POS > len(propaganda)-1 {
+
+			if SILLINESS_POS > len(propaganda[SILLINESS_SLOGAN])-1 {
 				SILLINESS_POS = 0
 				SILLINESS = false
+				SILLINESS_SLOGAN++
+				if SILLINESS_SLOGAN >= len(propaganda) {
+					SILLINESS_SLOGAN = 0
+				}
 			}
 		}
 	} else {
 		fmt.Print(".")
 	}
 
-	if SILLINESS_COUNTER % (len(propaganda)*interval*interval) == 0 {
+	if SILLINESS_COUNTER % (2000) == 0 {
 		SILLINESS = !SILLINESS
 		if percent > 100 {
-			fmt.Printf(" (%.1f%% - oops, have to work overtime!) ",percent)
+			fmt.Printf("\n(%.1f%% - oops, have to work overtime!)\n",percent)
 		} else {
-			fmt.Printf(" (%.1f%%) ",percent)
+			fmt.Printf("\n\n(%.1f%%) uploading . . .\n",percent)
 		}
 	}
 
@@ -9125,7 +10454,63 @@ func IsBracketedSearchTerm(src string) (bool,string) {
 		stripped = strings.TrimSpace(stripped)
 	}
 
-	return retval,stripped
+	return retval,SQLEscape(stripped)
+}
+
+//****************************************************************************
+
+func IsExactMatch(org string) (bool,string) {
+
+	org = strings.TrimSpace(org)
+
+	if len(org) == 0 {
+		return false,org
+	}
+
+	if org[0] == '!' && org[len(org)-1] == '!' {
+		tr := strings.Trim(org,"!")
+		return true,strings.ToLower(tr)
+	}
+
+	if org[0] == '|' && org[len(org)-1] == '|' {
+		tr := strings.Trim(org,"|")
+		return true,strings.ToLower(tr)
+	}
+
+	return false,org
+}
+
+//****************************************************************************
+
+func IsStringFragment(s string) bool {
+
+	tsvec_patterns := []string{"|","&","!","<->","<1>","<2>","<3>","<4>"}
+
+	// if this is a ts_vec pattern, it's not for us
+
+	for _,p := range tsvec_patterns {
+		if strings.Contains(s,p) {
+			return false
+		}
+	}
+
+	// The tsvector cannot handle spaces or apostrophes(!), so fall back on LIKE %%
+
+	str_patterns := []string{" ","-","_","'","\""}
+
+	for _,p := range str_patterns {
+		if strings.Contains(s,p) {
+			return true
+		}
+	}
+
+	const theshold_for_uniqueness = 12 // skjønn
+
+	if len(s) > theshold_for_uniqueness {
+		return true
+	}
+
+	return false
 }
 
 //****************************************************************************
@@ -9160,4 +10545,152 @@ func ReadToNext(array []rune,pos int,r rune) (string,int) {
 	return ret,len(ret)
 }
 
+//****************************************************************************
+// Allow for simple dynamic content for some approved realtime functions
+//****************************************************************************
+
+func ExpandDynamicFunctions(s string) string {
+
+	if !strings.Contains(s,"{") {
+		return s
+	}
+
+	if !strings.Contains(s,"}") {
+		return s
+	}
+
+	chars := []rune(s[len("Dynamic:"):])
+
+	var news string
+
+	for pos := 0; pos < len(chars); pos++ {
+
+		if chars[pos] != '{' {
+			news += string(chars[pos])
+		} else {
+			newpos,result := EvaluateInBuilt(chars,pos)
+			news += result
+			pos = newpos
+		}
+	}
+
+	return news
+}
+
+//****************************************************************************
+
+func EvaluateInBuilt(chars []rune,pos int) (int,string) {
+
+	var fntext string
+	var endpos int
+
+	for r := pos; chars[r] != '}' && r < len(chars); r++ {
+		fntext += string(chars[r])
+		endpos = r+1
+	}
+
+	fntext = fntext[1:len(fntext)]
+
+	delim := func(c rune) bool {
+		return c == ' ' || c == ',' || c == ';'
+	}
+
+	fn := strings.FieldsFunc(fntext,delim)
+	result := DoInBuiltFunction(fn)
+	return endpos,result
+}
+
+//****************************************************************************
+
+func DoInBuiltFunction(fn []string) string {
+
+	// Placeholder - this needs to support sandboxed read only user functions
+
+	var result string
+
+	switch fn[0] {
+	case "TimeUntil":
+		result = InBuiltTimeUntil(fn)
+	case "TimeSince":
+		result = InBuiltTimeSince(fn)
+	}
+
+	return result
+}
+
+//****************************************************************************
+
+func InBuiltTimeUntil(fn []string) string {
+
+	now := time.Now().Local()
+	intended_time := GetTimeFromSemantics(fn,now)
+	duration := intended_time.Sub(now)
+
+	interval := int(duration / 1000000000)  // nanoseconds -> seconds
+
+	years := interval / (365 * 24 * 3600)
+	r1 := interval % (365 * 24 * 3600)
+
+	days := r1 / (24 * 3600)
+	r2 := r1 % (24 * 3600)
+
+	hours := r2 / 3600
+	r3 :=  r2 % 3600
+
+	mins := r3 / 60
+
+	return ShowTime(years,days,hours,mins)
+}
+
+//****************************************************************************
+
+func InBuiltTimeSince(fn []string) string {
+
+	now := time.Now().Local()
+	intended_time := GetTimeFromSemantics(fn,now)
+
+	duration := now.Sub(intended_time)
+
+	interval := int(duration / 1000000000)  // nanoseconds -> seconds
+
+	years := interval / (365 * 24 * 3600)
+	r1 := interval % (365 * 24 * 3600)
+
+	days := r1 / (24 * 3600)
+	r2 := r1 % (24 * 3600)
+
+	hours := r2 / 3600
+	r3 :=  r2 % 3600
+
+	mins := r3 / 60
+
+	return ShowTime(years,days,hours,mins)
+}
+
+//****************************************************************************
+
+func ShowTime(years,days,hours,mins int) string {
+
+	var s string
+
+	if years > 0 {
+		s += fmt.Sprintf("%d Years, ",years)
+	}
+
+	if days > 0 {
+		s += fmt.Sprintf("%d Days, ",days)
+	}
+
+	if hours > 0 {
+		s += fmt.Sprintf("%d Hours, ",hours)
+	}
+
+	s += fmt.Sprintf("%d Mins ",mins)
+
+	if mins < 0 {
+		s += " [already passed or waiting for next occurrence]"
+	}
+
+	return s
+}
 

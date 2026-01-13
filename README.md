@@ -1,3 +1,4 @@
+
 <!--
  SSTorytime - a ChiTek-i project by Mark Burgess
 
@@ -6,13 +7,57 @@
 
 -->
 
+
+> [!NOTE]
+> The status of this project is a stable current version, and development is paused while background work is being done.
+> * Join the [SSTorytime LinkedIn Group](https://www.linkedin.com/groups/15875004/) for questions and discussions.
+> * [Quick installation options](docs/GettingStarted.md) now with provisional scripts to simplify the setup
+> * [TO-DO List](docs/ToDo.md) and [HOW **YOU** CAN CONTRIBUTE!](docs/howtocontribute.md)
+> * Welcome!
+>
+
 # SSTorytime
+## (A Unified Graph Process For Mapping Knowledge)
+
+Imagine a tool that would help you to know your own thinking, to capture it, visualize it, and make it searchable for those days when your scatterbrain isn’t working on all cylinders. This is the thinking behind SSTorytime.  We might not call such a tool Artificial Intelligence; rather, we might call it a "cyborg enhancement". Still, the results would be useful for training and teaching of human or machine intelligence alike. Such a toolset is the goal of the open source SSTorytime Knowledge project. The issue of what kind of graph you should make is secondary to the issue of understanding what knowledge means, and how we will use it. Neither topic maps nor rdf communities got this right in the past. 
+
+* [Get going with the documentation](docs/README.md) or keep scrolling for some background and highlights...
+
+**SSTorytime is an independent Knowledge Graph, based on Semantic Spacetime. It is not an Topic Map or  RDF-based project. It aims to be both easier to use and more powerful than RDF.**
+
+## Graphs are the language of spacetime process
+
+Graphs are popular once again, but the technologies for dealing with them are clunky and designed by
+technologists rather than scientists. This project makes working with graphs simple. 
+
+<div>
+<a href="https://www.amazon.com/dp/1797773704/ref=sr_1_fkmrnull_1?keywords=smart+space+time+burgess&qid=1551778123&s=gateway&sr=8-1-fkmrnull"><img width="180" align="right" src="https://github.com/markburgess/SSTorytime/blob/main/docs/figs/SmartSpaceTime.jpg"></a>
+
+Graphs may be used:
+
+<ul>
+<li> As visualization of processes.
+<li> As a map of space and time.
+<li> As a map of a process, like Gant charts and path integrals.
+<li> As computational device (a multi-matrix algebra representation). 
+<li> - e.g. social networks with centralities and flow patterns, link weight as contact frequencies...
+<li> As a distributed index over semantic relationships.
+<li> And more ...
+</ul>
+</div>
+If you want to know the deep background behind the Semantic Spacetime concept and its approach, you can read the
+book shown to the right. 
+**N.B. This book is conceptual background, not a tutorial or HOW-TO manual.**
+
+## Deep Dive into this Semantic Spacetime Project (SST)
 
  Keywords, tags: Open Source Smart Graph Database API for Postgres, Go(lang) API, Explainability of Knowledge Representation
 
-* This is a work in progress during 2025, as part of an [NLnet project](https://nlnet.nl/project/SmartSemanticDataLookup/). It's currently in an R&D phase, so comments are welcome but there is much to be done. This is not an RDF project. <br><br> [HOW **YOU** CAN CONTRIBUTE!](docs/howtocontribute.md)
 
-* See these Medium articles for a conceptual introduction
+* See these Medium articles for a conceptual introduction:
+* * [Getting To Know Knowledge--How Can Semantic Graphs Actually Help Us?](https://medium.com/@mark-burgess-oslo-mb/getting-to-know-knowledge-how-can-semantic-graphs-actually-help-us-e3afb53fc6af)
+* * [What is semantic search?](https://medium.com/@mark-burgess-oslo-mb/what-is-semantic-search-4ed4d306ab07)
+
 * * [Why Semantic Spacetime (SST) is the answer to rescue property graphs](https://medium.com/@mark-burgess-oslo-mb/why-semantic-spacetime-sst-is-the-answer-to-rescue-property-graphs-2c004fe705b2)
 * * [From cognition to understanding](https://medium.com/@mark-burgess-oslo-mb/from-cognition-to-understanding-677e3b7485de): 
 * * [Searching in Graphs, Artificial Reasoning, and Quantum Loop Corrections with Semantics Spacetime](https://medium.com/@mark-burgess-oslo-mb/searching-in-graphs-artificial-reasoning-and-quantum-loop-corrections-with-semantics-spacetime-ea8df54ba1c5)
@@ -20,6 +65,13 @@
 * * [The Shape of Knowledge part 2](https://medium.com/@mark-burgess-oslo-mb/semantic-spacetime-2-why-you-still-cant-find-what-you-re-looking-for-922d113177e7)
 * * [Why are we so bad at knowledge graphs?](https://medium.com/@mark-burgess-oslo-mb/why-are-we-so-bad-at-knowledge-graphs-55be5aba6df5)
 * * [The Role of Intent and Context Knowledge Graphs With Cognitive Agents](https://medium.com/@mark-burgess-oslo-mb/the-role-of-intent-and-context-knowledge-graphs-with-cognitive-agents-fb45d8dfb34d)
+* * [Designing Nodes and Arrows in Knowledge Graphs with Semantic Spacetime](https://medium.com/@mark-burgess-oslo-mb/designing-nodes-and-arrows-in-knowledge-graphs-with-semantic-spacetime-0992b9cae595)
+* * [Avoiding the Ontology Trap: How biotech shows us how to link knowledge spaces](https://medium.com/@mark-burgess-oslo-mb/avoiding-the-ontology-trap-how-biotech-shows-us-how-to-link-knowledge-spaces-654bcbb9122a)
+* * [Using Knowledge Maps for Learning Comprehension](https://mark-burgess-oslo-mb.medium.com/using-knowledge-maps-for-learning-comprehension-15e162a251cd)
+* * [Unifying Data Structures and Knowledge Graphs](https://medium.com/@mark-burgess-oslo-mb/unifying-data-structures-and-knowledge-graphs-5c9fa32e74ea)
+* * [Using Knowledge Graphs For Inferential Reasoning](https://medium.com/@mark-burgess-oslo-mb/using-knowledge-graphs-for-inferential-reasoning-8a06e583b4d4)
+* * [Building A Knowledge Graph of a Music Collection: A case study in building Knowledge Graphs from Data Structures](https://medium.com/@mark-burgess-oslo-mb/building-a-knowledge-graph-of-a-music-collection-81c9a9ea1b8b)
+* * [Using N4L notes and SST Knowledge Graphs For Foreign Language Learning](https://medium.com/@mark-burgess-oslo-mb/using-n4l-notes-and-sst-knowledge-graphs-for-foreign-language-learning-ac4c0731320d)
 
 This project aims to turn intentionally created data (like written
 notes or snippets cut and pasted into a file) into linked and
@@ -30,13 +82,20 @@ you curate.
 ## For instance...
 
 You might want to look up something ad hoc:
+
 ![Alpha interface](https://github.com/markburgess/SSTorytime/blob/main/docs/figs/front.png 'Testing a web interface')
 
 You might want to be prompted for reminders:
+
 ![Alpha interface](https://github.com/markburgess/SSTorytime/blob/main/docs/figs/reminder.png 'Testing a web interface')
 
 You might be surveying the breadth of your knowledge:
+
 ![Alpha interface](https://github.com/markburgess/SSTorytime/blob/main/docs/figs/TOC.png 'Testing a web interface')
+
+Or just curious about something:
+
+![Alpha interface](https://github.com/markburgess/SSTorytime/blob/main/docs/figs/sailing.png 'Testing a web interface')
 
 ## The concept
 
@@ -97,6 +156,7 @@ job summary by an LLM text tool in which you get an answer `take it or leave it'
 * [An example / case study](docs/example.md)
 * [Basics of Knowledge Engineering](docs/KnowledgeAndLearning.md)
 * [How does context work?](docs/howdoescontextwork.md)
+* [Dynamic Node Content with in-built functions](docs/dynamic_functions.md)
 * [N4L - Notes For Learning/Loading](docs/N4L.md)
 * [searchN4L - preliminary search/testing tool](docs/searchN4L.md)
 * [pathsolve - preliminary path solving tool](docs/pathsolve.md)
@@ -142,12 +202,7 @@ This is why we strive to study the role of stories in learning and understanding
 
 The tool-set consistent of several components, starting with:
 
-* [N4L](docs/N4L.md) - a standalone Unicode text based note taking language for jotting down notes in a way
-        that can be parsed and loaded into a semantic database. 
-        N = note, 4 = 4 semantic type, L = language
-        N4L = notes for loading
-
-* [N4L-db](docs/N4L.md) - a version of N4L that depends on the Golang package SSToryline in /pkg and uploads to a postgres database. This version is a compatible superset of N4L which prepares a database for searchN4L.
+* [N4L](docs/N4L.md) - The N4L compiler (This is now merged with N4L-db)
 
 * [searchN4L](docs/searchN4L.md) - a simple and experimental command line tool for testing the graph database
 
@@ -161,12 +216,19 @@ The tool-set consistent of several components, starting with:
 
 * [graph_report](docs/graph_report.md) - a simple and experimental command line tool for reporting on graph data, detecting loops, sources, sinks, etc, symmetrizing on different links and finding eigenvector centrality.
 
-* [http_server](docs/Tutorial.md) - a prototype webserver providing the SSTorytime browsing service
+* [http_server](docs/http_server.md) - a prototype webserver providing the SSTorytime browsing service
 
 * [API_EXAMPLE_1](src/API_EXAMPLE_1.go) - a simple store and retrieve example of the graph database.
 
 * [API_EXAMPLE_2](src/API_EXAMPLE_2.go) - multi/hyperlink example, joining several nodes through a central hub.
 
 * [API_EXAMPLE_3](src/API_EXAMPLE_3.go) - a maze solving example, showing higher functions.
+
+* [API_EXAMPLE_4](src/API_EXAMPLE_4.go) - a path solving example, with loop corrections (quantum style).
+
+* [python_integration_example.py](src/python_integration_example.py) - a basic Python example
+
+* [SSTorytime.py](src/SSTorytime.py) - Includable Python interface for SSTorytime, basic functions (TBD)
+
 
 

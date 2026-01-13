@@ -60,49 +60,6 @@ for f in warn_*.in; do
    fi
 done
 
-echo ""
-echo "Testing librarified/database version"
-echo ""
-
-PASS_PROG="../src/N4L-db -adj=all"
-FAIL_PROG="../src/N4L-db"
-WARN_PROG="../src/N4L-db"
-
-for f in pass_*.in; do
-   echo -n testing $f
-   rm -f test_outputs/N4L*.log
-   if $PASS_PROG $f > /dev/null; then 
-       echo -e "${GREEN} ok ${END}"
-   else 
-       echo -e "${RED} NOT ok ${END}"
-   fi
-done
-
-
-for f in fail_*.in; do
-   rm -f test_outputs/N4L*.log
-   echo -n testing $f
-
-   if $FAIL_PROG $f > /dev/null; 
-       then 
-       echo -e "${RED} NOT ok ${END}"
-   else 
-       echo -e "${GREEN} ok ${END}"
-   fi
-done
-
-
-for f in warn_*.in; do
-   rm -f test_outputs/N4L*.log
-   echo -n testing $f
-
-   if [[ $($WARN_PROG $f) ]];
-   then
-      echo -e "${GREEN} ok ${END}"
-   else
-      echo -e "warning ${RED} NOT ok ${END} -- ${run}"
-   fi
-done
 
 #########################################################
 # Now look at database behaviour
@@ -137,7 +94,7 @@ if $DB_TEST_PROG > /dev/null;
    then 
       echo -e "3. ${GREEN} database API ok ${END}"
    else 
-      echo -e "3. ${RED} DATABASE NOT CONFIGURED ${END}"
+      echo -e "3. ${RED} DATABASE NOT CONFIGURED -- add data (cd examples; make) first ${END}"
 
 fi
 
@@ -148,7 +105,7 @@ if $DB_TEST_PROG > /dev/null;
    then 
       echo -e "4. ${GREEN} link mode consistency ok ${END}"
    else 
-      echo -e "4. ${RED} link model consistency, try rebuilding (also (cd examples; make) first)${END}"
+      echo -e "4. ${RED} link model consistency, try rebuilding and add data (cd examples; make) first)${END}"
 fi
 
 DB_TEST_PROG="../src/demo_pocs/dotest_entirecone"
@@ -158,4 +115,13 @@ if $DB_TEST_PROG > /dev/null;
       echo -e "5. ${GREEN} link causal cone consistency ${END}"
    else 
       echo -e "5. ${RED} causal cone consistency, try rebuilding ${END}"
+fi
+
+DB_TEST_PROG="../src/demo_pocs/definecontext"
+
+if $DB_TEST_PROG > /dev/null; 
+   then 
+      echo -e "5. ${GREEN} Context cache synchronisation ${END}"
+   else 
+      echo -e "5. ${RED} Context cache failure ${END}"
 fi

@@ -10,8 +10,8 @@ Note: modern SSDs don't like being written to too many times. When using them fo
 
 ## Preferred method
 
-The best and most reliable way to update your notes is to use `N4L-db -wipe -u *.n4l` to upload all
-your notes at the same time. `N4L-db` takes care of all the work and  makes sure everything is consistent.
+The best and most reliable way to update your notes is to use `N4L -wipe -u *.n4l` to upload all
+your notes at the same time. `N4L` takes care of all the work and  makes sure everything is consistent.
 However, this takes a long time. There is no easy way around this, because graphs are complicated things
 with overlapping threads that need to be made consistent. Trying to remove data and then add it back placcces a
 lot of cognitive burden on you the user, so you should try to avoid it. To manage knowledge, you need
@@ -32,7 +32,7 @@ example [reminders.n4l](https://github.com/markburgess/SSTorytime/blob/main/exam
 If you want to update reminders regularly, then place them as the last file of notes in your list:
 <pre>
 
-$ N4L-db -wipe -u file1.n4l ....... reminders.n4l
+$ N4L -wipe -u file1.n4l ....... reminders.n4l
 
 </pre>
 Then you can remove the reminders:
@@ -41,7 +41,7 @@ $ removeN4L reminders.n4l
 </pre>
 and add them back again without fragmentation:
 <pre>
-$ N4L-db -u reminders.n4l
+$ N4L -u reminders.n4l
 </pre>
 Reminders might still overlap with more permanent items from other chapters, but this will minimize the
 disruption.

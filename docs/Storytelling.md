@@ -286,7 +286,7 @@ The picture looks like this:
 
 ![A Flow Chart is a knowledge representation](https://github.com/markburgess/SSTorytime/blob/main/docs/figs/flow.png 'Flow Charts Are Knowledge Graphs')
 
-In this case, we defined the arrows in the `N4Lconfig.in` file.
+In this case, we defined the arrows in the `SSTconfig/*` files.
 
 <pre>
 - leadsto

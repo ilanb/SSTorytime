@@ -1,0 +1,65 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Environment
+.env
+.env.local
+.env.*.local
+*.env
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+data/*.json
+
+# Logs
+logs/
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+
+# Node (if any)
+node_modules/
+npm-debug.log
+
+# Build
+dist/
+build/
+*.egg-info/
+
+# Temp files
+tmp/
+temp/
+*.tmp
+*.bak
+
+# Uploads
+uploads/
+static/uploads/
+
+# API keys and secrets
+config.py
+secrets.py
+*.pem
+*.key

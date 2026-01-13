@@ -208,7 +208,8 @@ $ ../src/N4L -v -s -adj="" chinese.in
 
 The N4L language has only a small number of features. It's power hopefully lies in its simplicity.
 It consists of text, small or larger (but pragmatically not huge), and relationships between them
-(in parentheses). The vocabulary of parenthetic relations is defined separately in a configuration file called `N4Lconfig.in` 
+(in parentheses). The vocabulary of parenthetic relations is defined separately in a set of
+files in the configuration directory called `SSTconfig/` 
 (see below).
 
 <pre>
@@ -514,7 +515,28 @@ So the contexts are terms that provide the sensory data, not the selection crite
 be the `policy engine', deciding what is relevant. So, you will never need to type logical expressions in
 your notes, except for highly skilled and specialized notes that we'll come back to later.*
 
-## The `N4Lconfig.in` file
+## The `SSTconfig` directory
+
+**NB: this configuration layout has changed **
+
+Arrows for use in notes are defined in a number of files under the `SSTconfig/` directory.
+The N4L compilers will look for such a directory under `./` and `../` etc, or you can set an environment
+variable
+<pre>
+setenv SST_CONFIG_PATH mypath
+export SST_CONFIG_PATH = my_path
+</pre>
+There is now a separate file for each of the arrow STtypes:
+<pre>
+arrows-LT-1.sst
+arrows-NR-0.sst
+arrows-CN-2.sst
+arrows-EP-3.sst
+annotations.sst
+</pre>
+so that everyone can share a set of standard definitions. Since it can be difficult to figure
+out how to register arrows, it seems a more sustainable way of proceeding than expecting everyone
+to define their own arrows.
 
 The structure of this file is similar to the basic language, but the sections
 are used to define the four types of arrows and their meanings.

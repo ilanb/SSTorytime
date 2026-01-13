@@ -20,10 +20,33 @@ sensory input. There was that one time at band camp....
 
 ## The technical challenge of context
 
+Adding context through N4L is straightforwardish, and we can let the compiler ensure consistency.
+Adding Nodes ad hoc with `Vertex() / Edge()` etc is risky and context will cease to work in detail.
+We can simplify this too by factoring away context, forcing API users to select an already an defined
+context.
+
 The technical challenge of context is that the amount of context in a sensory stream is usually
 much greater than the part you actually want to remember, so knowledge data may quickly become
 dominated by context. We don't want to store intentionally selected items together with ambient
 keys and other "noise", so we need to be careful about how to structure a graph.
+
+The choice to limit context to links rather than nodes causes problems for NodeArrowNode caching.
+Bare nodes without links can be represented with context 'any' by always registering an 'empty' link
+(which has no inverse). This ensures that even linkless nodes will appear in the NodeArrowNode cache.
+
+Computing the NodeArrowNode cache naively by going through the nodes leads to a huge scaling and fragmentation
+problem, which has led to two revisions of the algorithm. 
+Taking nodes one by one and intervleaving entries for Node and NodeArrowNode leads to back and forth fragmentation and
+memory inefficiency. A 10x increase in performance is achieved just by doing all Nodes first and then NodeArrowNode.
+Adding all the NodeArrowNodes in one go is easy because 
+there is no need to check for idempotent entry. However, allowing appending chapters later does require to ensure
+idempotence, so this remains an issue. The solution is to regenerate the entire list as a single large transaction
+after all nodes are added. This also solves the fragmentation issue.
+
+Originally context was stored as an array of strings for each node, but this eventually scales poorly--eating
+up memory and taking time during idempotence updates. 
+
+## Role
 
 Context plays two roles. We know from Promise Thory that each fragment of
 potential "donor" knowledge promises certain information (+), but that a receiver may promise

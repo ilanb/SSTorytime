@@ -3,29 +3,29 @@
 
  :: physics, connectivity, path example ::
 
-start  (lt) door
-    "  (lt) port
-    "  (lt) hole
-    "  (lt) gate
+start  (fwd) door
+    "  (fwd) port
+    "  (fwd) hole
+    "  (fwd) gate
 
-door (lt) passage
-  "  (lt) road
-  "  (lt) river
+door (fwd) passage
+  "  (fwd) road
+  "  (fwd) river
 
-port (lt) river
-  "  (lt) tram
+port (fwd) river
+  "  (fwd) tram
 
-hole (lt) tram
+hole (fwd) tram
 
-gate (lt) tram
-  "  (lt) bike
+gate (fwd) tram
+  "  (fwd) bike
 
-passage (lt) target 1
-road    (lt) target 2
+passage (fwd) target 1
+road    (fwd) target 2
 
-river  (lt) target 3
-tram   (lt)  "
-bike   (lt)   "
+river  (fwd) target 3
+tram   (fwd)  "
+bike   (fwd)   "
 
 
 

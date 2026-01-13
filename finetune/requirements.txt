@@ -1,0 +1,45 @@
+# Fine-tuning N4L Generator - Dependencies
+# Python 3.10+ required
+
+# Core ML
+torch>=2.1.0
+transformers>=4.40.0
+datasets>=2.18.0
+accelerate>=0.28.0
+
+# Efficient fine-tuning
+peft>=0.10.0
+bitsandbytes>=0.43.0
+trl>=0.8.0
+
+# Data processing
+pandas>=2.0.0
+numpy>=1.24.0
+pyyaml>=6.0
+
+# Evaluation
+rouge-score>=0.1.2
+sacrebleu>=2.4.0
+nltk>=3.8.0
+
+# Model conversion
+llama-cpp-python>=0.2.50
+
+# Utilities
+tqdm>=4.66.0
+rich>=13.0.0
+typer>=0.9.0
+
+# Logging & tracking (optional)
+wandb>=0.16.0
+tensorboard>=2.15.0
+
+# API for data generation (optional)
+anthropic>=0.18.0
+openai>=1.12.0
+httpx>=0.27.0
+
+# Development
+pytest>=8.0.0
+black>=24.0.0
+ruff>=0.3.0

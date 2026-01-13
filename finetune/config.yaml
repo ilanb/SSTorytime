@@ -1,0 +1,154 @@
+# Configuration for N4L Fine-tuning
+# =================================
+
+# Model Configuration
+model:
+  name: "Qwen/Qwen2.5-7B-Instruct"
+  # Alternative: "Qwen/Qwen2.5-14B-Instruct" for better quality
+  max_seq_length: 4096
+  use_flash_attention: true
+  trust_remote_code: true
+
+# Quantization (QLoRA)
+quantization:
+  load_in_4bit: true
+  bnb_4bit_compute_dtype: "bfloat16"
+  bnb_4bit_quant_type: "nf4"
+  bnb_4bit_use_double_quant: true
+
+# LoRA Configuration
+lora:
+  r: 64                    # Rank
+  lora_alpha: 128          # Scaling factor
+  lora_dropout: 0.05
+  bias: "none"
+  target_modules:
+    - "q_proj"
+    - "k_proj"
+    - "v_proj"
+    - "o_proj"
+    - "gate_proj"
+    - "up_proj"
+    - "down_proj"
+  task_type: "CAUSAL_LM"
+
+# Training Configuration
+training:
+  output_dir: "./models/n4l-qwen-lora"
+  num_train_epochs: 3
+  per_device_train_batch_size: 2
+  per_device_eval_batch_size: 2
+  gradient_accumulation_steps: 8
+  learning_rate: 2.0e-4
+  weight_decay: 0.01
+  warmup_ratio: 0.1
+  lr_scheduler_type: "cosine"
+  logging_steps: 10
+  save_steps: 100
+  eval_strategy: "steps"
+  eval_steps: 100
+  save_total_limit: 3
+  load_best_model_at_end: true
+  metric_for_best_model: "eval_loss"
+  greater_is_better: false
+  fp16: false
+  bf16: true
+  optim: "paged_adamw_8bit"
+  gradient_checkpointing: true
+  report_to: "wandb"  # or "tensorboard" or "none"
+
+# Data Configuration
+data:
+  n4l_examples_dir: "../examples"
+  output_dir: "./data/processed"
+  train_file: "./data/splits/train.jsonl"
+  val_file: "./data/splits/val.jsonl"
+  test_file: "./data/splits/test.jsonl"
+  train_ratio: 0.8
+  val_ratio: 0.1
+  test_ratio: 0.1
+  max_samples: null  # null = use all
+  seed: 42
+
+# Data Generation
+generation:
+  # Templates to generate synthetic examples
+  num_template_variations: 50
+  domains:
+    - "investigation"
+    - "biography"
+    - "project"
+    - "documentation"
+    - "recipe"
+  # Use LLM for generating narrative text from N4L
+  use_llm_generation: true
+  llm_provider: "ollama"  # or "anthropic", "openai"
+  llm_model: "gpt-oss:20b"  # Local Ollama model
+  # llm_model: "claude-3-5-sonnet-20241022"  # If using Anthropic
+
+# Prompt Templates
+prompts:
+  system: |
+    Tu es un expert en structuration de connaissances au format N4L (Notes for Learning).
+    Tu convertis des textes narratifs en notes structurées N4L.
+
+    Le format N4L utilise:
+    - Titres de section: -nom ou ---
+    - Contextes: :: mot1, mot2 ::
+    - Relations: Sujet (relation) Objet
+    - Ditto: " pour répéter le sujet précédent
+    - Timeline: +:: _timeline_ :: ... -:: _timeline_ ::
+    - Références: @alias et $alias.1
+    - Commentaires: # ou //
+    - Groupes: => { A; B; C }
+
+    Produis un N4L bien structuré, complet et cohérent.
+
+  instruction_variants:
+    - "Convertis ce texte en format N4L structuré."
+    - "Transforme ce récit en notes N4L pour une base de connaissances."
+    - "Analyse ce texte et produis une représentation N4L."
+    - "Structure les informations de ce texte au format N4L."
+    - "Génère un fichier N4L à partir de ce contenu narratif."
+    - "Extrait les entités et relations de ce texte en N4L."
+
+# Evaluation Configuration
+evaluation:
+  metrics:
+    - "n4l_validity"      # Syntaxe N4L correcte
+    - "coverage"          # % informations capturées
+    - "richness"          # Nombre de relations
+    - "bleu"              # Similarité avec référence
+    - "rouge"             # Recall des n-grams
+
+  thresholds:
+    n4l_validity: 0.95
+    coverage: 0.85
+    richness: 20  # relations par document
+    bleu: 0.4
+    rouge_l: 0.5
+
+# Ollama Deployment
+deployment:
+  gguf_output: "./models/n4l-generator.gguf"
+  quantization: "Q4_K_M"  # Options: Q4_0, Q4_K_M, Q5_K_M, Q8_0
+  ollama_model_name: "n4l-generator"
+
+  modelfile_template: |
+    FROM {gguf_path}
+
+    PARAMETER temperature 0.3
+    PARAMETER top_p 0.9
+    PARAMETER num_ctx 8192
+    PARAMETER repeat_penalty 1.1
+
+    SYSTEM """Tu es un expert en structuration de connaissances au format N4L.
+    Tu convertis des textes narratifs en notes structurées N4L.
+    Produis toujours un N4L valide, bien formaté et complet."""
+
+# Logging
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  wandb_project: "n4l-finetuning"
+  wandb_entity: null  # Your W&B username/team

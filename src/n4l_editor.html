@@ -1,0 +1,2928 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full bg-gray-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Éditeur N4L Web</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/theme/material-darker.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/markdown/markdown.min.js"></script>
+    <style>
+        .concept-item.selected-source, .subject-item.selected-source { background-color: #60a5fa; color: white; }
+        .concept-item.selected-dest, .subject-item.selected-dest { background-color: #f87171; color: white; }
+        .concept-item.selected-child, .subject-item.selected-child { background-color: #a78bfa; color: white; }
+        .fade-in { animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .tooltip-container { position: relative; display: inline-flex; align-items: center; }
+        .tooltip-icon { cursor: pointer; margin-left: 4px; font-size: 12px; width: 16px; height: 16px; border-radius: 50%; background-color: #9ca3af; color: white; text-align: center; line-height: 16px; }
+        .tooltip-text {
+            visibility: hidden;
+            width: 220px;
+            background-color: #1f2937;
+            color: #fff;
+            text-align: left;
+            border-radius: 6px;
+            padding: 8px;
+            position: absolute;
+            z-index: 50; /* Augmentation pour être sûr qu'elle soit au-dessus des autres éléments */
+            top: 150%;   /* MODIFIÉ: Positionne l'infobulle sous l'icône */
+            left: 50%;
+            margin-left: -110px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 12px;
+        }
+        
+        /* Modification de la petite flèche pour qu'elle pointe vers le haut */
+        .tooltip-text::after {
+            content: "";
+            position: absolute;
+            bottom: 100%; /* MODIFIÉ: Positionne la flèche en haut de l'infobulle */
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: transparent transparent #1f2937 transparent; /* MODIFIÉ: La flèche pointe vers le haut */
+        }
+        .tooltip-container:hover .tooltip-text { visibility: visible; opacity: 1; }
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.5); display: flex; align-items: center; justify-content: center; z-index: 50; }
+        .modal-content { background: white; padding: 24px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); width: 90%; max-width: 600px; }
+        .spinner { border: 2px solid #f3f3f3; border-top: 2px solid #3498db; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: inline-block; margin-right: 8px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #graph-container, #timeline-container { width: 100%; height: 100%; border: 1px solid #e5e7eb; background-color: #f9fafb; }
+        .timeline-item { position: relative; padding-left: 2rem; border-left: 2px solid #ddd; }
+        .timeline-item:last-child { border-left: 2px solid transparent; }
+        .timeline-item::before { content: ''; width: 1rem; height: 1rem; background: white; border: 2px solid #4f46e5; border-radius: 50%; position: absolute; left: -0.5rem; top: 0.25rem; }
+        .path-item { display: flex; align-items: center; justify-content: space-between; }
+        .path-item .analyze-btn { opacity: 0; transition: opacity 0.2s; }
+        .path-item:hover .analyze-btn { opacity: 1; }
+        .bg-orange-100 { background-color: #fed7aa; }
+        .bg-orange-500 { background-color: #f97316; }
+        .bg-orange-600 { background-color: #ea580c; }
+        .hover\:bg-orange-100:hover { background-color: #fed7aa; }
+        .hover\:bg-orange-600:hover { background-color: #ea580c; }
+        .text-orange-600 { color: #ea580c; }
+        .border-orange-400 { border-color: #fb923c; }
+        .bg-red-50 { background-color: #fef2f2; }
+        .bg-yellow-50 { background-color: #fefce8; }
+        .bg-blue-50 { background-color: #eff6ff; }
+        .border-red-400 { border-color: #f87171; }
+        .border-yellow-400 { border-color: #facc15; }
+        .border-blue-400 { border-color: #60a5fa; }
+        .text-red-600 { color: #dc2626; }
+        .text-yellow-600 { color: #ca8a04; }
+        .text-blue-600 { color: #2563eb; }
+        .bg-red-500 { background-color: #ef4444; }
+        .bg-yellow-500 { background-color: #eab308; }
+        .bg-blue-500 { background-color: #3b82f6; }
+        .hover\:bg-red-600:hover { background-color: #dc2626; }
+        .hover\:bg-yellow-600:hover { background-color: #ca8a04; }
+        .hover\:bg-blue-600:hover { background-color: #2563eb; }
+        .bg-indigo-600 { background-color: #4f46e5; }
+        .bg-indigo-700 { background-color: #4338ca; }
+        .hover\:bg-indigo-700:hover { background-color: #4338ca; }
+        .text-indigo-600 { color: #4f46e5; }
+        .border-indigo-500 { border-color: #6366f1; }
+        .bg-indigo-100 { background-color: #e0e7ff; }
+        .bg-indigo-200 { background-color: #c7d2fe; }
+        .hover\:bg-indigo-200:hover { background-color: #c7d2fe; }
+        .text-indigo-800 { color: #3730a3; }
+        .bg-green-50 { background-color: #f0fdf4; }
+        .text-green-800 { color: #166534; }
+        .bg-green-600 { background-color: #16a34a; }
+        .triangle {
+            width: 0;
+            height: 0;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-bottom: 14px solid currentColor;
+            display: inline-block;
+        }
+        .ring-2 {
+            box-shadow: 0 0 0 2px currentColor;
+        }
+        .ring-offset-2 {
+            box-shadow: 0 0 0 2px white, 0 0 0 4px currentColor;
+        }
+        .ring-blue-500 {
+            --tw-ring-color: #3b82f6;
+        }
+        .bg-teal-500 { background-color: #14b8a6; }
+        .bg-pink-500 { background-color: #ec4899; }
+        .bg-amber-500 { background-color: #f59e0b; }
+        .bg-emerald-500 { background-color: #10b981; }
+        .hover\:bg-emerald-600:hover { background-color: #059669; }
+        .text-green-600 { color: #059669; }
+        .bg-green-500 { background-color: #22c55e; }
+        .hover\:bg-green-600:hover { background-color: #16a34a; }
+        /* Style pour l'éditeur CodeMirror pour qu'il remplisse l'espace */
+        .CodeMirror {
+            height: 100%;
+            font-family: 'Fira Code', 'Courier New', monospace;
+            font-size: 14px;
+        }
+        .drop-target {
+            background-color: #e0e7ff !important;
+            border: 2px dashed #4f46e5;
+        }
+        #node-context-menu a {
+            display: block;
+            padding: 8px 16px;
+            color: #374151;
+            cursor: pointer;
+        }
+        #node-context-menu a:hover {
+            background-color: #f3f4f6;
+        }
+    </style>
+</head>
+<body class="h-full font-sans text-gray-800">
+    <div id="app" class="flex flex-col h-full">
+        <header class="bg-white shadow-sm">
+             <div class="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8">
+                <h1 class="text-2xl font-bold text-gray-900">Éditeur de Connaissances N4L</h1>
+                <p class="text-sm text-gray-500">Cultivez vos notes en créant des liens sémantiques.</p>
+            </div>
+        </header>
+
+        <div id="upload-view" class="flex-grow flex items-center justify-center fade-in">
+             <div class="max-w-lg w-full p-8 space-y-6 bg-white rounded-xl shadow-md">
+                <div class="text-center">
+                    <h2 class="text-xl font-semibold">Commencer un projet</h2>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="text-center p-4 border rounded-lg">
+                        <h3 class="font-semibold mb-2">Partir d'un texte brut</h3>
+                        <p class="text-sm text-gray-600 mb-4">Importez un fichier .txt pour extraire les phrases initiales.</p>
+                        <button id="import-txt-btn" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-md">
+                            Importer un .txt
+                        </button>
+                        <input id="file-upload-txt" type="file" class="hidden" accept=".txt">
+                    </div>
+                     <div class="text-center p-4 border rounded-lg">
+                        <h3 class="font-semibold mb-2">Reprendre un travail</h3>
+                        <p class="text-sm text-gray-600 mb-4">Chargez un fichier .n4l pour continuer à l'éditer et le visualiser.</p>
+                        <button id="import-n4l-btn" class="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-md">
+                            Importer un .n4l
+                        </button>
+                        <input id="file-upload-n4l" type="file" class="hidden" accept=".n4l">
+                    </div>
+                </div>
+                <p id="file-name" class="text-center text-sm text-gray-500">Aucun fichier sélectionné</p>
+            </div>
+        </div>
+
+        <main id="editor-view" class="hidden flex-grow p-4 md:p-8 overflow-hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
+                <div class="flex flex-col bg-white rounded-xl shadow-md p-4 h-full overflow-hidden">
+                    <div class="grid grid-cols-2 gap-4 flex-grow h-0 overflow-hidden">
+                        <div class="flex flex-col">
+                            <h2 class="text-lg font-semibold mb-2">1. Concepts (Phrases)</h2>
+                            <div id="concepts-list" class="flex-grow h-0 overflow-y-auto border rounded-md p-2 space-y-2"></div>
+                        </div>
+                        <div class="flex flex-col">
+                            <div class="flex items-center mb-2">
+                            <h2 class="text-lg font-semibold">2. Sujets Extraits</h2>
+                            
+                            <div class="tooltip-container ml-2">
+                                <span class="tooltip-icon">?</span>
+                                <span class="tooltip-text"><b>Glisser-déposer :</b> Faites glisser n'importe quel élément de cette liste (ou de la liste des concepts) et déposez-le sur un autre pour créer une relation rapidement.</span>
+                            </div>
+                            
+                            <button id="ai-extract-btn" class="ml-auto bg-green-500 hover:bg-green-600 text-white p-2 rounded-md text-xs flex items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                                Auto-Extract (IA)
+                            </button>
+                        </div>
+                            <div id="subjects-list" class="flex-grow h-0 overflow-y-auto border rounded-md p-2 space-y-2 bg-gray-50"></div>
+                        </div>
+                    </div>
+                    <div class="mt-4 pt-4 border-t">
+                        <div id="help-panel" class="bg-gray-100 p-3 rounded-md mb-4 text-center text-sm text-gray-700 min-h-[50px] flex items-center justify-center"></div>
+                        <h3 class="font-semibold mb-2">3. Actions</h3>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                             <div class="tooltip-container">
+                                <button id="action-extract" class="w-full bg-teal-500 hover:bg-teal-600 text-white p-2 rounded-md text-sm">Extraire Sujet</button>
+                                <span class="tooltip-icon">?</span><span class="tooltip-text"><b>Extraire un Sujet :</b> Permet de sélectionner manuellement un mot ou un nom à l'intérieur d'une phrase.</span>
+                            </div>
+                           <div class="tooltip-container">
+                                <button id="action-group" class="w-full bg-purple-500 hover:bg-purple-600 text-white p-2 rounded-md text-sm">Groupe</button>
+                                <span class="tooltip-icon">?</span><span class="tooltip-text"><b>Groupe (=>) :</b> Rassemble plusieurs concepts/sujets sous une idée principale.<br><i>Ex: Indices => { Tasse; Livre }.</i></span>
+                            </div>
+                             <div class="tooltip-container">
+                                <button id="action-new" class="w-full bg-gray-500 hover:bg-gray-600 text-white p-2 rounded-md text-sm">Nouveau Sujet</button>
+                                <span class="tooltip-icon">?</span><span class="tooltip-text">Ajoute manuellement un nouveau sujet ou une nouvelle idée à votre liste de sujets.</span>
+                            </div>
+                            <div class="tooltip-container">
+                                <button id="action-temporal" class="w-full bg-orange-500 hover:bg-orange-600 text-white p-2 rounded-md text-sm">Patterns Temporels</button>
+                                <span class="tooltip-icon">?</span>
+                                <span class="tooltip-text"><b>Patterns Temporels :</b> Détecte automatiquement les marqueurs temporels et propose des relations chronologiques.</span>
+                            </div>
+                            <div class="tooltip-container col-span-2">
+                                <button id="action-investigation" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white p-2 rounded-md text-sm flex items-center justify-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                                        <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                                        <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 1 1 0 000 2H6a2 2 0 100 4h2a2 2 0 100-4h2a1 1 0 100-2 2 2 0 00-2 2v11a2 2 0 002 2h6a2 2 0 002-2V5a2 2 0 00-2-2H6z" clip-rule="evenodd" />
+                                    </svg>
+                                    Mode Enquête Guidée
+                                </button>
+                                <span class="tooltip-icon">?</span>
+                                <span class="tooltip-text"><b>Mode Enquête :</b> Un assistant interactif qui vous guide étape par étape pour structurer votre enquête.</span>
+                            </div>
+                            <div class="tooltip-container col-span-2">
+                                <button id="check-consistency-btn" class="w-full bg-purple-500 hover:bg-purple-600 text-white p-2 rounded-md text-sm flex items-center justify-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                    </svg>
+                                    Vérifier Cohérence
+                                </button>
+                                <span class="tooltip-icon">?</span>
+                                <span class="tooltip-text"><b>Vérifier Cohérence :</b> Analyse le graphe pour détecter les contradictions ou incohérences potentielles.</span>
+                            </div>
+                        </div>
+                         <div class="mt-4">
+                            <label for="context-input" class="block font-semibold mb-1">Contexte Actuel:</label>
+                            <input type="text" id="context-input" class="w-full p-2 border rounded-md" value="general">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex flex-col bg-white rounded-xl shadow-md p-4 h-full">
+                    <div class="mb-2">
+                        <h3 class="text-sm font-semibold text-gray-700 mb-1">Navigation par Contexte</h3>
+                        <div id="contexts-panel" class="flex flex-wrap gap-2">
+                            </div>
+                    </div>
+                    <div class="flex border-b mb-2">
+                        <button id="tab-n4l" class="py-2 px-4 font-semibold border-b-2 border-blue-500 text-blue-600">Fichier N4L</button>
+                        <button id="tab-graph" class="py-2 px-4 font-semibold text-gray-500">Graphe</button>
+                        <button id="tab-timeline" class="py-2 px-4 font-semibold text-gray-500">Chronologie</button>
+                        <button id="download-btn" class="ml-auto bg-green-500 hover:bg-green-600 text-white font-bold py-1 px-3 rounded-md text-sm self-center">Télécharger</button>
+                    </div>
+                    <div id="n4l-view" class="flex-grow h-0">
+                         <textarea id="n4l-editor"></textarea>
+                    </div>
+                    <div id="graph-view" class="flex-grow h-0 hidden flex flex-col relative">
+                        <div id="graph-container" class="flex-grow"></div>
+                        <div id="layer-legend" class="hidden absolute bottom-2 left-2 bg-white p-2 rounded shadow-lg text-xs">
+                            <h4 class="font-bold mb-2">Légende des Couches</h4>
+                            <div class="space-y-1">
+                                <div class="flex items-center">
+                                    <span class="w-4 h-4 bg-blue-500 rounded-full mr-2"></span>
+                                    <span>Acteurs</span>
+                                </div>
+                                <div class="flex items-center">
+                                    <span class="w-4 h-4 bg-green-500 rounded mr-2"></span>
+                                    <span>Lieux</span>
+                                </div>
+                                <div class="flex items-center">
+                                    <span class="w-4 h-4 bg-yellow-500 transform rotate-45 mr-2"></span>
+                                    <span>Événements</span>
+                                </div>
+                                <div class="flex items-center">
+                                    <span class="w-4 h-4 bg-red-500 triangle mr-2"></span>
+                                    <span>Preuves</span>
+                                </div>
+                                <div class="flex items-center">
+                                    <span class="w-4 h-4 bg-purple-500 rounded-sm mr-2"></span>
+                                    <span>Concepts</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                        <div id="graph-controls" class="pt-2 border-t mt-2 text-sm space-y-2">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            <div>
+                                <label class="font-semibold">Analyse du Graphe</label>
+                                <div class="flex items-center space-x-2 text-xs flex-wrap gap-y-2 mt-1">
+                                    <div class="tooltip-container">
+                                        <button id="analyze-hubs" class="bg-yellow-500 text-white px-2 py-1 rounded-md">Hubs</button>
+                                        <span class="tooltip-icon">?</span>
+                                        <span class="tooltip-text"><b>Hubs :</b> Met en évidence les nœuds centraux ayant le plus de connexions (plus de 2). Ces nœuds sont souvent des concepts clés ou des acteurs importants.</span>
+                                    </div>
+                                    
+                                    <div class="tooltip-container">
+                                        <button id="analyze-sources" class="bg-green-500 text-white px-2 py-1 rounded-md">Sources</button>
+                                        <span class="tooltip-icon">?</span>
+                                        <span class="tooltip-text"><b>Sources :</b> Identifie les nœuds d'origine qui n'ont que des flèches sortantes. Ce sont les points de départ des chaînes causales.</span>
+                                    </div>
+                                    
+                                    <div class="tooltip-container">
+                                        <button id="analyze-sinks" class="bg-red-500 text-white px-2 py-1 rounded-md">Sinks</button>
+                                        <span class="tooltip-icon">?</span>
+                                        <span class="tooltip-text"><b>Sinks (Puits) :</b> Montre les nœuds finaux qui n'ont que des flèches entrantes. Ce sont les conséquences ou résultats finaux.</span>
+                                    </div>
+                                    
+                                    <div class="tooltip-container">
+                                        <button id="analyze-reset" class="bg-gray-500 text-white px-2 py-1 rounded-md">Reset</button>
+                                        <span class="tooltip-icon">?</span>
+                                        <span class="tooltip-text"><b>Reset :</b> Réinitialise l'affichage du graphe en supprimant toutes les mises en évidence et filtres appliqués.</span>
+                                    </div>
+                                    
+                                    <div class="mt-2">
+                                        <label class="font-semibold text-xs">Visualisation</label>
+                                        <div class="flex items-center space-x-2 mt-1">
+                                            <div class="tooltip-container">
+                                                <button id="view-standard" class="bg-gray-500 text-white px-2 py-1 rounded-md text-xs">Standard</button>
+                                                <span class="tooltip-icon">?</span>
+                                                <span class="tooltip-text"><b>Vue Standard :</b> Affichage par défaut avec physique automatique. Les nœuds s'organisent naturellement selon leurs connexions.</span>
+                                            </div>
+                                            
+                                            <div class="tooltip-container">
+                                                <button id="view-layered" class="bg-teal-500 text-white px-2 py-1 rounded-md text-xs">Couches</button>
+                                                <span class="tooltip-icon">?</span>
+                                                <span class="tooltip-text"><b>Vue en Couches :</b> Organise les nœuds par type (acteurs, lieux, événements, preuves) sur différents niveaux horizontaux pour une meilleure lisibilité.</span>
+                                            </div>
+                                            
+                                            <div class="tooltip-container">
+                                                <button id="view-circular" class="bg-pink-500 text-white px-2 py-1 rounded-md text-xs">Circulaire</button>
+                                                <span class="tooltip-icon">?</span>
+                                                <span class="tooltip-text"><b>Vue Circulaire :</b> Dispose tous les nœuds en cercle. Utile pour visualiser les connexions globales et identifier les patterns.</span>
+                                            </div>
+                                            
+                                            <div class="tooltip-container">
+                                                <button id="view-hierarchical" class="bg-amber-500 text-white px-2 py-1 rounded-md text-xs">Hiérarchique</button>
+                                                <span class="tooltip-icon">?</span>
+                                                <span class="tooltip-text"><b>Vue Hiérarchique :</b> Organise le graphe en arbre vertical selon les relations de causalité. Idéal pour comprendre les chaînes d'événements.</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="tooltip-container">
+                                        <button id="ai-analyze-btn" class="bg-cyan-500 text-white px-2 py-1 rounded-md flex items-center">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                                            Synthèse IA
+                                        </button>
+                                        <span class="tooltip-icon">?</span>
+                                        <span class="tooltip-text"><b>Synthèse IA :</b> Utilise l'intelligence artificielle pour analyser le graphe et produire un résumé narratif des connexions, patterns et insights découverts.</span>
+                                    </div>
+                                    
+                                    <div class="tooltip-container">
+                                        <button id="generate-questions-btn" class="bg-emerald-500 text-white px-2 py-1 rounded-md text-xs flex items-center">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+                                            </svg>
+                                            Questions
+                                        </button>
+                                        <span class="tooltip-icon">?</span>
+                                        <span class="tooltip-text"><b>Questions d'Investigation :</b> Génère automatiquement des questions pertinentes basées sur les trous, incohérences ou connexions manquantes dans votre graphe.</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label class="font-semibold">Détecteur d'Histoires</label>
+                                <div class="flex items-center space-x-2 mt-1">
+                                    <div class="tooltip-container w-full">
+                                        <button id="discover-paths-btn" class="bg-indigo-500 text-white px-2 py-1 rounded-md text-xs w-full">Découvrir les histoires</button>
+                                        <span class="tooltip-icon">?</span>
+                                        <span class="tooltip-text"><b>Découvrir les histoires :</b> Trouve tous les chemins indirects entre les nœuds (plus de 2 sauts). Révèle des connexions cachées et des narratifs implicites dans vos données.</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center space-x-4 mt-2">
+                            <input type="text" id="search-node" placeholder="Rechercher un nœud..." class="p-1 border rounded-md text-xs w-40">
+                            <select id="context-filter" class="p-1 border rounded-md text-xs">
+                                <option value="">Filtrer par contexte...</option>
+                            </select>
+                        </div>
+                        
+                        <div id="paths-list-container" class="mt-2 text-xs h-24 overflow-y-auto">
+                            <!-- La liste des chemins découverts ira ici -->
+                        </div>
+                    </div>
+                    </div>
+                     <div id="timeline-view" class="flex-grow h-0 hidden flex flex-col p-4">
+                        <div id="timeline-container" class="overflow-y-auto space-y-4"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <div id="modal" class="modal-overlay hidden">
+             <div class="modal-content">
+                <h3 id="modal-title" class="text-lg font-bold mb-4">Titre</h3>
+                <div id="modal-text" class="mb-4 text-sm max-h-96 overflow-y-auto"></div>
+                <input type="text" id="modal-input" class="w-full p-2 border rounded-md mb-4" placeholder="Votre texte ici...">
+                <div id="relation-suggestions" class="mb-4"></div>
+                
+                <div id="learning-hint-container" class="hidden items-center mb-4">
+                    <input id="learning-hint-checkbox" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                    <label for="learning-hint-checkbox" class="ml-2 block text-sm text-gray-900">Je suis en train d'apprendre : <b id="learning-subject"></b></label>
+                </div>
+                <div class="flex justify-end space-x-2">
+                    <button id="modal-save-analysis" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-md hidden">Sauvegarder l'Analyse</button>
+                    <button id="modal-cancel" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-md">Annuler</button>
+                    <button id="modal-ok" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-md">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="investigation-panel" class="hidden fixed bottom-4 right-4 bg-white rounded-lg shadow-xl p-4 w-96 max-h-[500px] flex flex-col border-2 border-indigo-500">
+        <div class="flex justify-between items-center mb-3 flex-shrink-0">
+            <h3 class="font-bold text-lg text-indigo-600">🔍 Assistant d'Enquête</h3>
+            <button id="close-investigation" class="text-gray-500 hover:text-gray-700">&times;</button>
+        </div>
+        
+        <div id="investigation-content" class="flex-grow overflow-y-auto">
+            </div>
+    </div>
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // State
+        let concepts = [], subjects = [], n4lNotes = {}, graph = null, allGraphData = { nodes: [], edges: [] };
+        let currentContext = 'general', currentAction = null, selectedSource = null, selectedDest = null, selectedChildren = [], fileName = 'notes';
+        let lastAIAnalysis = '';
+        let n4lEditor = null; // Variable pour l'instance CodeMirror
+        let isUpdatingFromSync = false; // Verrou pour éviter les boucles de synchronisation
+
+        // Variables pour le mode enquête
+        let investigationMode = false;
+        let currentInvestigationStep = 'actors';
+        const investigationSteps = ['actors', 'locations', 'timeline', 'motives', 'evidence', 'connections', 'groups'];
+
+        let currentViewMode = 'standard';
+        let investigationQuestions = [], currentQuestionIndex = 0;
+
+        // DOM Elements Cache
+        const dom = {
+            uploadView: document.getElementById('upload-view'),
+            editorView: document.getElementById('editor-view'),
+            fileInputTxt: document.getElementById('file-upload-txt'),
+            fileInputN4l: document.getElementById('file-upload-n4l'),
+            fileNameLabel: document.getElementById('file-name'),
+            conceptsList: document.getElementById('concepts-list'),
+            subjectsList: document.getElementById('subjects-list'),
+            contextInput: document.getElementById('context-input'),
+            helpPanel: document.getElementById('help-panel'),
+            aiExtractBtn: document.getElementById('ai-extract-btn'),
+            graphContainer: document.getElementById('graph-container'),
+            tabN4l: document.getElementById('tab-n4l'),
+            tabGraph: document.getElementById('tab-graph'),
+            tabTimeline: document.getElementById('tab-timeline'),
+            n4lView: document.getElementById('n4l-view'),
+            graphView: document.getElementById('graph-view'),
+            timelineView: document.getElementById('timeline-view'),
+            searchNodeInput: document.getElementById('search-node'),
+            contextFilter: document.getElementById('context-filter'),
+            aiAnalyzeBtn: document.getElementById('ai-analyze-btn'),
+            timelineContainer: document.getElementById('timeline-container'),
+            discoverPathsBtn: document.getElementById('discover-paths-btn'),
+            pathsListContainer: document.getElementById('paths-list-container'),
+            modal: document.getElementById('modal'),
+            modalTitle: document.getElementById('modal-title'),
+            modalText: document.getElementById('modal-text'),
+            modalInput: document.getElementById('modal-input'),
+            modalOk: document.getElementById('modal-ok'),
+            modalCancel: document.getElementById('modal-cancel'),
+            relationSuggestions: document.getElementById('relation-suggestions'),
+            modalSaveAnalysisBtn: document.getElementById('modal-save-analysis'),
+        };
+
+        const relationTypes = {
+            "➡️ Causalité / Séquence (leadsto)": ["cause", "mène à", "précède", "ensuite", "affecte", "provoque"],
+            "📦 Appartenance / Contenu (contains)": ["contient", "fait partie de", "est un exemple de", "a pour membre", "utilise"],
+            "📝 Description / Propriété (properties)": ["a pour propriété", "est", "signifie", "a pour rôle", "exprime"],
+            "🤝 Similarité / Proximité (near)": ["est similaire à", "ressemble à", "est associé à", "est proche de"]
+        };
+
+        let modalResolve = null;
+        let syncTimeout = null;
+
+        // --- Core Functions ---
+        
+        const init = () => {
+            console.log("LOG: App initializing...");
+            // Initial upload view
+            document.getElementById('import-txt-btn').onclick = () => dom.fileInputTxt.click();
+            document.getElementById('import-n4l-btn').onclick = () => dom.fileInputN4l.click();
+            dom.fileInputTxt.addEventListener('change', (e) => handleUpload(e, 'txt'));
+            dom.fileInputN4l.addEventListener('change', (e) => handleUpload(e, 'n4l'));
+            
+            // Initialisation de CodeMirror
+            n4lEditor = CodeMirror.fromTextArea(document.getElementById('n4l-editor'), {
+                lineNumbers: true,
+                mode: 'markdown',
+                theme: 'material-darker'
+            });
+
+            // Écouteur pour la synchronisation de l'éditeur vers l'état
+            n4lEditor.on('change', () => {
+                if (isUpdatingFromSync) return; // Ne pas resynchroniser si la mise à jour vient du système
+                
+                clearTimeout(syncTimeout);
+                syncTimeout = setTimeout(() => {
+                    syncEditorToState(n4lEditor.getValue());
+                }, 750); // Debounce de 750ms
+            });
+
+            // Main editor actions
+            document.getElementById('action-extract').onclick = () => startAction('extractSubject');
+
+            document.getElementById('action-group').onclick = () => startAction('group');
+            document.getElementById('action-new').onclick = () => startAction('newConcept');
+            dom.contextInput.addEventListener('change', (e) => updateContext(e.target.value));
+            
+            // AI Actions
+            dom.aiExtractBtn.onclick = autoExtractSubjects;
+            dom.aiAnalyzeBtn.onclick = analyzeGraphWithAI;
+
+            // Tabs and downloads
+            dom.tabN4l.onclick = () => switchTab('n4l');
+            dom.tabGraph.onclick = () => switchTab('graph');
+            dom.tabTimeline.onclick = () => switchTab('timeline');
+            document.getElementById('download-btn').onclick = downloadN4LFile;
+
+            // Graph controls
+            dom.searchNodeInput.addEventListener('input', (e) => searchNode(e.target.value));
+            dom.contextFilter.addEventListener('change', (e) => filterByContext(e.target.value));
+            document.getElementById('analyze-hubs').onclick = highlightHubs;
+            document.getElementById('analyze-sources').onclick = highlightSources;
+            document.getElementById('analyze-sinks').onclick = highlightSinks;
+            document.getElementById('analyze-reset').onclick = resetHighlight;
+            dom.discoverPathsBtn.onclick = discoverAllPaths;
+
+            // Modal actions
+            dom.modalCancel.onclick = () => closeModal(null);
+            dom.modalSaveAnalysisBtn.onclick = saveAnalysis;
+            
+            // Temporal patterns
+            document.getElementById('action-temporal').onclick = detectTemporalPatterns;
+            document.getElementById('check-consistency-btn').onclick = checkSemanticConsistency;
+
+            // Ajouter dans init()
+            document.getElementById('action-investigation').onclick = toggleInvestigationMode;
+            document.getElementById('close-investigation').onclick = () => exitInvestigationMode();
+
+            
+            document.getElementById('view-standard').onclick = () => switchViewMode('standard');
+            document.getElementById('view-layered').onclick = () => switchViewMode('layered');
+            document.getElementById('view-circular').onclick = () => switchViewMode('circular');
+            document.getElementById('view-hierarchical').onclick = () => switchViewMode('hierarchical');
+            document.getElementById('generate-questions-btn').onclick = generateInvestigationQuestions;
+
+
+            console.log("LOG: App initialized and event listeners attached.");
+        };
+
+        // Fonction de synchronisation: Éditeur -> État de l'application
+        async function syncEditorToState(n4lContent) {
+            console.log("LOG: Syncing editor content to application state...");
+            try {
+                const response = await fetch('/api/parse-n4l', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: n4lContent
+                });
+                if (!response.ok) throw new Error(await response.text());
+                
+                const data = await response.json();
+                
+                // Mettre à jour l'état de l'application
+                subjects = data.subjects || [];
+                n4lNotes = data.notes || {};
+                
+                // Rafraîchir les autres vues (sans toucher à l'éditeur)
+                renderSubjects();
+                await updateGraph();
+                updateContextFilter();
+
+                renderContextsPanel(); // Met à jour le nouveau panneau de navigation par contexte
+
+            } catch (error) {
+                console.error("Erreur de synchronisation:", error);
+                // Optionnel: Afficher une erreur dans l'UI
+            }
+        }
+
+        const switchTab = (tabName) => {
+            console.log(`LOG: Switching to tab: ${tabName}`);
+            ['n4l', 'graph', 'timeline'].forEach(t => {
+                dom[`${t}View`].classList.add('hidden');
+                const tabButton = document.getElementById(`tab-${t}`);
+                if (tabButton) {
+                    tabButton.classList.remove('border-blue-500', 'text-blue-600');
+                }
+            });
+            dom[`${tabName}View`].classList.remove('hidden');
+            const activeTabButton = document.getElementById(`tab-${tabName}`);
+             if (activeTabButton) {
+                activeTabButton.classList.add('border-blue-500', 'text-blue-600');
+            }
+
+            if (tabName === 'n4l') {
+                setTimeout(() => n4lEditor.refresh(), 10); // Important pour CodeMirror
+            }
+            if (tabName === 'graph') updateGraph();
+            if (tabName === 'timeline') updateTimeline();
+        };
+
+        const showModal = (config) => {
+            dom.modalTitle.textContent = config.title;
+            if (config.isHtml) {
+                dom.modalText.innerHTML = config.text;
+            } else {
+                dom.modalText.innerHTML = config.text.replace(/\n/g, '<br>');
+            }
+            dom.modalInput.value = config.inputValue || '';
+            dom.modalInput.style.display = config.prompt ? 'block' : 'none';
+            dom.modalOk.style.display = config.prompt || config.confirm ? 'block' : 'none';
+            dom.modalCancel.textContent = config.prompt || config.confirm ? 'Annuler' : 'Fermer';
+            dom.modalSaveAnalysisBtn.style.display = config.showSave ? 'block' : 'none';
+
+            dom.relationSuggestions.innerHTML = '';
+            if (config.showSuggestions) {
+                for(const category in relationTypes) {
+                    const categoryDiv = document.createElement('div');
+                    categoryDiv.innerHTML = `<h4 class="font-semibold mt-2 text-sm">${category}</h4>`;
+                    const btnGroup = document.createElement('div');
+                    btnGroup.className = 'flex flex-wrap gap-2 mt-1';
+                    relationTypes[category].forEach(suggestion => {
+                        const btn = document.createElement('button');
+                        btn.textContent = suggestion;
+                        btn.className = 'bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs py-1 px-2 rounded-full';
+                        btn.onclick = () => { dom.modalInput.value = suggestion; };
+                        btnGroup.appendChild(btn);
+                    });
+                    categoryDiv.appendChild(btnGroup);
+                    dom.relationSuggestions.appendChild(categoryDiv);
+                }
+            }
+
+            // Logique pour la case à cocher "Hint for Learning"
+            const learningContainer = document.getElementById('learning-hint-container');
+            if (config.showLearningHint) {
+                document.getElementById('learning-subject').textContent = config.learningSubject;
+                document.getElementById('learning-hint-checkbox').checked = false; // Réinitialiser
+                learningContainer.classList.remove('hidden');
+                learningContainer.classList.add('flex');
+            } else {
+                learningContainer.classList.add('hidden');
+                learningContainer.classList.remove('flex');
+            }
+
+            dom.modal.classList.remove('hidden');
+            return new Promise(resolve => {
+                modalResolve = resolve;
+                dom.modalOk.onclick = () => {
+                    const isLearningChecked = document.getElementById('learning-hint-checkbox').checked;
+                    // Résoudre avec un objet pour inclure l'état de la case à cocher
+                    closeModal({
+                        text: dom.modalInput.value,
+                        isLearningSubject: config.showLearningHint ? isLearningChecked : false
+                    });
+                };
+            });
+        };
+
+        const closeModal = (value) => {
+            dom.modal.classList.add('hidden');
+            if (modalResolve) { modalResolve(value); modalResolve = null; }
+        };
+
+        // Rendre closeModal accessible globalement IMMÉDIATEMENT
+        window.closeModal = closeModal;
+
+        async function handleUpload(e, type) {
+            console.log(`LOG: Handling upload for type: ${type}`);
+            const file = e.target.files[0];
+            if (!file) return;
+            fileName = file.name.replace(/\.[^/.]+$/, "");
+            dom.fileNameLabel.textContent = file.name;
+            try {
+                let initialContent = '';
+                if (type === 'txt') {
+                    const formData = new FormData();
+                    formData.append('textFile', file);
+                    const response = await fetch('/api/extract-concepts', { method: 'POST', body: formData });
+                    if (!response.ok) throw new Error(await response.text());
+                    concepts = await response.json();
+                    initialContent = `# Fichier importé depuis ${file.name}\n\n:: general ::\n\n` + concepts.map(c => `    ${c}`).join('\n');
+                } else {
+                    initialContent = await file.text();
+                }
+
+                // Mettre à jour l'éditeur et synchroniser
+                updateEditorContent(initialContent);
+                await syncEditorToState(initialContent);
+
+                // Mettre à jour le reste de l'UI après la synchro
+                renderConcepts(); // Gardé pour les fichiers txt pour l'extraction manuelle
+                dom.uploadView.classList.add('hidden');
+                dom.editorView.classList.remove('hidden');
+                setTimeout(() => n4lEditor.refresh(), 10); // S'assurer que CodeMirror s'affiche correctement
+
+            } catch (error) {
+                await showModal({ title: 'Erreur d\'importation', text: `Une erreur est survenue: ${error.message}` });
+                dom.fileNameLabel.textContent = "Aucun fichier sélectionné";
+            }
+        }
+        
+        async function renderAll() {
+            console.log("LOG: renderAll triggered");
+            renderStateToEditor(); // Mettre à jour l'éditeur depuis l'état
+            renderConcepts();
+            renderSubjects();
+            resetSelection(false);
+            await updateGraph();
+            updateContextFilter();
+        }
+
+        function renderConcepts() {
+            dom.conceptsList.innerHTML = '';
+            const listTitle = concepts.length === 0
+                ? `<div class="text-center text-gray-500 text-sm p-4">Importer un .txt pour voir les phrases de base.</div>`
+                : '';
+            
+            if (listTitle) {
+                dom.conceptsList.innerHTML = listTitle;
+                return;
+            }
+            if (concepts.length === 0) {
+                 dom.conceptsList.innerHTML = `<div class="text-center text-gray-500 text-sm p-4">Importer un .txt pour voir les phrases de base.</div>`;
+                 return;
+            }
+
+            concepts.forEach((concept, index) => {
+                const item = document.createElement('div');
+                item.className = 'concept-item p-2 border rounded-md cursor-pointer hover:bg-gray-100 text-sm';
+                item.textContent = `[${index}] ${concept}`;
+                item.dataset.index = index;
+                item.dataset.type = 'concept';
+                // --- MODIFICATIONS POUR DRAG-AND-DROP ---
+                item.draggable = true;
+                item.addEventListener('dragstart', handleDragStart);
+                item.addEventListener('dragover', handleDragOver);
+                item.addEventListener('dragleave', handleDragLeave);
+                item.addEventListener('drop', handleDrop);
+                // -----------------------------------------
+                item.onclick = () => handleItemClick('concept', index);
+                if (selectedSource?.type === 'concept' && selectedSource.index === index) item.classList.add('selected-source');
+                if (selectedDest?.type === 'concept' && selectedDest.index === index) item.classList.add('selected-dest');
+                if (selectedChildren.some(c => c.type === 'concept' && c.index === index)) item.classList.add('selected-child');
+                
+                dom.conceptsList.appendChild(item);
+            });
+        }
+
+        function renderSubjects() {
+            dom.subjectsList.innerHTML = '';
+            subjects.forEach((subject, index) => {
+                const item = document.createElement('div');
+                item.className = 'subject-item p-2 border rounded-md cursor-pointer hover:bg-gray-200 text-sm bg-white';
+                item.textContent = `[S${index}] ${subject}`;
+                item.dataset.index = index;
+                item.dataset.type = 'subject';
+                // --- MODIFICATIONS POUR DRAG-AND-DROP ---
+                item.draggable = true;
+                item.addEventListener('dragstart', handleDragStart);
+                item.addEventListener('dragover', handleDragOver);
+                item.addEventListener('dragleave', handleDragLeave);
+                item.addEventListener('drop', handleDrop);
+                // -----------------------------------------
+                item.onclick = () => handleItemClick('subject', index);
+                if (selectedSource?.type === 'subject' && selectedSource.index === index) item.classList.add('selected-source');
+                if (selectedDest?.type === 'subject' && selectedDest.index === index) item.classList.add('selected-dest');
+                if (selectedChildren.some(c => c.type === 'subject' && c.index === index)) item.classList.add('selected-child');
+                dom.subjectsList.appendChild(item);
+            });
+        }
+
+        // Fonction pour mettre à jour le contenu de CodeMirror
+        function updateEditorContent(content) {
+            isUpdatingFromSync = true; // Activer le verrou
+            const scrollInfo = n4lEditor.getScrollInfo();
+            n4lEditor.setValue(content);
+            n4lEditor.scrollTo(scrollInfo.left, scrollInfo.top);
+            setTimeout(() => isUpdatingFromSync = false, 50); // Relâcher le verrou après un court délai
+        }
+        
+        // Fonction pour construire le texte N4L à partir de l'état et l'afficher dans l'éditeur
+        function renderStateToEditor() {
+            let output = '';
+            const sortedContexts = Object.keys(n4lNotes).sort();
+            sortedContexts.forEach(context => {
+                 if (n4lNotes[context] && n4lNotes[context].length > 0) {
+                    if (context !== 'general' || (sortedContexts.length > 1 && n4lNotes[context].some(n => n.includes('->') || n.includes('<->') || n.includes('=>')))) {
+                         output += `:: ${context} ::\n\n`;
+                    }
+                    n4lNotes[context].forEach(note => { output += `    ${note}\n`; });
+                    output += '\n';
+                }
+            });
+            updateEditorContent(output || '# Votre fichier N4L apparaîtra ici...');
+        }        
+
+        function renderOutput() {
+            let output = '';
+            const sortedContexts = Object.keys(n4lNotes).sort();
+            sortedContexts.forEach(context => {
+                 if (n4lNotes[context] && n4lNotes[context].length > 0) {
+                    output += `:: ${context} ::\n\n`;
+                    n4lNotes[context].forEach(note => { output += `    ${note}\n`; });
+                    output += '\n';
+                }
+            });
+            dom.n4lOutput.textContent = output || '# Votre fichier N4L apparaîtra ici...';
+        }
+
+        function updateContext(newContext) { currentContext = newContext.trim() || 'general'; dom.contextInput.value = currentContext; }
+        
+        async function startAction(action) {
+            if (currentAction === 'group' && action === 'group') { await completeGroupAction(); return; }
+            resetSelection(false);
+            currentAction = action;
+            if (action === 'newConcept') {
+                const newSubjectText = await showModal({ title: "Nouveau Sujet", text: "Entrez le texte du nouveau sujet :", prompt: true });
+                if(newSubjectText) {
+                    addNoteToEditor(`    ${newSubjectText}`);
+                }
+                resetSelection();
+            } else { dom.helpPanel.innerHTML = getInstructionsForAction(action); }
+        }
+        
+        function getInstructionsForAction(action, step = 1) {
+            switch(action) {
+                case 'extractSubject': return `<b>Extraction :</b> Sélectionnez une <span class="text-blue-500">phrase</span> pour en extraire un sujet.`;
+                case 'relation': return step === 1 ? `<b>Relation (1/2) :</b> Sélectionnez un élément <span class="text-blue-500">SOURCE</span>.` : `<b>Relation (2/2) :</b> Sélectionnez un élément <span class="text-red-500">DESTINATION</span>.`;
+                case 'equivalence': return step === 1 ? `<b>Équivalence (1/2) :</b> Sélectionnez le <span class="text-blue-500">PREMIER</span> élément.` : `<b>Équivalence (2/2) :</b> Sélectionnez le <span class="text-red-500">SECOND</span> élément.`;
+                case 'group': return `<b>Groupe :</b> Sélectionnez un ou plusieurs <span class="text-purple-500">éléments ENFANTS</span>. Cliquez de nouveau sur le bouton 'Groupe' pour terminer.`;
+                default: return 'Choisissez une action.';
+            }
+        }
+        
+        async function handleItemClick(type, index) {
+            // Le clic est maintenant principalement utilisé pour l'action 'group'
+            if (currentAction === 'group') {
+                const selection = { type, index };
+                const childIndex = selectedChildren.findIndex(c => c.type === type && c.index === index);
+                if (childIndex > -1) {
+                    selectedChildren.splice(childIndex, 1);
+                } else {
+                    selectedChildren.push(selection);
+                }
+                renderConcepts();
+                renderSubjects();
+            } else if (currentAction === 'extractSubject' && type === 'concept') {
+                const subjectText = await showModal({ title: "Extraire un Sujet", text: `Entrez le mot à extraire de : "${concepts[index]}"`, prompt: true, inputValue: window.getSelection().toString() });
+                if(subjectText) {
+                    addNoteToEditor(`    ${concepts[index]} -> a pour sujet -> ${subjectText}`);
+                    resetSelection();
+                }
+            }
+        }
+
+        async function autoExtractSubjects() {
+            const fullText = concepts.join('. ');
+            if (fullText.trim() === '') {
+                await showModal({ title: 'Action impossible', text: 'Aucun texte à analyser. Veuillez importer un fichier .txt en premier.'});
+                return;
+            }
+            dom.aiExtractBtn.disabled = true;
+            dom.helpPanel.innerHTML = '<div class="spinner"></div> Analyse IA en cours...';
+            try {
+                const response = await fetch('/api/auto-extract-subjects', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: fullText });
+                if (!response.ok) { const errorText = await response.text(); throw new Error(errorText); }
+                const suggestedSubjects = await response.json();
+                if (suggestedSubjects.length === 0) {
+                    dom.helpPanel.innerHTML = "L'IA n'a trouvé aucun sujet pertinent à extraire.";
+                } else {
+                    const newNotes = suggestedSubjects.map(s => `    # Sujet extrait par IA\n    ${s}\n`).join('');
+                    addNoteToEditor(`\n\n:: Sujets IA ::\n\n${newNotes}`);
+                    dom.helpPanel.innerHTML = `${suggestedSubjects.length} sujets suggérés par l'IA et ajoutés à l'éditeur.`;
+                }
+            } catch (error) {
+                console.error("Erreur IA:", error);
+                await showModal({ title: 'Erreur IA', text: `Une erreur est survenue: ${error.message}`});
+            } finally {
+                dom.aiExtractBtn.disabled = false;
+            }
+        }
+
+        async function analyzeGraphWithAI() {
+            if (allGraphData.nodes.length === 0) {
+                await showModal({ title: 'Action impossible', text: 'Le graphe est vide. Ajoutez des relations avant de lancer l\'analyse.' });
+                return;
+            }
+            const originalBtnContent = dom.aiAnalyzeBtn.innerHTML;
+            dom.aiAnalyzeBtn.innerHTML = '<div class="spinner"></div> Analyse...';
+            dom.aiAnalyzeBtn.disabled = true;
+            try {
+                const response = await fetch('/api/analyze-graph', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(allGraphData)
+                });
+                if (!response.ok) { const errorText = await response.text(); throw new Error(errorText); }
+                lastAIAnalysis = await response.text();
+                await showModal({ title: 'Synthèse du Graphe par l\'IA', text: lastAIAnalysis, showSave: true });
+            } catch (error) {
+                console.error("Erreur Analyse IA:", error);
+                await showModal({ title: 'Erreur Analyse IA', text: `Une erreur est survenue: ${error.message}` });
+            } finally {
+                dom.aiAnalyzeBtn.innerHTML = originalBtnContent;
+                dom.aiAnalyzeBtn.disabled = false;
+            }
+        }
+        
+        function saveAnalysis() {
+            if (!lastAIAnalysis) return;
+            const blob = new Blob([lastAIAnalysis], { type: 'text/markdown;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const date = new Date().toISOString().split('T')[0];
+            a.href = url;
+            a.download = `${fileName}-analyse-${date}.md`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        async function completeGroupAction() {
+            if (selectedChildren.length === 0) { await showModal({ title: "Action annulée", text: "Aucun élément sélectionné."}); resetSelection(); return; }
+            const parentText = await showModal({ title: "Parent du Groupe", text: "Entrez le texte du parent:", prompt: true });
+            if (parentText) {
+                const childrenTexts = selectedChildren.map(c => c.type === 'concept' ? `"${concepts[c.index]}"` : subjects[c.index]);
+                addNoteToEditor(`    ${parentText} => { ${childrenTexts.join('; ')} }`);
+            }
+            resetSelection();
+        }
+        
+        // Nouvelle fonction pour ajouter du texte à l'éditeur
+        function addNoteToEditor(note) {
+            const currentContent = n4lEditor.getValue();
+            let newContent = currentContent.trimEnd();
+
+            // S'assurer qu'il y a un contexte
+            if (!newContent.includes(`:: ${currentContext} ::`)) {
+                newContent += `\n\n:: ${currentContext} ::\n`;
+            }
+
+            // Insérer la note dans le bon contexte
+            const contextRegex = new RegExp(`(::\\s*${currentContext}\\s*::)`);
+            if (contextRegex.test(newContent)) {
+                 newContent = newContent.replace(contextRegex, `$1\n${note}`);
+            } else {
+                newContent += `\n${note}\n`;
+            }
+
+            updateEditorContent(newContent + '\n');
+            // La synchronisation se fera automatiquement via l'événement 'change' de l'éditeur
+        }
+
+        function resetSelection(fullRender = true) {
+            currentAction = null; selectedSource = null; selectedDest = null; selectedChildren = [];
+            dom.helpPanel.innerHTML = 'Commencez par <strong>Extraire un Sujet</strong> ou utilisez l\'<strong>IA</strong>.';
+            if (fullRender) {
+                //renderAll(); // Peut causer des boucles, la synchro de l'éditeur est suffisante
+            } else {
+                renderConcepts();
+                renderSubjects();
+            }
+        }
+
+        function downloadN4LFile() {
+            const content = n4lEditor.getValue();
+            const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${fileName}.n4l`;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        async function updateGraph() {
+            console.log("LOG: Updating graph...");
+            try {
+                const response = await fetch('/api/graph-data', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(n4lNotes)
+                });
+                if (!response.ok) throw new Error(await response.text());
+                allGraphData = await response.json();
+                
+                const nodes = new vis.DataSet(allGraphData.nodes.map(n => ({...n, color: getNodeColor(n)})));
+                const edges = new vis.DataSet(allGraphData.edges.map(e => ({...e, color: getEdgeColor(e.type), arrows: e.type === 'equivalence' ? 'to, from' : 'to' })));
+
+                const options = {
+                    nodes: { 
+                        shape: 'box', 
+                        font: { size: 14, color: '#333' }, 
+                        margin: 10,
+                        widthConstraint: { maximum: 150 }
+                    },
+                    edges: { 
+                        font: { 
+                            align: 'horizontal',
+                            size: 11,
+                            strokeWidth: 3,
+                            strokeColor: '#ffffff'
+                        }, 
+                        smooth: { 
+                            type: 'cubicBezier',
+                            forceDirection: 'none',
+                            roundness: 0.5
+                        }
+                    },
+                    physics: { 
+                        enabled: true,
+                        solver: 'forceAtlas2Based',
+                        forceAtlas2Based: {
+                            gravitationalConstant: -50,
+                            centralGravity: 0.01,
+                            springLength: 150,
+                            springConstant: 0.08,
+                            damping: 0.4,
+                            avoidOverlap: 1
+                        },
+                        stabilization: { 
+                            enabled: true,
+                            iterations: 100
+                        }
+                    },
+                    interaction: {
+                        dragNodes: true,
+                        dragView: true,
+                        zoomView: true
+                    }
+                };
+
+                if (graph) {
+                    if (currentViewMode === 'standard') {
+                        graph.setOptions(options);
+                    }
+                    graph.setData({ nodes, edges });
+                } else {
+                    const options = { /* ... options existantes ... */ };
+                    graph = new vis.Network(dom.graphContainer, { nodes, edges }, options);
+                    
+                    //Gestion du clic droit
+                    graph.on("oncontext", handleGraphRightClick);
+                }
+            } catch (error) { 
+                console.error('LOG: Erreur graphe:', error);
+            }
+        }
+
+        function handleGraphRightClick(params) {
+            params.event.preventDefault();
+            const nodeId = graph.getNodeAt(params.pointer.DOM);
+            if (!nodeId) {
+                document.getElementById('node-context-menu').classList.add('hidden');
+                return;
+            }
+
+            const menu = document.getElementById('node-context-menu');
+            const contexts = ['Personnages', 'Lieux', 'Chronologie', 'Indices et Preuves', 'Relations'];
+            
+            menu.innerHTML = `<div class="px-4 py-2 text-xs text-gray-500 border-b">Reclassifier "${nodeId}" dans:</div>`;
+            contexts.forEach(context => {
+                const link = document.createElement('a');
+                link.textContent = context;
+                link.onclick = () => {
+                    reclassifyNode(nodeId, context);
+                    menu.classList.add('hidden');
+                };
+                menu.appendChild(link);
+            });
+
+            menu.style.top = `${params.event.pageY}px`;
+            menu.style.left = `${params.event.pageX}px`;
+            menu.classList.remove('hidden');
+
+            // Cacher le menu si on clique ailleurs
+            document.body.onclick = (e) => {
+                if (!menu.contains(e.target)) {
+                    menu.classList.add('hidden');
+                    document.body.onclick = null;
+                }
+            };
+        }
+
+        function reclassifyNode(nodeLabel, newContext) {
+            let noteFoundAndMoved = false;
+            for (const oldContext in n4lNotes) {
+                const notesToKeep = [];
+                const notesToMove = [];
+                n4lNotes[oldContext].forEach(note => {
+                    // Une expression régulière pour trouver le nœud comme mot entier
+                    const nodeRegex = new RegExp(`\\b${escapeRegExp(nodeLabel)}\\b`);
+                    if (note.match(nodeRegex)) {
+                        notesToMove.push(note);
+                    } else {
+                        notesToKeep.push(note);
+                    }
+                });
+
+                if (notesToMove.length > 0) {
+                    n4lNotes[oldContext] = notesToKeep; // Mettre à jour l'ancien contexte
+                    if (!n4lNotes[newContext]) {
+                        n4lNotes[newContext] = [];
+                    }
+                    n4lNotes[newContext].push(...notesToMove); // Ajouter au nouveau contexte
+                    noteFoundAndMoved = true;
+                }
+            }
+
+            if (noteFoundAndMoved) {
+                renderStateToEditor(); // Mettre à jour l'éditeur
+                syncEditorToState(n4lEditor.getValue()); // Synchroniser tous les états
+                dom.helpPanel.innerHTML = `✅ "${nodeLabel}" a été reclassifié dans le contexte "${newContext}".`;
+            }
+        }
+
+        function escapeRegExp(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& signifie la chaîne de caractères trouvée
+        }
+
+        function getNodeColor(node) { return ({ border: '#4f46e5', background: 'white', highlight: { border: '#ef4444', background: '#fecaca'} }); }
+        function getEdgeColor(type) {
+            switch(type) {
+                case 'relation': return { color: '#3b82f6', highlight: '#1d4ed8' };
+                case 'equivalence': return { color: '#22c55e', highlight: '#15803d' };
+                case 'group': return { color: '#a855f7', highlight: '#7e22ce' };
+                default: return { color: '#6b7280', highlight: '#374151' };
+            }
+        }
+
+        function searchNode(query) {
+            if (!graph) return;
+            const lowerQuery = query.toLowerCase();
+            const nodeIds = allGraphData.nodes.filter(n => n.label.toLowerCase().includes(lowerQuery)).map(n => n.id);
+            graph.selectNodes(nodeIds);
+            if (nodeIds.length > 0) {
+                graph.focus(nodeIds[0], { scale: 1.2, animation: true });
+            }
+        }
+
+        function filterByContext(context) {
+             if (!graph) return;
+             
+             // Mettre à jour le selecteur de filtre (pour la cohérence)
+             dom.contextFilter.value = context;
+
+             // Redessiner le panneau de contexte pour mettre à jour le bouton actif
+             renderContextsPanel(); 
+
+             if (!context) {
+                 const nodes = new vis.DataSet(allGraphData.nodes.map(n => ({...n, color: getNodeColor(n)})));
+                 const edges = new vis.DataSet(allGraphData.edges.map(e => ({...e, color: getEdgeColor(e.type), arrows: e.type === 'equivalence' ? 'to, from' : 'to'})));
+                 graph.setData({ nodes, edges });
+                 return;
+             }
+             const filteredNodes = allGraphData.nodes.filter(n => n.context === context);
+             const filteredNodeIds = new Set(filteredNodes.map(n => n.id));
+             const filteredEdges = allGraphData.edges.filter(e => filteredNodeIds.has(e.from) && filteredNodeIds.has(e.to));
+
+             graph.setData({
+                 nodes: new vis.DataSet(filteredNodes.map(n => ({...n, color: getNodeColor(n)}))),
+                 edges: new vis.DataSet(filteredEdges.map(e => ({...e, color: getEdgeColor(e.type), arrows: e.type === 'equivalence' ? 'to, from' : 'to'})))
+             });
+        }
+
+        function updateContextFilter() {
+            const contexts = new Set(Object.keys(n4lNotes));
+            dom.contextFilter.innerHTML = '<option value="">Tous les contextes</option>';
+            contexts.forEach(c => {
+                const option = document.createElement('option');
+                option.value = c;
+                option.textContent = c;
+                dom.contextFilter.appendChild(option);
+            });
+        }
+        
+        function highlightHubs() {
+            const degree = {};
+            allGraphData.edges.forEach(edge => {
+                degree[edge.from] = (degree[edge.from] || 0) + 1;
+                degree[edge.to] = (degree[edge.to] || 0) + 1;
+            });
+            const hubs = Object.keys(degree).filter(id => degree[id] > 2);
+            highlightNodes(hubs, '#f59e0b');
+        }
+
+        function highlightSources() {
+            const targets = new Set(allGraphData.edges.map(e => e.to));
+            const sources = allGraphData.nodes.filter(n => !targets.has(n.id)).map(n => n.id);
+            highlightNodes(sources, '#22c55e');
+        }
+
+        function highlightSinks() {
+            const sources = new Set(allGraphData.edges.map(e => e.from));
+            const sinks = allGraphData.nodes.filter(n => !sources.has(n.id)).map(n => n.id);
+            highlightNodes(sinks, '#ef4444');
+        }
+        
+        function highlightNodes(nodeIds, color) {
+             if (!graph) return;
+             const nodes = new vis.DataSet(allGraphData.nodes.map(n => {
+                 const isHighlighted = nodeIds.includes(n.id);
+                 return {...n, color: { border: isHighlighted ? color : '#4f46e5', background: isHighlighted ? color + '33' : 'white' } };
+             }));
+             const edges = new vis.DataSet(allGraphData.edges.map(e => ({...e, color: getEdgeColor(e.type), arrows: e.type === 'equivalence' ? 'to, from' : 'to'})));
+             graph.setData({ nodes, edges });
+        }
+        
+        async function analyzePath(path) {
+            console.log("LOG: Analyzing path:", path);
+            
+            try {
+                showModal({ 
+                    title: 'Analyse IA en cours...', 
+                    text: '<div class="spinner"></div> Veuillez patienter...',
+                    isHtml: true
+                });
+                
+                const response = await fetch('/api/analyze-path', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({path: path, notes: n4lNotes})
+                });
+                
+                if (!response.ok) throw new Error(await response.text());
+                const analysis = await response.text();
+                
+                closeModal(null);
+                
+                setTimeout(() => {
+                    showModal({ 
+                        title: 'Analyse Sémantique du Chemin', 
+                        text: analysis 
+                    });
+                }, 100);
+                
+            } catch (error) {
+                closeModal(null);
+                setTimeout(() => {
+                    showModal({ 
+                        title: 'Erreur d\'Analyse', 
+                        text: error.message 
+                    });
+                }, 100);
+            }
+        }
+
+        function renderDiscoveredPaths(paths) {
+            window.discoveredPaths = paths;
+            dom.pathsListContainer.innerHTML = '';
+            if (!paths || paths.length === 0) {
+                dom.pathsListContainer.innerHTML = '<p class="text-gray-500">Aucune histoire indirecte trouvée.</p>';
+                return;
+            }
+            
+            const pathList = document.createElement('ul');
+            pathList.className = 'space-y-1';
+            
+            paths.forEach((path, index) => {
+                const li = document.createElement('li');
+                li.className = 'p-1 hover:bg-indigo-100 cursor-pointer rounded path-item';
+                
+                const pathText = document.createElement('span');
+                pathText.textContent = path.join(' → ');
+                li.appendChild(pathText);
+
+                const analyzeBtn = document.createElement('button');
+                analyzeBtn.innerHTML = `🧠`;
+                analyzeBtn.className = 'analyze-btn text-xs ml-2';
+                analyzeBtn.title = 'Analyser ce chemin avec l\'IA';
+                
+                analyzeBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    analyzePath(path);
+                };
+                
+                li.appendChild(analyzeBtn);
+
+                li.onclick = () => highlightPath(path);
+                
+                pathList.appendChild(li);
+            });
+            
+            dom.pathsListContainer.appendChild(pathList);
+        }
+
+        async function discoverAllPaths() {
+            console.log("LOG: Discovering all paths...");
+            const originalBtnContent = dom.discoverPathsBtn.innerHTML;
+            dom.discoverPathsBtn.innerHTML = '<div class="spinner"></div> Découverte...';
+            dom.discoverPathsBtn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/find-all-paths', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(n4lNotes)
+                });
+                if (!response.ok) throw new Error(await response.text());
+                const paths = await response.json();
+                
+                window.discoveredPaths = paths;
+                renderDiscoveredPaths(paths);
+                
+            } catch (error) {
+                console.error('LOG: Erreur de découverte de chemins:', error);
+                dom.pathsListContainer.innerHTML = `<p class="text-red-500">Erreur lors de la découverte.</p>`;
+            } finally {
+                dom.discoverPathsBtn.innerHTML = originalBtnContent;
+                dom.discoverPathsBtn.disabled = false;
+            }
+        }
+
+        function highlightPath(path) {
+            const pathEdges = [];
+            for (let i = 0; i < path.length - 1; i++) {
+                pathEdges.push({ from: path[i], to: path[i+1] });
+            }
+            const nodes = new vis.DataSet(allGraphData.nodes.map(n => {
+                const isHighlighted = path.includes(n.id);
+                return {...n, color: { border: isHighlighted ? '#dc2626' : '#4f46e5', background: isHighlighted ? '#fecaca' : 'white' } };
+            }));
+            const edges = new vis.DataSet(allGraphData.edges.map(e => {
+                const isHighlighted = pathEdges.some(pe => (pe.from === e.from && pe.to === e.to) || (pe.from === e.to && pe.to === e.from));
+                return {...e, color: isHighlighted ? '#dc2626' : getEdgeColor(e.type).color, width: isHighlighted ? 3 : 1, arrows: e.type === 'equivalence' ? 'to, from' : 'to'};
+            }));
+            graph.setData({ nodes, edges });
+        }
+
+        function resetHighlight() {
+            filterByContext('');
+            dom.pathsListContainer.innerHTML = '';
+        }
+
+        // Temporal patterns functions
+        async function detectTemporalPatterns() {
+            console.log("LOG: Detecting temporal patterns...");
+            const btn = document.getElementById('action-temporal');
+            const originalContent = btn.innerHTML;
+            btn.innerHTML = '<div class="spinner"></div> Analyse...';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/detect-temporal-patterns', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(n4lNotes)
+                });
+                
+                if (!response.ok) throw new Error(await response.text());
+                
+                const patterns = await response.json();
+                
+                // IMPORTANT: Restaurer le bouton AVANT d'afficher la modal
+                btn.innerHTML = originalContent;
+                btn.disabled = false;
+                
+                // Ensuite afficher les patterns
+                await displayTemporalPatterns(patterns);
+                
+            } catch (error) {
+                console.error("Erreur détection temporelle:", error);
+                // Restaurer le bouton en cas d'erreur aussi
+                btn.innerHTML = originalContent;
+                btn.disabled = false;
+                
+                await showModal({ title: 'Erreur', text: `Erreur: ${error.message}` });
+            }
+        }
+
+        async function displayTemporalPatterns(patterns) {
+            if (!patterns || patterns.length === 0) {
+                await showModal({ 
+                    title: 'Aucun pattern temporel détecté', 
+                    text: 'Aucun marqueur temporel trouvé dans vos notes.' 
+                });
+                return;
+            }
+            
+            // Stocker les suggestions globalement
+            window.temporalSuggestions = [];
+            
+            let htmlContent = '<div class="space-y-4 max-h-96 overflow-y-auto">';
+            
+            patterns.forEach(pattern => {
+                htmlContent += '<div class="border rounded-lg p-3 bg-orange-50 border-orange-400">';
+                htmlContent += `<div class="font-semibold text-orange-800 mb-2">🕐 Pattern: ${pattern.pattern}</div>`;
+                
+                if (pattern.occurrences && pattern.occurrences.length > 0) {
+                    htmlContent += '<div class="mb-2"><div class="text-sm font-medium text-gray-700 mb-1">Occurrences trouvées:</div>';
+                    pattern.occurrences.forEach(occ => {
+                        htmlContent += `<div class="text-xs bg-white p-2 rounded mb-1 border border-orange-200">${occ}</div>`;
+                    });
+                    htmlContent += '</div>';
+                }
+                
+                if (pattern.suggestions && pattern.suggestions.length > 0) {
+                    htmlContent += '<div class="border-t pt-2"><div class="text-sm font-medium text-gray-700 mb-1">Suggestions:</div>';
+                    pattern.suggestions.forEach(suggestion => {
+                        const idx = window.temporalSuggestions.length;
+                        window.temporalSuggestions.push(suggestion);
+                        htmlContent += `<div class="flex items-center justify-between bg-white p-2 rounded mb-1 border border-gray-200">`;
+                        htmlContent += `<span class="text-xs text-gray-800">${suggestion}</span>`;
+                        htmlContent += `<button onclick="window.applyTemporalFromIndex(${idx})" class="ml-2 bg-orange-500 hover:bg-orange-600 text-white px-2 py-1 rounded text-xs">Appliquer</button>`;
+                        htmlContent += '</div>';
+                    });
+                    htmlContent += '</div>';
+                }
+                htmlContent += '</div>';
+            });
+            
+            htmlContent += '</div>';
+            
+            await showModal({ 
+                title: '🕐 Patterns Temporels Détectés', 
+                text: htmlContent, 
+                isHtml: true 
+            });
+        }
+
+        // Nouvelle fonction helper
+        window.applyTemporalFromIndex = function(idx) {
+            let suggestionText = window.temporalSuggestions[idx];  // Utiliser 'let' au lieu de réutiliser le paramètre
+            if (suggestionText) {
+                // Fermer la modal
+                document.getElementById('modal').classList.add('hidden');
+                
+                // Traiter la suggestion
+                let targetContext = currentContext || 'general';
+                
+                if (suggestionText.includes("Ajouter au contexte 'Chronologie'")) {
+                    targetContext = 'Chronologie';
+                    const parts = suggestionText.split(':');
+                    if (parts.length > 1) {
+                        suggestionText = parts[1].trim();  // Maintenant on peut réassigner
+                    }
+                }
+                
+                if (suggestionText.includes("Marquer") && suggestionText.includes("comme repère temporel")) {
+                    const match = suggestionText.match(/'([^']+)'/);
+                    if (match) {
+                        suggestionText = `# Repère temporel: ${match[1]}`;  // OK car c'est 'let'
+                    }
+                }
+                
+                // Mettre à jour le contexte
+                currentContext = targetContext;
+                dom.contextInput.value = targetContext;
+                
+                // Ajouter la note
+                addNoteToEditor(`    ${suggestionText}`);
+                dom.helpPanel.innerHTML = `<span class="text-green-600">✔ Pattern temporel appliqué !</span>`;
+            }
+        };
+
+
+        window.applyTemporalSuggestion = function(suggestion) {
+            console.log("Applying temporal suggestion:", suggestion);
+            
+            // Fermer la modal actuelle - utiliser window.closeModal si closeModal n'est pas dans le scope
+            if (typeof closeModal !== 'undefined') {
+                closeModal(null);
+            } else if (typeof window.closeModal !== 'undefined') {
+                window.closeModal(null);
+            } else {
+                // Fallback : fermer manuellement la modal
+                const modal = document.getElementById('modal');
+                if (modal) {
+                    modal.classList.add('hidden');
+                }
+            }
+            
+            // Déterminer le contexte approprié
+            let targetContext = currentContext || window.currentContext || 'general';
+            
+            // Si la suggestion contient "Ajouter au contexte 'Chronologie'"
+            if (suggestion.includes("Ajouter au contexte 'Chronologie'")) {
+                targetContext = 'Chronologie';
+                // Extraire la note réelle (après le ':')
+                const parts = suggestion.split(':');
+                if (parts.length > 1) {
+                    suggestion = parts[1].trim();
+                }
+            }
+            
+            // Si la suggestion est "Marquer ... comme repère temporel"
+            if (suggestion.includes("Marquer") && suggestion.includes("comme repère temporel")) {
+                // Extraire l'élément entre guillemets
+                const match = suggestion.match(/'([^']+)'/);
+                if (match) {
+                    suggestion = `# Repère temporel: ${match[1]}`;
+                }
+            }
+            
+            // Obtenir les références nécessaires
+            const n4lEditorRef = window.n4lEditor || n4lEditor;
+            const domRef = window.dom || dom;
+            
+            // Changer le contexte si nécessaire
+            if (targetContext !== (currentContext || window.currentContext)) {
+                // Mettre à jour le contexte
+                if (typeof updateContext !== 'undefined') {
+                    updateContext(targetContext);
+                } else if (typeof window.updateContext !== 'undefined') {
+                    window.updateContext(targetContext);
+                } else {
+                    // Fallback : mise à jour manuelle
+                    window.currentContext = targetContext;
+                    const contextInput = document.getElementById('context-input');
+                    if (contextInput) {
+                        contextInput.value = targetContext;
+                    }
+                }
+                
+                // S'assurer que le contexte existe dans l'éditeur
+                if (n4lEditorRef) {
+                    const currentContent = n4lEditorRef.getValue();
+                    if (!currentContent.includes(`:: ${targetContext} ::`)) {
+                        // Ajouter le nouveau contexte à la fin
+                        const newContent = currentContent.trimEnd() + `\n\n:: ${targetContext} ::\n\n`;
+                        n4lEditorRef.setValue(newContent);
+                    }
+                }
+            }
+            
+            // Ajouter la note via la fonction existante ou directement
+            if (typeof addNoteToEditor !== 'undefined') {
+                addNoteToEditor(`    ${suggestion}`);
+            } else if (typeof window.addNoteToEditor !== 'undefined') {
+                window.addNoteToEditor(`    ${suggestion}`);
+            } else if (n4lEditorRef) {
+                // Fallback : ajout direct dans l'éditeur
+                const currentContent = n4lEditorRef.getValue();
+                const newContent = currentContent.trimEnd() + `\n    ${suggestion}\n`;
+                n4lEditorRef.setValue(newContent);
+            }
+            
+            // Mettre à jour le panneau d'aide pour confirmer l'action
+            const helpPanel = document.getElementById('help-panel');
+            if (helpPanel) {
+                helpPanel.innerHTML = `<span class="text-green-600">✓ Pattern temporel appliqué !</span>`;
+            }
+            
+            // Faire défiler l'éditeur jusqu'au contexte modifié (optionnel)
+            if (n4lEditorRef && targetContext !== 'general') {
+                setTimeout(() => {
+                    const query = `:: ${targetContext} ::`;
+                    const cursor = n4lEditorRef.getSearchCursor(query, {line: 0, ch: 0}, {caseFold: true});
+                    if (cursor && cursor.findNext()) {
+                        n4lEditorRef.scrollIntoView({ from: cursor.from(), to: cursor.to() }, 100);
+                    }
+                }, 100);
+            }
+        };
+
+        // Si updateContext n'est pas globale, la rendre accessible
+        if (typeof window.updateContext === 'undefined') {
+            window.updateContext = function(newContext) {
+                currentContext = newContext.trim() || 'general';
+                dom.contextInput.value = currentContext;
+            };
+        }
+
+        // Si updateEditorContent n'est pas globale, la rendre accessible
+        if (typeof window.updateEditorContent === 'undefined') {
+            window.updateEditorContent = function(content) {
+                isUpdatingFromSync = true;
+                const scrollInfo = n4lEditor.getScrollInfo();
+                n4lEditor.setValue(content);
+                n4lEditor.scrollTo(scrollInfo.left, scrollInfo.top);
+                setTimeout(() => isUpdatingFromSync = false, 50);
+            };
+        }
+
+        // Si addNoteToEditor n'est pas globale, la rendre accessible
+        if (typeof window.addNoteToEditor === 'undefined') {
+            window.addNoteToEditor = function(note) {
+                const currentContent = n4lEditor.getValue();
+                let newContent = currentContent.trimEnd();
+
+                // S'assurer qu'il y a un contexte
+                if (!newContent.includes(`:: ${currentContext} ::`)) {
+                    newContent += `\n\n:: ${currentContext} ::\n`;
+                }
+
+                // Trouver la position du contexte actuel
+                const contextRegex = new RegExp(`(:: ${currentContext} ::)`);
+                const contextMatch = contextRegex.exec(newContent);
+                
+                if (contextMatch) {
+                    // Trouver la fin de la section du contexte actuel
+                    const afterContext = newContent.substring(contextMatch.index + contextMatch[0].length);
+                    const nextContextMatch = afterContext.match(/\n::[^:]+::/);
+                    
+                    let insertPosition;
+                    if (nextContextMatch) {
+                        // Il y a un autre contexte après, insérer avant
+                        insertPosition = contextMatch.index + contextMatch[0].length + nextContextMatch.index;
+                    } else {
+                        // C'est le dernier contexte, insérer à la fin
+                        insertPosition = newContent.length;
+                    }
+                    
+                    // Insérer la note
+                    const beforeInsert = newContent.substring(0, insertPosition);
+                    const afterInsert = newContent.substring(insertPosition);
+                    newContent = beforeInsert + `\n${note}` + afterInsert;
+                } else {
+                    // Le contexte n'existe pas encore, l'ajouter
+                    newContent += `\n\n:: ${currentContext} ::\n\n${note}`;
+                }
+
+                updateEditorContent(newContent + '\n');
+            };
+        }
+
+        // Si scrollToContextInEditor n'est pas globale, la rendre accessible
+        if (typeof window.scrollToContextInEditor === 'undefined') {
+            window.scrollToContextInEditor = function(context) {
+                if (!n4lEditor || !context) return;
+                const query = `:: ${context} ::`;
+                const cursor = n4lEditor.getSearchCursor(query, {line: 0, ch: 0}, {caseFold: true});
+                if (cursor.findNext()) {
+                    n4lEditor.scrollIntoView({ from: cursor.from(), to: cursor.to() }, 100);
+                    n4lEditor.setSelection(cursor.from(), cursor.to());
+                }
+            };
+        }
+
+        // Rendre les variables nécessaires globales si elles ne le sont pas
+        if (typeof window.currentContext === 'undefined') {
+            window.currentContext = 'general';
+        }
+
+        if (typeof window.n4lEditor === 'undefined' && typeof n4lEditor !== 'undefined') {
+            window.n4lEditor = n4lEditor;
+        }
+
+        if (typeof window.dom === 'undefined' && typeof dom !== 'undefined') {
+            window.dom = dom;
+        }
+        
+        async function checkSemanticConsistency() {
+            console.log("LOG: Checking semantic consistency...");
+            const btn = document.getElementById('check-consistency-btn');
+            const originalContent = btn.innerHTML;
+            btn.innerHTML = '<div class="spinner"></div> Analyse...';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/check-consistency', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(allGraphData)
+                });
+                
+                if (!response.ok) throw new Error(await response.text());
+                
+                const inconsistencies = await response.json();
+                await displayInconsistencies(inconsistencies);
+                
+            } catch (error) {
+                console.error("Erreur vérification cohérence:", error);
+                await showModal({ title: 'Erreur', text: `Erreur: ${error.message}` });
+            } finally {
+                btn.innerHTML = originalContent;
+                btn.disabled = false;
+            }
+        }
+
+        // Function to apply temporal suggestion
+        window.applyTemporalSuggestion = function(suggestion) {
+            closeModal(null);
+            
+            const relationMatch = suggestion.match(/(.+) -> (.+) -> (.+)/);
+            
+            if (relationMatch) {
+                const [_, source, relation, target] = relationMatch;
+                addNote(currentContext || 'Chronologie', suggestion);
+                
+                [source, target].forEach(item => {
+                    const cleanItem = item.trim();
+                    if (cleanItem && !subjects.includes(cleanItem)) {
+                        subjects.push(cleanItem);
+                    }
+                });
+                
+                renderAll();
+                
+                dom.helpPanel.innerHTML = `<span class="text-green-600">✓ Relation temporelle ajoutée: ${suggestion}</span>`;
+                setTimeout(() => {
+                    dom.helpPanel.innerHTML = 'Pattern temporel appliqué avec succès.';
+                }, 3000);
+            } else {
+                // Si ce n'est pas une relation, créer une note simple
+                addNote('Annotations Temporelles', suggestion);
+                renderAll();
+            }
+        }
+
+        // Helper function to create chronology context
+        function createChronologyContext() {
+            if (!n4lNotes['Chronologie']) {
+                n4lNotes['Chronologie'] = [];
+                updateContext('Chronologie');
+                renderAll();
+            }
+        }
+        
+        // Nouvelle fonction pour vérifier la cohérence
+        async function checkSemanticConsistency() {
+            console.log("LOG: Checking semantic consistency...");
+            
+            if (allGraphData.nodes.length === 0) {
+                await showModal({
+                    title: 'Graphe vide',
+                    text: 'Veuillez d\'abord créer des relations dans le graphe.'
+                });
+                return;
+            }
+            
+            const btn = document.getElementById('check-consistency-btn');
+            const originalContent = btn.innerHTML;
+            btn.innerHTML = '<div class="spinner"></div> Analyse...';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/check-consistency', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(allGraphData)
+                });
+                
+                if (!response.ok) throw new Error(await response.text());
+                
+                const inconsistencies = await response.json();
+                await displayInconsistencies(inconsistencies);
+                
+            } catch (error) {
+                console.error("Erreur vérification cohérence:", error);
+                await showModal({
+                    title: 'Erreur',
+                    text: `Erreur lors de la vérification: ${error.message}`
+                });
+            } finally {
+                btn.innerHTML = originalContent;
+                btn.disabled = false;
+            }
+        }
+
+        // Fonction pour afficher les incohérences détectées
+        async function displayInconsistencies(inconsistencies) {
+            if (!inconsistencies || inconsistencies.length === 0) {
+                await showModal({
+                    title: '✅ Graphe cohérent',
+                    text: 'Aucune incohérence détectée dans votre graphe de connaissances. Excellent travail !',
+                    isHtml: true
+                });
+                return;
+            }
+            
+            // Créer le contenu HTML pour afficher les incohérences
+            const container = document.createElement('div');
+            container.className = 'space-y-4 max-h-96 overflow-y-auto';
+            
+            // Grouper par sévérité
+            const grouped = {
+                error: [],
+                warning: [],
+                info: []
+            };
+            
+            inconsistencies.forEach(inc => {
+                grouped[inc.severity].push(inc);
+            });
+            
+            // Afficher les erreurs
+            if (grouped.error.length > 0) {
+                const errorSection = createInconsistencySection('Erreurs critiques', grouped.error, 'red');
+                container.appendChild(errorSection);
+            }
+            
+            // Afficher les avertissements
+            if (grouped.warning.length > 0) {
+                const warningSection = createInconsistencySection('Avertissements', grouped.warning, 'yellow');
+                container.appendChild(warningSection);
+            }
+            
+            // Afficher les informations
+            if (grouped.info.length > 0) {
+                const infoSection = createInconsistencySection('Suggestions', grouped.info, 'blue');
+                container.appendChild(infoSection);
+            }
+            
+            await showModal({
+                title: '🔍 Analyse de Cohérence Sémantique',
+                text: container.outerHTML,
+                isHtml: true
+            });
+        }
+
+        // Fonction helper pour créer une section d'incohérences
+        function createInconsistencySection(title, items, color) {
+            const section = document.createElement('div');
+            section.className = 'mb-4';
+            
+            const header = document.createElement('h3');
+            header.className = `font-semibold text-${color}-600 mb-2`;
+            header.textContent = title;
+            section.appendChild(header);
+            
+            items.forEach(item => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = `border-l-4 border-${color}-400 bg-${color}-50 p-3 mb-2 rounded`;
+                
+                // Type d'incohérence
+                const typeDiv = document.createElement('div');
+                typeDiv.className = 'text-xs font-semibold text-gray-600 mb-1';
+                typeDiv.textContent = getInconsistencyTypeLabel(item.type);
+                itemDiv.appendChild(typeDiv);
+                
+                // Description
+                const descDiv = document.createElement('div');
+                descDiv.className = 'text-sm text-gray-800 mb-2';
+                descDiv.textContent = item.description;
+                itemDiv.appendChild(descDiv);
+                
+                // Nœuds concernés
+                if (item.nodes && item.nodes.length > 0) {
+                    const nodesDiv = document.createElement('div');
+                    nodesDiv.className = 'flex flex-wrap gap-1 mb-2';
+                    
+                    item.nodes.forEach(node => {
+                        const nodeSpan = document.createElement('span');
+                        nodeSpan.className = 'bg-white px-2 py-1 rounded text-xs border';
+                        nodeSpan.textContent = node;
+                        nodeSpan.style.cursor = 'pointer';
+                        nodeSpan.onclick = () => {
+                            closeModal(null);
+                            highlightNodesInGraph([node]);
+                        };
+                        nodesDiv.appendChild(nodeSpan);
+                    });
+                    
+                    itemDiv.appendChild(nodesDiv);
+                }
+                
+                // Suggestion
+                if (item.suggestion) {
+                    const suggestionDiv = document.createElement('div');
+                    suggestionDiv.className = 'text-xs text-gray-600 italic';
+                    suggestionDiv.innerHTML = `💡 ${item.suggestion}`;
+                    itemDiv.appendChild(suggestionDiv);
+                }
+                
+                // Bouton de résolution
+                const resolveBtn = document.createElement('button');
+                resolveBtn.className = `mt-2 bg-${color}-500 hover:bg-${color}-600 text-white px-3 py-1 rounded text-xs`;
+                resolveBtn.textContent = 'Résoudre';
+                resolveBtn.onclick = () => resolveInconsistency(item);
+                itemDiv.appendChild(resolveBtn);
+                
+                section.appendChild(itemDiv);
+            });
+            
+            return section;
+        }
+
+        // Fonction pour obtenir un label lisible pour le type d'incohérence
+        function getInconsistencyTypeLabel(type) {
+            const labels = {
+                'temporal_cycle': '🔄 Boucle temporelle',
+                'contradictory_relations': '⚡ Relations contradictoires',
+                'inconsistent_equivalence': '≠ Équivalence incohérente',
+                'orphan_node': '🏝️ Nœud isolé',
+                'disconnected_group': '📦 Groupe déconnecté'
+            };
+            return labels[type] || type;
+        }
+
+        // Fonction pour résoudre une incohérence
+        async function resolveInconsistency(inconsistency) {
+            closeModal(null);
+            
+            // Mettre en évidence les nœuds concernés
+            highlightNodesInGraph(inconsistency.nodes);
+            
+            // Proposer des actions selon le type
+            switch(inconsistency.type) {
+                case 'temporal_cycle':
+                    await showModal({
+                        title: 'Résolution de boucle temporelle',
+                        text: `Pour résoudre cette boucle temporelle, vous devez supprimer ou modifier l'une des relations temporelles entre : ${inconsistency.nodes.join(' → ')}`,
+                        isHtml: true
+                    });
+                    break;
+                    
+                case 'contradictory_relations':
+                    const [node1, node2] = inconsistency.nodes;
+                    await showModal({
+                        title: 'Résolution de contradiction',
+                        text: `Veuillez clarifier la relation entre "${node1}" et "${node2}". Supprimez l'une des relations contradictoires ou fusionnez-les en une relation plus précise.`,
+                        isHtml: true
+                    });
+                    break;
+                    
+                case 'orphan_node':
+                    const orphan = inconsistency.nodes[0];
+                    dom.helpPanel.innerHTML = `<b>Créez une relation pour connecter "${orphan}" au graphe</b>`;
+                    // Activer automatiquement le mode relation
+                    await startAction('relation');
+                    // Présélectionner le nœud orphelin si possible
+                    const orphanSubjectIndex = subjects.indexOf(orphan);
+                    if (orphanSubjectIndex !== -1) {
+                        selectedSource = { type: 'subject', index: orphanSubjectIndex };
+                        renderSubjects();
+                        dom.helpPanel.innerHTML = `<b>Relation (2/2) :</b> Sélectionnez la destination pour "${orphan}"`;
+                    }
+                    break;
+                    
+                case 'inconsistent_equivalence':
+                    await showModal({
+                        title: 'Révision d\'équivalence',
+                        text: `Les éléments "${inconsistency.nodes[0]}" et "${inconsistency.nodes[1]}" sont marqués comme équivalents mais ont des propriétés différentes. Vérifiez s'ils sont vraiment équivalents.`,
+                        isHtml: true
+                    });
+                    break;
+                    
+                case 'disconnected_group':
+                    await showModal({
+                        title: 'Groupe à restructurer',
+                        text: `Le groupe "${inconsistency.nodes[0]}" contient des éléments sans liens. Considérez ajouter des relations entre les membres ou réorganiser le groupe.`,
+                        isHtml: true
+                    });
+                    break;
+            }
+        }
+
+        // Fonction pour mettre en évidence des nœuds spécifiques
+        function highlightNodesInGraph(nodeIds) {
+            if (!graph) return;
+            
+            // Mettre à jour seulement les couleurs sans toucher à la physique
+            const updateColors = {};
+            
+            allGraphData.nodes.forEach(n => {
+                const isHighlighted = nodeIds.includes(n.id) || nodeIds.includes(n.label);
+                updateColors[n.id] = {
+                    color: {
+                        border: isHighlighted ? '#dc2626' : '#4f46e5',
+                        background: isHighlighted ? '#fecaca' : 'white'
+                    }
+                };
+            });
+            
+            // Utiliser updateCluster pour mettre à jour seulement les couleurs
+            graph.body.data.nodes.update(Object.keys(updateColors).map(id => ({
+                id: id,
+                ...updateColors[id]
+            })));
+            
+            // Focus sur le premier nœud
+            const firstNode = allGraphData.nodes.find(n => 
+                nodeIds.includes(n.id) || nodeIds.includes(n.label)
+            );
+            if (firstNode) {
+                graph.focus(firstNode.id, {
+                    scale: 1.5,
+                    animation: {
+                        duration: 500,
+                        easingFunction: 'easeInOutQuad'
+                    }
+                });
+            }
+        }
+
+        // Rendre la fonction accessible globalement
+        window.nextInvestigationStep = nextInvestigationStep;
+
+        function toggleInvestigationMode() {
+            investigationMode ? exitInvestigationMode() : enterInvestigationMode();
+        }
+
+        async function enterInvestigationMode() {
+            console.log("LOG: Entering dynamic investigation mode");
+            investigationMode = true;
+            
+            const btn = document.getElementById('action-investigation');
+            btn.innerHTML = '<div class="spinner"></div> Génération...';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/api/generate-questions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(allGraphData)
+                });
+                if (!response.ok) throw new Error(await response.text());
+                
+                investigationQuestions = await response.json();
+                window.investigationQuestions = investigationQuestions;
+                currentQuestionIndex = 0;
+
+                document.getElementById('investigation-panel').classList.remove('hidden');
+                btn.classList.add('bg-green-600');
+                btn.innerHTML = `Mode Enquête Actif`;
+
+                if (investigationQuestions.length > 0) {
+                    displayNextInvestigationQuestion();
+                } else {
+                    document.getElementById('investigation-content').innerHTML = `
+                        <div class="p-4 text-center">
+                            <h4 class="font-semibold text-green-700">✅ Enquête Complète !</h4>
+                            <p class="text-sm text-gray-600 mt-2">Votre graphe semble bien connecté. Aucune question évidente n'a été détectée.</p>
+                        </div>`;
+                }
+            } catch (error) {
+                console.error("Erreur Mode Enquête:", error);
+                await showModal({ title: 'Erreur', text: `Impossible de démarrer le Mode Enquête : ${error.message}` });
+                exitInvestigationMode();
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        function exitInvestigationMode() {
+            console.log("LOG: Exiting investigation mode");
+            investigationMode = false;
+            document.getElementById('investigation-panel').classList.add('hidden');
+            const btn = document.getElementById('action-investigation');
+            btn.classList.remove('bg-green-600');
+            btn.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                    <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 1 1 0 000 2H6a2 2 0 100 4h2a2 2 0 100-4h2a1 1 0 100-2 2 2 0 00-2 2v11a2 2 0 002 2h6a2 2 0 002-2V5a2 2 0 00-2-2H6z" clip-rule="evenodd" />
+                </svg>
+                Mode Enquête Guidée
+            `;
+            dom.helpPanel.innerHTML = 'Mode Enquête terminé.';
+        }
+
+        function displayNextInvestigationQuestion() {
+            const container = document.getElementById('investigation-content');
+            if (currentQuestionIndex >= investigationQuestions.length) {
+                const q = investigationQuestions[currentQuestionIndex];
+                container.innerHTML = `
+                    <div class="p-4 text-center">
+                        <h4 class="font-semibold text-green-700">🎉 Assistant Terminé !</h4>
+                        <p class="text-sm text-gray-600 mt-2">Vous avez traité toutes les suggestions.</p>
+                        <div class="flex gap-2 mt-2">
+                                                <button class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded text-sm" onclick="investigateQuestion(window.investigationQuestions[${currentQuestionIndex}])">
+                            Investiguer
+                        </button>
+                        <button class="bg-gray-300 hover:bg-gray-400 text-gray-700 px-3 py-1 rounded text-sm" onclick="nextInvestigationStep()">
+                            Ignorer
+                        </button>
+                    </div>
+                    </div>`;
+                setTimeout(exitInvestigationMode, 4000);
+                return;
+            }
+
+            const q = investigationQuestions[currentQuestionIndex];
+            container.innerHTML = `
+                <div class="mb-2 text-sm text-gray-500">Suggestion ${currentQuestionIndex + 1} / ${investigationQuestions.length}</div>
+                <div class="p-3 bg-indigo-50 rounded-lg">
+                    <h4 class="font-semibold text-gray-800 mb-2">${q.question}</h4>
+                    ${q.hint ? `<p class="text-xs text-gray-600 italic mb-2">💡 ${q.hint}</p>` : ''}
+                    <div class="flex flex-wrap gap-1 mb-3">
+                        ${q.nodes.map(node => `<span class="bg-white px-2 py-1 rounded text-xs border cursor-pointer hover:bg-gray-100" onclick="highlightAndFocusNode('${node}')">${node}</span>`).join('')}
+                    </div>
+                    <div class="flex gap-2 mt-2">
+                        <button class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded text-sm" onclick="investigateQuestion(investigationQuestions[${currentQuestionIndex}])">
+                            Investiguer
+                        </button>
+                        <button class="bg-gray-300 hover:bg-gray-400 text-gray-700 px-3 py-1 rounded text-sm" onclick="nextInvestigationStep()">
+                            Ignorer
+                        </button>
+                    </div>
+                </div>`;
+        }
+
+        function nextInvestigationStep() {
+            currentQuestionIndex++;
+            displayNextInvestigationQuestion();
+        }
+
+        // Fonction pour obtenir des suggestions contextuelles en temps réel
+        async function getContextualSuggestions() {
+            if (!investigationMode) return;
+            
+            // Analyser le contexte actuel et suggérer des actions
+            const orphans = allGraphData.nodes.filter(n => {
+                const hasEdge = allGraphData.edges.some(e => 
+                    e.from === n.id || e.to === n.id
+                );
+                return !hasEdge;
+            });
+            
+            if (orphans.length > 0) {
+                const suggestion = `Connectez "${orphans[0].label}" aux autres éléments`;
+                dom.helpPanel.innerHTML = `💡 Suggestion: ${suggestion}`;
+            }
+        }
+
+        // Fonction pour changer le mode de visualisation
+        async function switchViewMode(mode) {
+            console.log(`LOG: Switching to ${mode} view mode`);
+            currentViewMode = mode;
+            
+            // Mettre à jour les boutons
+            ['standard', 'layered', 'circular', 'hierarchical'].forEach(m => {
+                const btn = document.getElementById(`view-${m}`);
+                if (m === mode) {
+                    btn.classList.add('ring-2', 'ring-offset-2', 'ring-blue-500');
+                } else {
+                    btn.classList.remove('ring-2', 'ring-offset-2', 'ring-blue-500');
+                }
+            });
+            
+            // Afficher/cacher la légende
+            const legend = document.getElementById('layer-legend');
+            if (mode === 'layered') {
+                legend.classList.remove('hidden');
+            } else {
+                legend.classList.add('hidden');
+            }
+            
+            // Appliquer la visualisation
+            switch(mode) {
+                case 'standard':
+                    // Restaurer complètement la vue standard avec physique
+                    if (graph) {
+                        const options = {
+                            layout: {
+                                hierarchical: false
+                            },
+                            physics: {
+                                enabled: true,
+                                solver: 'forceAtlas2Based',
+                                stabilization: {
+                                    enabled: true,
+                                    iterations: 100
+                                }
+                            },
+                            nodes: {
+                                shape: 'box',
+                                font: { size: 14, color: '#333' },
+                                margin: 10,
+                                fixed: false  // Permettre le mouvement
+                            },
+                            edges: {
+                                font: { align: 'middle', size: 12 },
+                                smooth: { type: 'cubicBezier' }
+                            },
+                            interaction: {
+                                dragNodes: true,
+                                dragView: true,
+                                zoomView: true
+                            }
+                        };
+                        graph.setOptions(options);
+                        
+                        // Réappliquer les données sans positions fixes
+                        const nodes = new vis.DataSet(allGraphData.nodes.map(n => ({
+                            ...n,
+                            color: getNodeColor(n),
+                            fixed: false,
+                            x: undefined,
+                            y: undefined
+                        })));
+                        const edges = new vis.DataSet(allGraphData.edges.map(e => ({
+                            ...e,
+                            color: getEdgeColor(e.type),
+                            arrows: e.type === 'equivalence' ? 'to, from' : 'to'
+                        })));
+                        graph.setData({ nodes, edges });
+                    }
+                    break;
+                case 'layered':
+                    await applyLayeredView();
+                    break;
+                case 'circular':
+                    applyCircularView();
+                    break;
+                case 'hierarchical':
+                    applyHierarchicalView();
+                    break;
+            }
+        }
+
+        // Appliquer la vue en couches
+        async function applyLayeredView() {
+            console.log("LOG: Applying layered view");
+            
+            if (allGraphData.nodes.length === 0) {
+                dom.helpPanel.innerHTML = 'Aucun nœud à visualiser en couches';
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/layered-graph', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(allGraphData)
+                });
+                
+                if (!response.ok) throw new Error(await response.text());
+                
+                const layeredData = await response.json();
+                displayLayeredGraph(layeredData);
+                
+            } catch (error) {
+                console.error("Erreur vue en couches:", error);
+                dom.helpPanel.innerHTML = 'Erreur lors de la création de la vue en couches';
+            }
+        }
+
+        // Afficher le graphe en couches
+        function displayLayeredGraph(layeredData) {
+            if (!graph) return;
+            
+            // Préparer les nœuds avec leurs positions et styles
+            const nodes = new vis.DataSet(layeredData.nodes.map(n => ({
+                id: n.id,
+                label: n.label,
+                x: n.x,
+                y: n.y,
+                fixed: {
+                    x: true,
+                    y: true
+                },
+                color: {
+                    background: n.color + '33',
+                    border: n.color,
+                    highlight: {
+                        background: n.color + '66',
+                        border: n.color
+                    }
+                },
+                shape: n.shape,
+                size: n.size,
+                font: {
+                    color: '#333',
+                    size: 12
+                }
+            })));
+            
+            // Préparer les arêtes avec des couleurs adaptées
+            const edges = new vis.DataSet(layeredData.edges.map(e => ({
+                from: e.from,
+                to: e.to,
+                label: e.label,
+                color: {
+                    color: '#999',
+                    highlight: '#333'
+                },
+                smooth: {
+                    type: 'continuous',
+                    roundness: 0.5
+                },
+                arrows: e.type === 'equivalence' ? 'to, from' : 'to'
+            })));
+            
+            // Options spécifiques pour la vue en couches
+            const options = {
+                physics: {
+                    enabled: false // Désactiver la physique pour garder les positions fixes
+                },
+                nodes: {
+                    font: {
+                        size: 14,
+                        color: '#333'
+                    }
+                },
+                edges: {
+                    font: {
+                        size: 10,
+                        align: 'middle'
+                    },
+                    smooth: {
+                        enabled: true,
+                        type: 'continuous'
+                    }
+                },
+                interaction: {
+                    dragNodes: false, // Empêcher le déplacement des nœuds
+                    hover: true
+                }
+            };
+            
+            graph.setOptions(options);
+            graph.setData({ nodes, edges });
+            graph.fit();
+        }
+
+        // Appliquer la vue circulaire
+        function applyCircularView() {
+            console.log("LOG: Applying circular view");
+            
+            if (!graph) return;
+            
+            const nodeCount = allGraphData.nodes.length;
+            const angleStep = (2 * Math.PI) / nodeCount;
+            const radius = Math.max(300, nodeCount * 20);
+            
+            // Calculer les positions circulaires
+            const nodes = new vis.DataSet(allGraphData.nodes.map((n, i) => ({
+                ...n,
+                x: radius * Math.cos(i * angleStep),
+                y: radius * Math.sin(i * angleStep),
+                fixed: {
+                    x: true,
+                    y: true
+                },
+                color: getNodeColorByType(n)
+            })));
+            
+            const edges = new vis.DataSet(allGraphData.edges.map(e => ({
+                ...e,
+                color: getEdgeColor(e.type),
+                smooth: {
+                    type: 'curvedCW',
+                    roundness: 0.2
+                },
+                arrows: e.type === 'equivalence' ? 'to, from' : 'to'
+            })));
+            
+            const options = {
+                physics: { enabled: false },
+                nodes: {
+                    shape: 'dot',
+                    size: 20
+                }
+            };
+            
+            graph.setOptions(options);
+            graph.setData({ nodes, edges });
+            graph.fit();
+        }
+
+        // Appliquer la vue hiérarchique
+        function applyHierarchicalView() {
+            console.log("LOG: Applying hierarchical view");
+            
+            if (!graph) return;
+            
+            // Calculer les niveaux hiérarchiques basés sur les connexions
+            const levels = calculateHierarchicalLevels();
+            
+            const nodes = new vis.DataSet(allGraphData.nodes.map(n => ({
+                ...n,
+                level: levels[n.id] || 0,
+                color: getNodeColorByType(n)
+            })));
+            
+            const edges = new vis.DataSet(allGraphData.edges.map(e => ({
+                ...e,
+                color: getEdgeColor(e.type),
+                arrows: e.type === 'equivalence' ? 'to, from' : 'to'
+            })));
+            
+            const options = {
+                layout: {
+                    hierarchical: {
+                        enabled: true,
+                        direction: 'UD',
+                        sortMethod: 'directed',
+                        shakeTowards: 'roots',
+                        levelSeparation: 200,  // Augmenté de 150
+                        nodeSpacing: 150,  // Augmenté de 100
+                        treeSpacing: 200  // Ajouté pour plus d'espace entre les branches
+                    }
+                },
+                physics: {
+                    enabled: false
+                },
+                edges: {
+                    smooth: {
+                        type: 'cubicBezier',
+                        forceDirection: 'vertical'
+                    }
+                }
+            };
+            
+            graph.setOptions(options);
+            graph.setData({ nodes, edges });
+            
+            // Ajuster la vue après un court délai
+            setTimeout(() => graph.fit(), 100);
+        }
+
+        // Calculer les niveaux hiérarchiques
+        function calculateHierarchicalLevels() {
+            const levels = {};
+            const visited = new Set();
+            
+            // Trouver les nœuds racines (pas de flèches entrantes)
+            const roots = allGraphData.nodes.filter(n => {
+                return !allGraphData.edges.some(e => e.to === n.id);
+            });
+            
+            // BFS pour assigner les niveaux
+            const queue = roots.map(r => ({ id: r.id, level: 0 }));
+            
+            while (queue.length > 0) {
+                const { id, level } = queue.shift();
+                
+                if (visited.has(id)) continue;
+                visited.add(id);
+                levels[id] = level;
+                
+                // Trouver les enfants
+                allGraphData.edges.forEach(e => {
+                    if (e.from === id && !visited.has(e.to)) {
+                        queue.push({ id: e.to, level: level + 1 });
+                    }
+                });
+            }
+            
+            // Assigner un niveau par défaut aux nœuds non visités
+            allGraphData.nodes.forEach(n => {
+                if (!levels[n.id]) {
+                    levels[n.id] = Math.max(...Object.values(levels)) + 1 || 0;
+                }
+            });
+            
+            return levels;
+        }
+
+        // Obtenir la couleur du nœud selon son type
+        function getNodeColorByType(node) {
+            const label = node.label.toLowerCase();
+            const context = (node.context || '').toLowerCase();
+            
+            // Acteurs
+            if (label.includes('suspect') || label.includes('victime') || 
+                label.includes('témoin') || context.includes('personnage')) {
+                return { background: '#3b82f633', border: '#3b82f6' };
+            }
+            
+            // Lieux
+            if (label.includes('lieu') || label.includes('scène') || 
+                label.includes('maison') || label.includes('bureau')) {
+                return { background: '#10b98133', border: '#10b981' };
+            }
+            
+            // Événements
+            if (context.includes('chronologie') || label.includes('heure') || 
+                label.includes('moment')) {
+                return { background: '#f59e0b33', border: '#f59e0b' };
+            }
+            
+            // Preuves
+            if (label.includes('preuve') || label.includes('indice') || 
+                context.includes('preuve')) {
+                return { background: '#ef444433', border: '#ef4444' };
+            }
+            
+            // Concepts par défaut
+            return { background: '#8b5cf633', border: '#8b5cf6' };
+        }
+
+        // Fonction pour réinitialiser la vue standard
+        function resetToStandardView() {
+            const nodes = new vis.DataSet(allGraphData.nodes.map(n => ({
+                ...n,
+                color: getNodeColor(n),
+                fixed: false
+            })));
+            
+            const edges = new vis.DataSet(allGraphData.edges.map(e => ({
+                ...e,
+                color: getEdgeColor(e.type),
+                arrows: e.type === 'equivalence' ? 'to, from' : 'to'
+            })));
+            
+            const options = {
+                layout: {
+                    hierarchical: false
+                },
+                physics: {
+                    enabled: true,
+                    solver: 'forceAtlas2Based',
+                    stabilization: {
+                        iterations: 200
+                    }
+                },
+                nodes: {
+                    shape: 'box',
+                    font: { size: 14, color: '#333' },
+                    margin: 10
+                },
+                edges: {
+                    font: { align: 'middle', size: 12 },
+                    smooth: { type: 'cubicBezier' }
+                }
+            };
+            
+            graph.setOptions(options);
+            graph.setData({ nodes, edges });
+        }
+
+        // Fonction pour générer les questions d'investigation
+        async function generateInvestigationQuestions() {
+            console.log("LOG: Generating investigation questions");
+            
+            if (allGraphData.nodes.length === 0) {
+                await showModal({
+                    title: 'Graphe vide',
+                    text: 'Ajoutez des éléments au graphe pour générer des questions d\'investigation.'
+                });
+                return;
+            }
+            
+            const btn = document.getElementById('generate-questions-btn');
+            const originalContent = btn.innerHTML;
+            btn.innerHTML = '<div class="spinner"></div> Analyse...';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/generate-questions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(allGraphData)
+                });
+                
+                if (!response.ok) {
+                    throw new Error(await response.text());
+                }
+                
+                const questions = await response.json();
+                console.log("LOG: Received questions:", questions);
+                
+                // Restaurer le bouton AVANT d'afficher la modal
+                btn.innerHTML = originalContent;
+                btn.disabled = false;
+                
+                // Maintenant afficher les questions
+                await displayInvestigationQuestions(questions);
+                
+            } catch (error) {
+                console.error("Erreur génération questions:", error);
+                
+                // Restaurer le bouton en cas d'erreur aussi
+                btn.innerHTML = originalContent;
+                btn.disabled = false;
+                
+                await showModal({
+                    title: 'Erreur',
+                    text: `Erreur lors de la génération des questions: ${error.message}`
+                });
+            }
+        }
+
+        // Afficher les questions d'investigation
+        async function displayInvestigationQuestions(questions) {
+            // Réinitialiser le stockage des questions
+            window.questionsData = [];
+            if (!questions || questions.length === 0) {
+                await showModal({
+                    title: '✅ Enquête complète',
+                    text: 'Votre graphe semble complet ! Aucune question urgente détectée.',
+                    isHtml: true
+                });
+                return;
+            }
+            
+            // Stocker les questions globalement pour y accéder après
+            window.currentQuestions = questions;
+            
+            // Créer le contenu pour afficher les questions
+            const container = document.createElement('div');
+            container.className = 'space-y-4 max-h-96 overflow-y-auto';
+            
+            // Grouper les questions par priorité
+            const grouped = {
+                high: [],
+                medium: [],
+                low: []
+            };
+            
+            questions.forEach((q, index) => {
+                q.globalIndex = index; // Ajouter un index global
+                grouped[q.priority].push(q);
+            });
+            
+            // Créer les sections
+            if (grouped.high.length > 0) {
+                container.appendChild(createQuestionSection('🔴 Questions Prioritaires', grouped.high, 'red'));
+            }
+            
+            if (grouped.medium.length > 0) {
+                container.appendChild(createQuestionSection('🟡 Questions Importantes', grouped.medium, 'yellow'));
+            }
+            
+            if (grouped.low.length > 0) {
+                container.appendChild(createQuestionSection('🟢 Questions Complémentaires', grouped.low, 'green'));
+            }
+            
+            await showModal({
+                title: '❓ Questions d\'Investigation',
+                text: container.outerHTML,
+                isHtml: true
+            });
+            
+            // Attacher les événements APRÈS que le HTML soit dans le DOM
+            setTimeout(() => {
+                questions.forEach((q, index) => {
+                    const investigateBtn = document.querySelector(`[data-investigate="${index}"]`);
+                    const skipBtn = document.querySelector(`[data-skip="${index}"]`);
+                    
+                    if (investigateBtn) {
+                        investigateBtn.onclick = function() {
+                            console.log("Investigate clicked for:", q);
+                            window.investigateQuestion(q);
+                        };
+                    }
+                    
+                    if (skipBtn) {
+                        skipBtn.onclick = function() {
+                            console.log("Skip clicked for:", q);
+                            window.skipQuestion(q);
+                        };
+                    }
+                });
+            }, 100);
+        }
+
+        // Créer une section de questions
+        function createQuestionSection(title, questions, color) {
+            const section = document.createElement('div');
+            section.className = 'mb-4';
+            
+            const header = document.createElement('h3');
+            header.className = `font-semibold text-${color}-600 mb-2`;
+            header.textContent = title;
+            section.appendChild(header);
+            
+            questions.forEach((q, idx) => {
+                const questionDiv = document.createElement('div');
+                questionDiv.className = `border-l-4 border-${color}-400 bg-${color}-50 p-3 mb-2 rounded`;
+                
+                // Question principale
+                const questionText = document.createElement('div');
+                questionText.className = 'font-medium text-sm text-gray-800 mb-2';
+                questionText.textContent = q.question;
+                questionDiv.appendChild(questionText);
+                
+                // Contexte
+                const contextDiv = document.createElement('div');
+                contextDiv.className = 'text-xs text-gray-600 mb-1';
+                contextDiv.innerHTML = `<span class="font-semibold">Contexte:</span> ${q.context}`;
+                questionDiv.appendChild(contextDiv);
+                
+                // Indice
+                if (q.hint) {
+                    const hintDiv = document.createElement('div');
+                    hintDiv.className = 'text-xs text-gray-500 italic mb-2';
+                    hintDiv.innerHTML = `💡 ${q.hint}`;
+                    questionDiv.appendChild(hintDiv);
+                }
+                
+                // Nœuds concernés
+                if (q.nodes && q.nodes.length > 0) {
+                    const nodesDiv = document.createElement('div');
+                    nodesDiv.className = 'flex flex-wrap gap-1 mb-2';
+                    
+                    q.nodes.forEach(node => {
+                        const nodeBtn = document.createElement('span');
+                        nodeBtn.className = 'bg-white px-2 py-1 rounded text-xs border cursor-pointer hover:bg-gray-100';
+                        nodeBtn.textContent = node;
+                        nodeBtn.innerHTML = `<span onclick="closeModal(null); highlightAndFocusNode('${node}')" class="bg-white px-2 py-1 rounded text-xs border cursor-pointer hover:bg-gray-100">${node}</span>`;
+                        nodesDiv.appendChild(nodeBtn);
+                    });
+                    
+                    questionDiv.appendChild(nodesDiv);
+                }
+                
+                // Stocker la question dans window pour y accéder
+                if (!window.questionsData) window.questionsData = [];
+                const qIndex = window.questionsData.length;
+                window.questionsData.push(q);
+                
+                // Boutons d'action avec onclick direct dans le HTML
+                const actionsDiv = document.createElement('div');
+                actionsDiv.innerHTML = `
+                    <div class="flex gap-2 mt-2">
+                        <button onclick="window.investigateQuestion(window.questionsData[${qIndex}])" class="bg-${color}-500 hover:bg-${color}-600 text-white px-3 py-1 rounded text-xs">
+                            Investiguer
+                        </button>
+                        <button onclick="window.skipQuestion(window.questionsData[${qIndex}])" class="bg-gray-300 hover:bg-gray-400 text-gray-700 px-3 py-1 rounded text-xs">
+                            Ignorer
+                        </button>
+                    </div>
+                `;
+                
+                questionDiv.appendChild(actionsDiv);
+                section.appendChild(questionDiv);
+            });
+            
+            return section;
+        }
+
+        // S'assurer que les fonctions sont accessibles globalement
+        window.investigateQuestion = async function(question) {
+            console.log("LOG: Investigating question:", question);
+            closeModal(null); // Ferme la modale si elle est ouverte
+            
+            if (question.nodes && question.nodes.length > 0) {
+                highlightNodesInGraph(question.nodes);
+            }
+            
+            switch(question.type) {
+                case 'orphan':
+                    dom.helpPanel.innerHTML = `<b>Investigation:</b> ${question.question}`;
+                    // On ne peut pas présélectionner, mais on peut guider l'utilisateur
+                    dom.helpPanel.innerHTML = `<b>Connectez "${question.nodes[0]}" :</b> Faites glisser cet élément sur un autre pour créer une relation.`;
+                    break;
+                    
+                case 'missing_link':
+                    dom.helpPanel.innerHTML = `<b>Investigation:</b> ${question.question}`;
+                    if (question.nodes.length >= 2) {
+                        const sourceNode = subjects.find(s => s === question.nodes[0]) ? {type:'subject', index: subjects.indexOf(question.nodes[0])} : {type:'concept', index: concepts.indexOf(question.nodes[0])};
+                        const destNode = subjects.find(s => s === question.nodes[1]) ? {type:'subject', index: subjects.indexOf(question.nodes[1])} : {type:'concept', index: concepts.indexOf(question.nodes[1])};
+                        if(sourceNode.index !== -1 && destNode.index !== -1) {
+                            await initiateRelationship(sourceNode, destNode);
+                        }
+                    }
+                    break;
+                    
+                default:
+                    console.log("LOG: Unknown question type:", question.type);
+                    dom.helpPanel.innerHTML = `<b>Question:</b> ${question.question}`;
+            }
+            nextInvestigationStep(); // Passer à la question suivante après avoir investigué
+        };
+
+        window.skipQuestion = function(question) {
+            console.log("LOG: Skipping question:", question.question);
+            dom.helpPanel.innerHTML = `Suggestion ignorée : ${question.question}`;
+            nextInvestigationStep(); // Passer à la question suivante
+        };
+
+        // Mettre en évidence et centrer sur un nœud
+        function highlightAndFocusNode(nodeId) {
+            if (!graph) return;
+            
+            // Trouver le nœud
+            const node = allGraphData.nodes.find(n => n.id === nodeId || n.label === nodeId);
+            if (!node) return;
+            
+            // Mettre en évidence
+            highlightNodesInGraph([nodeId]);
+        }
+
+        // Rendre la fonction accessible globalement
+        window.highlightAndFocusNode = highlightAndFocusNode;
+
+        // NOUVELLE FONCTION: Pour peupler le panneau de navigation par contexte
+        function renderContextsPanel() {
+            const panel = document.getElementById('contexts-panel');
+            panel.innerHTML = ''; // Vider le panneau
+            
+            const contexts = ['Tous', ...Object.keys(n4lNotes)];
+
+            contexts.forEach(context => {
+                if (context === 'general' && contexts.length > 2 && n4lNotes[context]?.length === 0) return; // Ne pas afficher 'general' s'il est vide et qu'il y a d'autres contextes
+
+                const btn = document.createElement('button');
+                const isAll = context === 'Tous';
+                const isActive = isAll ? (dom.contextFilter.value === '') : (dom.contextFilter.value === context);
+
+                btn.textContent = context;
+                btn.className = `px-3 py-1 text-xs rounded-full border transition-colors ${isActive ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white hover:bg-indigo-50 text-gray-700'}`;
+                btn.dataset.context = isAll ? '' : context;
+                
+                btn.onclick = () => {
+                    const newContext = isAll ? '' : context;
+                    // Mettre à jour le filtre du graphe et l'état visuel du panneau
+                    filterByContext(newContext); 
+                    // Mettre à jour le champ de texte du contexte actuel
+                    updateContext(isAll ? 'general' : context);
+                    // Faire défiler l'éditeur jusqu'au contexte sélectionné
+                    if (!isAll) {
+                        scrollToContextInEditor(context);
+                    }
+                };
+                panel.appendChild(btn);
+            });
+        }
+
+        // NOUVELLE FONCTION: Pour faire défiler l'éditeur jusqu'à un contexte
+        function scrollToContextInEditor(context) {
+            if (!n4lEditor || !context) return;
+            const query = `:: ${context} ::`;
+            const cursor = n4lEditor.getSearchCursor(query, {line: 0, ch: 0}, {caseFold: true});
+            if (cursor.findNext()) {
+                n4lEditor.scrollIntoView({ from: cursor.from(), to: cursor.to() }, 100);
+                n4lEditor.setSelection(cursor.from(), cursor.to());
+            }
+        }
+
+        function handleDragStart(e) {
+            const type = e.target.dataset.type;
+            const index = e.target.dataset.index;
+            e.dataTransfer.setData('application/json', JSON.stringify({ type, index }));
+            e.dataTransfer.effectAllowed = 'link';
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.target.classList.add('drop-target');
+            e.dataTransfer.dropEffect = 'link';
+        }
+
+        function handleDragLeave(e) {
+            e.target.classList.remove('drop-target');
+        }
+
+        async function handleDrop(e) {
+            e.preventDefault();
+            e.target.classList.remove('drop-target');
+            
+            const sourceData = JSON.parse(e.dataTransfer.getData('application/json'));
+            const destData = {
+                type: e.target.dataset.type,
+                index: parseInt(e.target.dataset.index)
+            };
+
+            // Empêcher de déposer sur soi-même
+            if (sourceData.type === destData.type && sourceData.index == destData.index) {
+                return;
+            }
+            
+            await initiateRelationship(sourceData, destData);
+        }
+
+        async function initiateRelationship(source, dest) {
+            const sourceText = source.type === 'concept' ? `"${concepts[source.index]}"` : subjects[source.index];
+            const destText = dest.type === 'concept' ? `"${concepts[dest.index]}"` : subjects[dest.index];
+            
+            const result = await showModal({ 
+                title: "Créer une Relation", 
+                text: `Définir la relation entre <b>${sourceText}</b> et <b>${destText}</b>:`, 
+                prompt: true,
+                showSuggestions: true,
+                isHtml: true,
+                // NOUVEAU: Activer le "Hint for Learning"
+                showLearningHint: true,
+                learningSubject: sourceText
+            });
+
+            if (result && result.text) {
+                const relText = result.text;
+                if (result.isLearningSubject) {
+                    // Ordre normal: ce que j'apprends (source) en premier
+                    addNoteToEditor(`    ${sourceText} -> ${relText} -> ${destText}`);
+                } else {
+                    // Ordre inversé: je connais la source, j'apprends la destination
+                    // On crée une relation inverse générique
+                    addNoteToEditor(`    ${destText} -> est ${relText} de -> ${sourceText}`);
+                }
+            }
+            resetSelection();
+        }
+
+        async function updateTimeline() {
+            console.log("LOG: Updating timeline with notes:", n4lNotes);
+            try {
+                const response = await fetch('/api/timeline-data', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(n4lNotes)
+                });
+                const events = await response.json();
+                console.log("LOG: Received timeline events:", events);
+                dom.timelineContainer.innerHTML = '';
+                if (!events || events.length === 0) {
+                    dom.timelineContainer.innerHTML = `<div class="text-center text-gray-500 p-8">Aucun événement chronologique détecté.</div>`;
+                    return;
+                }
+                events.forEach(event => {
+                    const item = document.createElement('div');
+                    item.className = 'timeline-item pb-4';
+                    item.innerHTML = `
+                        <p class="font-semibold text-indigo-600">${event.timeHint}</p>
+                        <p class="text-sm text-gray-700">${event.description}</p>
+                    `;
+                    dom.timelineContainer.appendChild(item);
+                });
+            } catch (error) {
+                console.error('LOG: Erreur timeline:', error);
+            }
+        }
+        
+        init();
+    });
+    </script>
+    <div id="node-context-menu" class="hidden absolute bg-white shadow-xl rounded-md py-1 text-sm z-[100]">
+        </div>
+</body>
+</html>

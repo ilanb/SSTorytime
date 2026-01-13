@@ -1,5 +1,5 @@
 
-- neuroscience brain
+- neuroscience brains
 
 :: brain waves, oscillations ::
 
@@ -29,7 +29,7 @@ human brain (consists of) forebrain
 
 neocortex (hasstruct) modular repeating columns in 6 layers
      "    (role)  accumulating knowledge 
-     "    (evolvedfrom)   outgrowth of hypothalamus
+     "    (evolved from)   outgrowth of hypothalamus
 
 hypothalamus (role) key nexus between body and brain , vital decision making circuits
      "     (where) forebrain
@@ -40,7 +40,7 @@ hypothalamus (role) key nexus between body and brain , vital decision making cir
 
  "     (infl) urges to eat, drink, sleep, find shelter, avoid whatever is causing pain or fear, or respond with defensive or aggressive behaviours.
 
- " (evolvedfrom) early telencephalon, meaning the end of the brain
+ " (evolved from) early telencephalon, meaning the end of the brain
  " (leads to) ultimately expand in mammals to become the neocortex
 
 hormones (infl) autonomic nervous system 
@@ -52,7 +52,7 @@ retinal ganglia (where) optic nerve
 
 columnar organization hypothesis
 
-column (pt) neocortex 
+column (pt-of) neocortex 
 column (depends on) tectum, thalamus
 
 
@@ -76,7 +76,7 @@ hippocampus  (role) learning and memory
 
 tectum (role) maps incoming sensory stimulus to a menu of actions/instincts
    "   (role) performs various kinds of neural operations, using these integrated maps of different kinds of stimuli to derive an optimal action
-   "   (how) attractive signals engage a winner-takes-all competition
+   "   (works-by) attractive signals engage a winner-takes-all competition
    "   (note) conditional promises
  
    "    (where) top of midbrain
@@ -111,9 +111,9 @@ encoding meaning as "things" is efficient conceptualisation, which is a coarse g
 
 Complementary roles for hippocampus and anterior cingulate in composing continuous choice   (url) "https://www.biorxiv.org/content/10.1101/2025.03.17.643774v1.full"
 
-Left–right-alternating theta sweeps in entorhinal–hippocampal maps of space (pub by) Nature
+Left–right-alternating theta sweeps in entorhinal–hippocampal maps of space (pub-by) Nature
 
    " (discusses) theta waves
    " (discusses) place cells spacetime
-  "  (discusses) place cells (pt) hippocampus
-  "  (discusses) grid cells (pt) entorhinal cortex 
+  "  (discusses) place cells (pt-of) hippocampus
+  "  (discusses) grid cells (pt-of) entorhinal cortex 

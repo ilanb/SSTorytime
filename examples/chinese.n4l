@@ -4,7 +4,10 @@
 #
 #########################################################
 
--notes on chinese
+  # After consideration, try to order the items
+  #   pinyin (pe) english (eh) hanzi
+
+-chinese language
 
  :: please, thank you, thank you ::
 
@@ -64,6 +67,14 @@ nǐ méi huídá zhège wèntí  (ph) 你没回答这个问题  (he) you didn't 
 @bu I did not meet with him last weekend (eh)  上周末我没有见到他 (hp) Shàng zhōumò wǒ méiyǒu jiàn dào tā 
       " (prop) WRONG: Wǒ shàng gè zhōumò bù gēn tā jiànmiàn (ph) 我 上个 周末 不 跟 他 见面 (see) $bu.2
 
+ :: grammar, use of shi as something like "I'm like"... :: 
+
+wǒ shì zài yīngguó chūshēng de (ph)  我是在英国出生的 (he) I was born in England
+    " (compare) wǒ chūshēng zài yīngguó  (ph) 我出生在英国 (he) I was born in England
+
+tā bùshì zài yīngguó xué de wùlǐ (ph)  他不是在英国学的物理 (he) He didn't study physics in England. 
+
+
 
   ####################################
 
@@ -115,7 +126,6 @@ $PREV.2 (note) adding past "le" can mean not anymore
 
   :: no, not, didn't, won't ::
 
-
  méi (ph) 没 (he) negative not / none / have not etc
   "  (e.g.) Wǒ méi qù    (ph) 我没去  (he) I didn't go ..
   "  (e.g.) Wǒ méi qù guò (ph) 我没去过 (he) I haven't been ..
@@ -127,8 +137,8 @@ $PREV.2 (note) adding past "le" can mean not anymore
 
   :: and , or, still, yet ::
 
-    hé  (ph) 和 (hp) and 
-   bìng (ph) 并 (hp) and
+    hé  (ph) 和 (he) and 
+   bìng (ph) 并 (he) and
     hái (ph) 还 (he)  and/yet/still/also
 
  huòzhě (ph) 或者 (he) or, when giving options
@@ -238,6 +248,12 @@ important  (eh) 重要 (hp) zhòngyào
 
 liúxíng  (ph) 流行 (he) popular/popularity
 pǔtōng  (ph) 普通  (he) ordinary / normal
+
+móguǐ (ph) 魔鬼 (he) devil / daemon
+guǐ (ph) 鬼 (he) ghost
+  " (e.g.) as in the popular Cantonese epithet %gweilo or 鬼佬 for "white ghost" or old ghost
+
+ gweilo - old ghost (eh) 鬼佬  (hp) guǐ lǎo
 
   ####################################
 
@@ -505,10 +521,10 @@ lamb  (eh) 羊肉  (hp) yángròu
 chicken (eh)  鸡肉 (hp)  jīròu
 pork  (eh) 猪肉  (hp) zhūròu
 soup (eh)  汤 (hp) tāng
-sugar (eh)  糖 (hp) táng
+sugar (eh)  糖 (hp) táng (sl) tāng
 porridge  (eh) 粥 (hp) zhōu
 cake  (eh) 蛋糕 (hp) dàngāo
-Fried dough sticks (ep)  yóutiáo(ph)  油条
+fried dough sticks (ep)  yóutiáo(ph)  油条
 
 garlic (eh) 大蒜 (hp) dàsuàn
 
@@ -521,7 +537,7 @@ fried rice (eh)  炒饭  (hp) chǎofàn
 dumplings (eh)  饺子  (hp) jiǎozi
 soup dumplings (eh)  小笼包 (hp) xiǎolóngbāo
 sticky rice leaf wrapped dumplings (eh)  粽子 (hp)  zòngzi
-mocha dumplings/glutinous rice balls  (eh) 汤圆  (hp) tāngyuán
+mochi dumplings/glutinous rice balls  (eh) 汤圆  (hp) tāngyuán
 
 bread(he)  面包 (hp) miànbāo
 rice (he) 米 (hp) mǐ
@@ -570,7 +586,6 @@ women's clothing  (ph) 女装 (he) nǚzhuāng
 
 
 
-zhè jiàn chènshān de zhìliàng hěn hǎo  (ph) 这件衬衫的质量很好 (he)  the quality of this shirt is very good
 
 tā xiǎng shì shì zhè tiáo kùzi  (ph) 他想试试这条裤子 (he)  he wants to try on these trousers
 
@@ -605,8 +620,17 @@ coat  (eh) 大衣 (hp) dàyī
 jacket  (eh) 夹克 (hp) jiákè 
 trousers  (eh) 裤子 (hp) kùzi
 skirt/dress  (eh) 裙子 (hp) qúnzi
+
+
 shirt  (eh) 衬衫 (hp) chènshān
-blouse  (eh) 女式衬衫(hp)  nǚ shì chènshān
+
+  " (e.g.) suīrán nà jiàn chènshān hé hǎokàn dànshì tài guìle  (ph) 虽然那件衬衫和好看但是太贵了  (he) although that shirt looks nice, it’s too expensive
+  " (e.g.) zhè jiàn chènshān de zhìliàng hěn hǎo  (ph) 这件衬衫的质量很好 (he)  the quality of this shirt is very good
+
+T-shirt (eh) T恤 (hp) T xù  (e.g.) nǐ shìguò zhè jiàn T xù ma  (ph) 你试过这件T恤吗  (he)  have you tried on this t shirt
+
+
+blouse  (eh) 女式衬衫(hp)  nǚshì chènshān
 shoe  (eh) 鞋 (hp) xié
 hat  (eh) 帽子(hp)  màozi
 
@@ -628,6 +652,7 @@ help me! (eh) 救命 (hp) jiùmìng
  :: permission ::
 
 allow  (eh)  准  (hp) zhǔn
+
 let/allow/permit   (eh) 让  (hp) ràng
 
 :: food, shopping ::
@@ -666,15 +691,27 @@ diǎnxīn (sl) duǎnxìn
 
 the taste (eh)  味道 (hp) wèidào
 
+
 ####################################
 
-:: eating | restaurant ::
+ :: restaurant scenario ::
 
-add  (eh) 加 (hp) Jiā
+# write the notes in order of the process, then a _sequence_
 
 fànguǎn  (ph) 饭馆  (he) restaurant
+at the restaurant (eh) 在餐厅 (hp) zài cāntīng
+zài fànguǎn lǐ (ph) 在饭馆里 (he) in the restaurant
+
+welcome  (eh) 欢迎 (hp) huānyíng
+wait (eh) 等 (hp) děng
+
+dìngfáng (ph) 订房 (he) reservation
+    "    (e.g.) wǒmen yǒu dìngfáng     (ph) 我们有订房  (he) We have a reservation
+    "    (e.g.) wǒ yào qǔxiāo dìngfáng (ph) 我要取消订房 (he) I want to cancel the reservation
 
 chīhuò (ph) 吃货 (he) foodie
+
+wǒmen xiǎng zuò zài zhèlǐ (ph) 我们想坐在这里 (he) We would like to sit here
 
 diǎn cān (ph) 点餐 (he)  order food 
    "     (e.g.) wǒ xiǎng diǎn cài (ph) 我想点菜 (he) I want to order food
@@ -683,29 +720,29 @@ càidān (ph) 菜单 (he) menu
 
    " (e.g.) wǒmen méiyǒu yīngwén càidān (ph) 我们没有英文菜单 (he) We don’t have an english menu
 
-wait (eh) 等 (hp) děng
-dìngfáng (ph) 订房 (he) reservation
-    "    (e.g.) wǒmen yǒu dìngfáng     (ph) 我们有订房  (he) We have a reservation
-    "    (e.g.) wǒ yào qǔxiāo dìngfáng (ph) 我要取消订房 (he) I want to cancel the reservation
 
 
 zuò (ph) 坐 (he) sit 
  "  (e.g.) wǒmen xiǎng zuò zài zhèlǐ (ph) 我们想坐在这里 (he) We would like to sit here
 
 
-mǎidān (ph) 买单 (he) pay the bill/bill please!
+mǎidān (ph) 买单 (he) bill please!
+
+add  (eh) 加 (hp) Jiā
+
 tip/gratuity  (eh) 小费 (hp) xiǎofèi
+
 waiter / server (eh) 服务员 (hp) fúwùyuán
 
 wǒ zěnme fù qián (ph) 我怎么付钱 (he) how do I pay?
  fù   (ph) 付 (he) pay
 
 jiézhàng (ph) 结账 (he) settle the bill
-   " (e.g.) wǒmen yīnggāi qù nǎlǐ jiézhàng  (ph) 我们应该去哪里结账 (he)  where should we go to settle the bill?
-   " (e.g.) wǒmen yīnggāi zài nǎlǐ jiézhàng (ph) 我们应该在哪里结账 (he) Where should we settle the bill
+   " (e.g.) wǒmen yīnggāi qù nǎlǐ jiézhàng  (ph) 我们应该去哪里结账 (he) where should we go to settle the bill?
+   " (e.g.) wǒmen yīnggāi zài nǎlǐ jiézhàng (ph) 我们应该在哪里结账 (he) where should we settle the bill
 
 
-shéi jiézhàng?  (ph) 谁结账 (he) Who will settle the bill?
+shéi jiézhàng?  (ph) 谁结账 (he) who will settle the bill?
 
 
 cheers  (eh) 干杯 (hp) gānbēi
@@ -722,25 +759,37 @@ Come in (eh) 进来 (hp) Jìnlái
 I'm waiting for some food from the robot (eh) 我在等机器人送来的食物 (hp) Wǒ zài děng jīqìrén sòng lái de shíwù
 Wǒ zài děng wǒ de péngyǒu               (ph) 我在等我的朋友       (he) I am waiting for my friend
 
-::: meals :::
+#########################################
+
+  #
+  # FOOD, EATING
+  #
+
+  ::: meals :::
 
 breakfast  (eh) 早餐  (hp) zǎocān
-zǎofàn    (ph) 早饭  (he) breakfast
-lunch     (eh) 午餐  (hp) Wǔcān
-   "      (eh) 午饭  (hp) Wǔfàn
-dinner    (eh) 晚饭 (hp) Wǎnfàn  
+zǎofàn     (ph) 早饭  (he) breakfast
+lunch      (eh) 午餐  (hp) Wǔcān
+   "       (eh) 午饭  (hp) Wǔfàn
+dinner     (eh) 晚饭  (hp) Wǎnfàn  
 
-:::cooking:::
+  :: cooking, gourmet ::
 
 zuò fàn (ph) 做饭 (he) cook/make food/rice
 gānfàn  (ph) 干饭 (he) alt: cooked rice
-gànfàn  (ph) 干饭 (he) alt: have a meal foodie 
+   " (see) gànfàn  (ph) 干饭 (he) alt: have a meal foodie 
 foodie  (eh) 吃货 (hp) chīhuò
 
+ :: eat, eating :: 
 
- + :: utensil ::
+to eat  (eh) 吃  (hp) chī
+full up     (eh)  饱     (hp)  bǎo
+really full  (eh) 真饱   (hp)  zhēnbǎo 
 
-use (eh)用 (hp)yòng
+
+ :: eating, utensil, bestikk,  ::
+
+use (eh) 用 (hp) yòng
 
 guō         (ph) 锅   (he) pot
 bowl        (eh) 碗   (hp) wǎn
@@ -748,21 +797,16 @@ fruit juice (eh) 果汁  (hp) guǒzhī
 juice       (eh) 汁   (hp)  zhī
 plate       (eh) 盘子  (hp) pánzi
 bottle      (eh) 瓶子  (hp)  píngzi
-cup         (eh) 杯子  (hp) bēizi
+cup/glass   (eh) 杯子  (hp) bēizi
 knife       (eh) 刀   (hp)  dāo
 fork        (eh)  叉  (hp)  chā
 spoon       (eh) 勺子  (hp) sháozǐ
-chopstick   (eh) 筷子 (hp)  kuàizi
+chopsticks   (eh) 筷子 (hp)  kuàizi
     "       (eh) 勺子  (hp) sháozi
 glass/of    (eh)  杯   (hp)  bēi
 
- :: eat :: 
 
-to eat  (eh) 吃  (hp) chī
-full up     (eh)  饱     (hp)  bǎo
-really full  (eh) 真饱   (hp)  zhēnbǎo 
-
-zài dìtiě wǒmen bù zhǔn chīfàn  (ph) 在地铁我们不准吃饭  (he) we are not allowed to eat in the subway
+zài dìtiě wǒmen bù >>zhǔn chīfàn  (ph) 在地铁我们不准吃饭  (he) we are not allowed to eat in the subway
 
 chinese people eat glutinous rice balls during lantern festival (eh) 元宵节中国人吃汤圆 (hp) yuánxiāo jié zhōngguó rén chī tāngyuán
 
@@ -772,24 +816,30 @@ it's not a good habit to eat while watching tv  (eh) 一边看电视一边吃饭
 
 my friends drink beer when we meet on the weekends (eh)  我的朋友在周末见面的时候会喝啤酒 (hp) wǒ de péngyǒu zài zhōumò jiànmiàn de shíhòu huì hē píjiǔ
 
+ :: drink ::
+
 drink/s (eh) 饮料 (hp)  yǐnliào
 to drink (eh)  喝  (hp) hē
 
 alcohol     (eh) 酒      (hp) jiǔ
-beer        (eh) 啤酒    (hp) píjiǔ
+beer        (eh) 啤酒     (hp) píjiǔ
 red wine    (eh)  红酒   (hp) hóng jiǔ
 white wine  (eh) 白葡萄酒 (hp) bái pútáo jiǔ
 liquor      (eh) 白酒    (hp) báijiǔ
-
-
+cola / coke (eh) 可乐    (hp) kělè
 
 ###########################################################################
 
-:: body,  senses, body parts ::
+ #
+ #  BODY PARTS
+ #
 
-eyes          (eh) 眼睛  (hp) yǎnjīng
+:: face, senses, body parts ::
+
+eyes          (eh) 眼睛  (hp) yǎnjīng (sl) yǎnjìng
 glasses       (eh)  眼镜  (hp) yǎnjìng
 wear glasses  (eh) 戴眼镜 (hp)  dài yǎnjìng
+
 nose  (eh) 鼻子  (hp) bízi
 ears  (eh) 耳朵  (hp) Ěrduǒ
 mouth (eh) 嘴巴  (hp) zuǐbā
@@ -798,8 +848,10 @@ liǎn (ph) 脸 (he) face
   "  (e.g.) nǐ de liǎn shàng nàgè yǒu dōngxī (ph) 你的脸上那个有东西 (he) there's something on your face.
 
 miàn (ph) 面  (he) face
-
 cosmetics (ph) 化妆品 (he) huàzhuāngpǐn
+
+
+ :: body ::
 
 shēntǐ (ph) 身体 (he) body 
 
@@ -808,14 +860,10 @@ shēntǐ (ph) 身体 (he) body
 head  (eh) 头 (hp) tóu
 hair  (eh) 头发 (hp) tóufǎ
 
-
 +:: left, right, handed, hand, handedness, feet ::
 
 leg  (eh) 腿 (hp) tuǐ
-
-hand  (eh) 手 (hp) shǒu
-  $PREV.3 (e.g.) nǐ de zuǒ shǒu  (hp) 你的左手 (he) your left hand 
-
+hand  (eh) 手 (hp) shǒu (e.g.) nǐ de zuǒ shǒu  (hp) 你的左手 (he) your left hand 
 foot  (eh) 脚 (hp) jiǎo (e.g.) nǐ de yòu jiǎo  (ph) 你的右脚 (he) your right foot  
 
 arm  (eh) 手臂 (hp) shǒubì
@@ -844,8 +892,9 @@ pàng (hp) 胖  (he) fat
 wǒ shòu le wǔ gōngjīn (eh) 我瘦了五公斤 (hp) I lost 5 kilos   
 Wǒ pàng le shí duō gōngjīn (ph) 我胖了十多公斤  (he) I gained more than ten kilograms  
 
-smoke (eh) 抽烟 (hp) chōuyān
+  :: illness, disease, well, sickness ::
 
+smoke (eh) 抽烟 (hp) chōuyān
 cough  (eh) 咳嗽 (hp) késòu
 fever  (eh) 发烧 (hp) fāshāo
 caught a cold  (eh) 感冒 (hp) gǎnmào
@@ -853,7 +902,7 @@ caught a cold  (eh) 感冒 (hp) gǎnmào
 
 #######################################################################
 
-:: roles, identities ::
+:: person roles, identities ::
 
 jīqìrén (ph) 机器人 (he) robot
 
@@ -864,12 +913,11 @@ tóngshì (ph) 同事 (he) colleague
 sòng huò yuán (ph) 送货员 (he) delivery boy
 
 
-:: places ::
+:: locations, cities, city, places ::
 
 běijīng  (ph) 北京 (he) Beijing  / Peking
 nánjīng  (ph) 南京 (he) Nanjing / Nanking
 dōngjīng  (ph) 东京 (he) Tokyo
-
 
 xi'an  (eh) 西安 (hp) xī'ān
 shenzhen  (eh) 深圳 (hp) shēnzhèn
@@ -888,11 +936,15 @@ chengdu  (eh) 成都 (hp) chéngdū
 wuhan  (eh) 武汉 (hp) wǔhàn
 
 
-cháoshàn  (ph) 潮汕 (he) Chaoshan region (note) North of Fujian province on the East coast of China
+cháoshàn  (ph) 潮汕 (he) Chaoshan region (note) North of %Fujian province on the East coast of China
    "      (url) "https://en.wikipedia.org/wiki/Teochew_Min"
    "      (knownfor) Chaoshan beef hotpot
 
-Chaoshan region (speaks) %Teochew language also known as Teo-Swa or Chaoshan, or simply "Min". It is a Sino-Tibetan langauge, closely related to Hokkien. Many of the older Chinese texts make more sense in this older tongue, and it remains close to Japanese.
+Chaoshan region (speaks) %Teochew language also known as Teo-Swa or Chaoshan, or simply "Min". It is a Sino-Tibetan langauge, one of the dialects of Min sometimes incorrectly called %Hokkien. 
+
+Hokkien (def) The dialect name for the Fujian region of China where the %Min Language is spoken, adjacent to Taiwan. 
+
+  " (note) Many of the older Chinese texts make more sense in this older tongue, and it remains close to Japanese.
 
 Teochew (eh)  閩南語 (hp) Mǐnnányǔ
 
@@ -902,6 +954,14 @@ Teochew (eh)  閩南語 (hp) Mǐnnányǔ
 :: sky , solar system, astronomy, planets ::
 
 sun   (eh) 太阳 (hp) tàiyáng
+
+yīnyáng (ph) 阴阳 (he) yin and yang / cold and hot 
+
+  " (note) the yinyang effectively means shadow and light / moon and sun, with the beta-like %"ear character" classifying the words
+  " (note) notice the subtly different hanzi characters for yin/yang. The yang character is from the sun, and the yin is from the moon (see) sun
+
+$PREV.2 (see) moon
+
 moon  (eh) 月亮 (hp) yuèliàng
 
 radio telescope  (eh) 射电望远镜  (hp) shèdiàn wàngyuǎnjìng (e.g.) shèdiàn wàngyuǎnjìng yǒu duō kuān (pe) how wide is the radio telescope (eh)  射电望远镜有多宽 
@@ -920,6 +980,10 @@ zuó tiān (ph) 昨天 (he) yesterday
 
 zǎo shāng  (ph) 早商 (he) morning 
 shàng wǔ  (ph) 上午  (he) morning
+língchén (ph)  凌晨  (he)early morning
+fúxiǎo (ph)  拂晓  (he)daybreak
+
+
 xià wǔ    (ph) 下午  (he) afternoon
 中午  (hp) zhōngwǔ (pe) midday/noon  
 wǎnshàng  (ph) 晚上 (he) evening 
@@ -1027,8 +1091,19 @@ yīdìng (ph) 一定 (he) must/definitely
 yǐqián (ph) 以前 (he) before
 yǐhòu  (ph) 以后 (he) after
 yībiān (ph) 一边 (he) at the same time / alongside
+
+yībiàn (ph) 一遍 (he) once
+   "   (e.g.) wǒmen zài tīng yībiàn ba  (ph)  我们再听一遍 吧 (he) let's listen to it again
+   "   (sl) yībiān
+   "   (!confuse) yībiān
+
 yībān  (ph) 一般 (he) usually 
 
+
+
+
+yīcì (ph) 一次 (he) once/once time
+qǐng zài jiǎnchá yīcì  (ph) 请再检查一次  (he) please check again
 
 
  :: early, late ::
@@ -1202,7 +1277,7 @@ that cat  (eh) 那只猫  (hp) nà zhǐ māo
 that dog  (eh) 那只狗  (hp) nà zhǐ gǒu
 that bird  (eh) 那只鸟  (hp) nà zhǐ niǎo
 two birds  (eh) 两只鸟  (hp) liǎng zhī niǎo
-that tiger (eh) 那只老虎  (hp) à zhǐ lǎohǔ
+that tiger (eh) 那只老虎  (hp) nà zhǐ lǎohǔ
 those two tigers  (eh) 那两只老虎  (hp) nà liǎng zhī lǎohǔ
 
 @dtable yī zhāng cānzhuō (ph)  一张餐桌  (he) a dining table
@@ -1361,14 +1436,9 @@ yībiān (ph) 一边 (he) at the same time / alongside
 
 
 shàng gè  (ph) 上个  (he) previous/up
-
-   " (e.g.) >>"wǒ zài shàng yīgè" gōngsī zhuàn dé hěn shǎo (ph)  我在上一个公司赚得很少  (he) I made very little money at my previous company.
-
-wǒ zài shàng yīgè ... (ph) 我在上一个  (he) I was in the previous ...one
-
-
-wǒ yǐqián cānjiāguò  (ph) 我以前参加过  (he)  I have participated before
-
+        " (e.g.) >>"wǒ zài shàng yīgè" gōngsī zhuàn dé hěn shǎo (ph) 我在上一个公司赚得很少  (he) I made very little money at my previous company.
+ wǒ zài shàng yīgè ... (ph) 我在上一个  (he) I was in the previous ...one
+ wǒ yǐqián cānjiāguò  (ph) 我以前参加过  (he)  I have participated before
 
 ####################################################################
 
@@ -1388,7 +1458,7 @@ wǒ yǐqián cānjiāguò  (ph) 我以前参加过  (he)  I have participated be
 seek/search (eh) 找 (hp) zhǎo
 search/find (eh) 寻找   (hp) xúnzhǎo
 
-xúnzhǎo (has) zhǎo
+xúnzhǎo (has-cmpt) zhǎo
 
 
 kànjiàn (ph) 看见 (he) see/visit
@@ -1497,7 +1567,7 @@ sorry  (eh) 对不起 (hp) duìbùqǐ
 +:: answer, question, query, ask ::
 
 answer respond  (eh) 回答 (hp)  huídá (useword) huí
-answer (eh) 答 (hp) dá (wordin) huídá
+answer (eh) 答 (hp) dá (word-in) huídá
 
 
 ###########################################################
@@ -1638,11 +1708,20 @@ tā chànggē chàng dé hěn hǎo (ph)  他唱歌唱得很好  (he) He sings ve
 
 ###########################################################
 
-:: rate | speed ::
+:: rate | speed , done , finish , complete ::
 
 màn  (ph) 慢  (pe)  slow
 
 "màn yīdiǎn (er)"  (ph) '慢一点(儿)'  (he) a bit slower
+
+
+
+tā de qiānzhèng hái méi bàn hǎo (ph)  他的签证还没办好  (he)His visa hasn't been processed yet.
+
+jiéshù  (ph) 结束 (he) finish a task
+    "  (compare) bàn hǎo  (ph)  办好  (he) get it done/process
+
+tā zhǎole duōjiǔ (ph)  他找了多久  (he) how long was he looking for it?
 
 
 kuài   (ph) 快 (he) quick / soon
@@ -1655,6 +1734,7 @@ kuài   (ph) 快 (he) quick / soon
  " (e.g.) wǒ kuài mǎihǎole (ph) 我快买好了 (he) I'm almost ready to buy it / I'm about to finish buying it
 
 
+
  +:: kuai many forms ::
 
 kuàizi (ph) 筷子 (he) chopsticks
@@ -1663,14 +1743,28 @@ kuàilè (ph) 快乐 (he) happy
 
 块 (sounds like) 快 (sl) 筷   // don't confuse these
 
+
+#########################################################################
+
+ #
+ # TRAVEL, TRANSPORT
+ #
+
 ###########################################################
 
 :: travel, tourist, tourism ::
 
+travel  (eh) 旅行 (hp) lǚxíng
+travel  (eh) 旅游 (hp) lǚyóu
 
 holiday/break  (eh) 放假 (hp) fàngjià 
-phonecard  (eh) 电话卡 (hp) diànhuàkǎ
-wǒ shǒujī méi diànle  (ph) 我手机没电了  (he) my phone is out of battery
+
+
+yīlù píng'ān (ph)  一路平安  (he) Have a safe journey
+
+
+nǐ shì zuótiān wǎnshàng shōushí de yīfú ma  (ph)  你是昨天晚上收拾的衣服吗  (he) Did you pack the clothes last night?
+wǒ hái méiyǒu shōushí hǎo bèibāo (ph)  我还没有收拾好背包  (he) I haven't packed my backpack yet.
 
 
 asian  (eh) 亚洲 (hp) yàzhōu
@@ -1679,55 +1773,169 @@ map  (eh) 地图 (hp) dìtú
 luggage (eh)  行李 (hp) xínglǐ
 xínglǐ xiāng  (ph)  行李箱  (he) suitcase
 
-travel  (eh) 旅行 (hp) lǚxíng
-travel  (eh) 旅游 (hp) lǚyóu
-
-
-Yīlù píng'ān (ph)  一路平安  (he) Have a safe journey
-
-
-
 Wǒmen dé yùdìng liǎng gè fángjiān (ph)  我们得预定两个房间 (he)  We have to book two rooms.
 wǒmen shì yīgè xīngqí qián yùdìng de jiǔdiàn  (ph)  我们是一个星期前预订的酒店  (he) We booked the hotel a week ago
 
-passport  (eh) 护照 (hp) hùzhào
-travel visa  (eh) 签证 (hp) qiānzhèng
-tourist visa  (eh) 旅游签证 (hp) lǚyóu qiānzhèng
-luggage  (eh) 行李 (hp) xínglǐ
-plane  (eh) 飞机 (hp) fēijī
+ ####
+
+:: vehicles, get on, get off, drive, ride ::
+
+ticket  (eh) 票  (hp) piào
+sit   (eh) 坐 (hp) zuò
+stand (eh) 站 (hp) zhàn
+bus/train stop/station (eh) 站     (hp) zhàn 
+
+ +:: train, subway, metro::
+
+dìtiě    (ph) 地铁  (he) subway 
+railway  (eh) 铁路  (hp) tiělù
+iron     (eh) 铁   (hp) tiě
+dìtiě zhàn  (ph) 地铁站  (he) subway station
+train station  (eh) 火车站  (hp) huǒchē zhàn
+high speed rail (eh) 高铁 (hp) gāotiě (e.g.) gāotiě bǐ fēijī kuài ma (ph) 高铁比飞机快吗 (he) Is high-speed rail faster than airplane?
+platform        (eh) 平台  (hp) píngtái
+platform        (eh) 站台  (hp) zhàntái
+
+train    (eh) 火车    (hp) huǒchē
+
+ -:: train, subway, metro::
+ +:: car. taxi ::
+
+car      (eh)  车    (hp) chē
+car      (eh)  汽车   (hp) qìchē
+taxi     (eh) 出租车   (hp) chūzū chē
+stop the car    (eh) 停车  (hp) tíngchē
+stop the train  (eh) 停止火车  (hp) tíng zhǐ huǒchē
+
+kāichē  (ph)  开车  (he) drive
+   "   (e.g.) wǒ kāichē qù bàngōngshì (ph)  我开车去办公室  (he) i drive to the office 
+   "   (e.g.) wǒ bùdàn huì kāichē érqiě huì xiū chē (ph)  我不但会开车而且会修车  (he) I can not only drive but also repair cars
+
+xiū chē (ph) 修车 (he) repair car
+
+ -:: car, taxi ::
+
+bicycle  (eh) 自行车   (hp) zìxíngchē
+
+ +:: bus ::
+
+bus      (eh) 公共汽车  (hp) gōnggòng qìchē
+
+ -:: bus ::
+
+vehicle     (eh) 车辆  (hp) chēliàng
+boat/ship   (eh) 船   (hp) chuán     (!confuse) chuān
+dragon boat (eh) 龙舟  (hp) lóngzhōu
+
+get off vehicle (eh) 下车  (hp)  xià chē
+get off horse   (eh) 下马  (hp) xiàmǎ
+
+ :: airport ::
+
 airport  (eh) 机场 (hp) jīchǎng
-take off  (eh) 起飞 (hp) qǐfēi
+
+>>guónèi háng zhàn lóu (ph) 国内航站楼 (he) domestic terminal
+>>guójì háng zhàn lóu  (ph) 国际航站楼 (he) international terminal
 
 international  (eh) 国际 (hp) guójì
 domestic  (eh) 国内 (hp) guónèi
 desk/counter  (eh) 柜台 (hp) guìtái
-fúwù tái zěnme zǒu  (ph) 服务台怎么走  (he) how to get to the service/information desk?
+information desk (eh) 服务台 (hp) fúwù tái (e.g.) fúwù tái zěnme zǒu  (ph) 服务台怎么走  (he) how to get to the service/information desk?
 
+
+ :: airport, passport ::
+
+book a ticket (eh) 订票  (hp) dìng piào
 cancel  (eh) 取消 (hp) qǔxiāo
+
+passport  (eh) 护照 (hp) hùzhào
+travel visa  (eh) 签证 (hp) qiānzhèng (e.g.) wǒ méiyǒu lǚyóu qiānzhèng  (ph) 我没有旅游签证  (he) i don't have a tourist visa
+tourist visa  (eh) 旅游签证 (hp) lǚyóu qiānzhèng
+luggage  (eh) 行李 (hp) xínglǐ
+
+security check  (eh) 安全 检查 (hp) ānquán jiǎnchá
+security  (eh) 安全 (hp) ānquán
+check  (eh) 检查 (hp) jiǎnchá
+check passport (eh) 检查护照 (hp) jiǎnchá hùzhào
+
+yào chá  (ph) 要查  (he) want to check
+   " (e.g.) wǒ yào chá yīxià wǒ de rìlì  (ph) 我要查一下我的日历 (he) I need to check my calendar
+
+plane  (eh) 飞机 (hp) fēijī
+take off  (eh) 起飞 (hp) qǐfēi
+
+aiport arrivals (eh) 机场到达 (hp) jīchǎng dàodá
+customs  (eh) 海关 (hp) hǎiguān
+jetlag  (eh) 时差 (hp) shíchā
+
+
+##########################################################
+
+ # meeting someone
+
+:: friends | meeting up | travel | logistics ::
+
+sījī huì zài jiǔdiàn wài miànjiē nǐ (ph) 司机会在酒店外面接你  (he) the driver will pick you up outside the hotel
+
+arrange  (eh) 安排 (hp) ānpái
+
+can you pick me up at the airport?  (eh) 你能来机场接我 (hp) nǐ néng lái jīchǎng jiē wǒ
+
+tour guide  (eh) 导游  (hp) dǎoyóu
+
+bump into (eh)  遇到  (hp) yù dào
+
+
+#########################################################
+
+  :: countries, geography, travel, foreign, languages, han ::
+
+country  (eh) 国家 (hp) guójiā
+
+spain (he)  西班牙 (hp) xībānyá
+germany (he)  德国  (hp) déguó
+italy (he)  意大利  (hp) yìdàlì
+uk  (he) 英国  (hp) yīngguó
+france (he)  法国  (hp) fàguó
+india  (he) 印度  (hp) yìndù
+japan  (he) 日本  (hp) rìběn
+australia (eh) 澳大利亚 (hp) àodàlìyǎ 
+
+rìyǔ  (ph) 日语  (he)  japanese as a language
+
+韩国人 (hp) hánguó rén (pe) "Korean(s)"
+韩语 (hp) hányǔ (pe) Korean language
+汉语 (hp) hànyǔ (pe) Chinese language
+
+zhōngwén yǒu jǐ gè shēngdiào (ph)  中文有几个声调  (he) How many tones does Chinese have?
+
+yǔyán (ph)  语言  (he) language
+  " (e.g.) wǒ xǐhuān yǔyán hái hěn shàncháng xué wàiyǔ  (ph) 我喜欢语言还很擅长学外语  (he) I like languages ​​and I am good at learning foreign languages
+
+grammar (eh) 语法 (hp) yǔfǎ
+
+$PREV.2 (ex) shàncháng  (ph) 擅长  (he) proficient in/good at
+wàiyǔ (ph)  外语  (he) foreign languages
+
+wǒ bùnéng shuō liúlì zhōngwén (ph) 我不能说流利中文  (he) i can't speak chinese fluently
+
+nǐ de yīngyǔ yuè lái yuè hǎo(ph)  你的英语越来越好  (he) your english is getting better and better
+tā liǎng gè xīngqí hòu huì qù rìběn (ph) 他两个星期后会去日本  (he) he will go to japan in two weeks
+
+tā zài gēn wàiguó rén yuēhuì  (ph) 他在跟外国人约会  (he) he is dating a foreigner
+
+
+###################################################
+
+  :: phone, signal, mobile, cellphone ::
+
 roaming  (eh) 漫游 (hp) mànyóu
 signal  (eh) 信号 (hp) xìnhào
 translate  (eh) 翻译 (hp) fānyì
 i don't have international roaming (eh)  我没有国际漫游 (hp)  wǒ méiyǒu guójì mànyóu
 
-customs  (eh) 海关 (hp) hǎiguān
-security  (eh) 安全 (hp) ānquán
-check  (eh) 检查 (hp) jiǎnchá
-yào chá  (ph) 要查  (he) want to check
-   " (e.g.) wǒ yào chá yīxià wǒ de rìlì  (ph) 我要查一下我的日历 (he) I need to check my calendar
-
-security check  (eh) 安全 检查 (hp) ānquán jiǎnchá
-allow  (eh) 准 (hp) zhǔn
-
-jetlag  (eh) 时差 (hp) shíchā
-country  (eh) 国家 (hp) guójiā
-
-
-international (eh) 国际 (hp) guójì
-domestic  (eh) 国内  (hp) guónèi
-counter/desk  (eh) 柜台  (hp) guìtái
-tour guide  (eh) 导游  (hp) dǎoyóu
-wǒ méiyǒu lǚyóu qiānzhèng  (ph) 我没有旅游签证  (he) i don't have a tourist visa
-
+phonecard  (eh) 电话卡 (hp) diànhuàkǎ
+wǒ shǒujī méi diànle  (ph) 我手机没电了  (he) my phone is out of battery
 wǒ yào chōngzhí (ph) 我要充值 (he) i want to recharge/top up
 
 wǒ yǒu guójì mànyóu  (ph) 我有国际漫游  (he) i have international roaming
@@ -1737,22 +1945,7 @@ zhǔnbèi hǎo le ma (ph) 准备好了吗  (he) are you ready / well prepared?
 jīchǎng lí zhèlǐ yuǎn ma (ph) 机场离这里远吗  (he) is the airport far from here?
 
 
-##########################################################
-
- # meeting someone
-
-:: friends | meeting up | travel | logistics ::
-
-wǒmen jīntiān dū tǐng dǎoméi de  (ph) 我们今天都挺倒霉的  (he) we're all unlucky today.
-
-sījī huì zài jiǔdiàn wài miànjiē nǐ (ph) 司机会在酒店外面接你  (he) the driver will pick you up outside the hotel
-
-arrange  (eh) 安排 (hp) ānpái
-
-can you pick me up at the airport?  (eh) 你能来机场接我 (hp) nǐ néng lái jīchǎng jiē wǒ
-
-bump into (eh)  遇到  (hp) yù dào
-
+ :: relationships ::
 
 relationship (eh)  guānxì (hp)  关系
 
@@ -1769,6 +1962,11 @@ xìngfú (ph) 幸福 (he) happiness
 xǐ (ph) 喜 (he) happiness
 xǐ (ph) 喜喜 (he) double happiness! Luck, esp in love
 
+
+wǒmen jīntiān dū tǐng dǎoméi de  (ph) 我们今天都挺倒霉的  (he) we're all unlucky today.
+
+wǒ wèishéme zhème dǎoméi (ph)  我为什么这么倒霉  (he) Why am I so unlucky?
+
 happy/excited  (ep) gāoxìng (ph) 高兴
 happy/contented  (ep) kāixīn  (ph)开心
 sad  (eh) 难过 (hp) nánguò
@@ -1783,6 +1981,13 @@ surprised (eh) 惊讶 (hp) jīngyà
 zǒu lóutī hěn wúliáo  (ph) 走楼梯很无聊  (he) Walking up stairs is boring
 this book is boring, i don't want to read it anymore  (eh) 这本书很闷 , 我不想看了 (hp) zhè běn shū hěn mèn, wǒ bùxiǎng kànle
 tā de jīnglì hěn wúliáo  (ph) 他的经历很无聊 (he) His experience was very boring
+
+
+serious-ly  (eh) 认真 (hp) rènzhēn (e.g.) tā bùdàn hěn rènzhēn érqiě hěn yángé (ph)  他不但很认真而且很严格 (he) He is not only serious but also strict
+
+ $PREV.4 (e.g.) yángé  (ph) 严格 (he) strict
+
+
 
 
 yǒuhǎo (ph) 友好  (he) friendly
@@ -1825,7 +2030,8 @@ strange  (eh) 奇怪 (hp) qíguài
 
 
 choose  (eh) 选择 (hp) xuǎnzé
-serious-ly  (eh) 认真 (hp) rènzhēn
+
+
 
 
 
@@ -1937,7 +2143,7 @@ will you come to our party  (eh) 你会来参加我们的聚会吗  (hp) nǐ hu�
 
 wǒmen Duàn jiā (ph) 我们段家 (he) our Duan family
 
- " (confuse) wǒmen quánjiā (ph) 我们全家 (he) our whole family
+ " (!confuse) wǒmen quánjiā (ph) 我们全家 (he) our whole family
 
 quánjiā  (ph) 全家  (he) whole family
 
@@ -1973,9 +2179,6 @@ entrance (eh) 入口 (hp) rùkǒu
 exit     (eh) 出口 (hp) chūkǒu (e.g.) nǐmen kuài dào chūkǒule ma 你们快到出口了吗 are you approaching the exit?
 
 
-酒店  (hp) jiǔdiàn  (pe) hotel
-房间  (hp) fángjiān  (pe) room
-
 
 building / architecture object (eh) 建筑 (hp) jiànzhú
 
@@ -1991,6 +2194,8 @@ bedroom (eh)  卧室  (hp) wòshì
 
   "  (see also) sùshè (ph) 宿舍 (he) dormitory
 
+library  (eh) 图书馆 túshū guǎn
+
 room  (eh)房间 (hp) fángjiān
 classroom  (eh) 课堂 (hp) kètáng
 classroom  (eh) jiàoshì (hp) 教室
@@ -2002,14 +2207,45 @@ canteen  (eh) 食堂 (hp) shítáng
 飞机场  (hp) fēijī chǎng  (pe) airport
 机场  (hp) jī chǎng  (pe) airport
 fànguǎn  (ph) 饭馆  (he) restaurant 
-洗手间  (hp) xǐshǒujiān  (he) bathroom
+洗手间  (hp) xǐshǒujiān  (he) bathroom / washroom
 cèsuǒ  (ph) 厕所  (he) toilet
 医院  (hp) yīyuàn  (pe) hospital
 
 nǐ kěyǐ bǎ fángjiān dǎsǎo gānjìng ma (ph) 你可以把房间打扫干净吗  (he) can you clean the room
 
-:: furniture, devices, zi ::
 
+#####################################################
+
+ #
+ # HOTEL
+ #
+
+ :: hotel ::
+
+酒店  (hp) jiǔdiàn  (pe) hotel
+房间  (hp) fángjiān  (pe) room
+
+ :: elevator, escalator ::
+
+the lift is going up   (eh) 电梯正在上升 (hp) diàntī zhèngzài shàngshēng
+the lift is going down (eh) 电梯正在下降 (hp) diàntī zhèngzài xiàjiàng
+
+
+going up/upwards (eh) 上行 (hp) shàngxíng
+going down/downwards (eh) 下行 (hp) xiàxíng
+
+
+wǒmen zuò diàntī xiàqùle (ph) 我们坐电梯下去了 (he) We took the elevator down.
+
+lift/elevator  (eh) 电梯 (hp) diàntī (e.g.) nǐ zuò diàntī shànglái  (ph) 你坐电梯上来  (he) You take the elevator up
+
+
+escalator  (eh) 自动扶梯 (hp) zìdòng fútī 
+   "       (eh) 电扶梯 (hp) diàn fútī
+by  (eh) 被 (hp) bèi 
+
+
+:: hotel, home, furniture, zi ::
 
 zhuōzi (ph) 桌子 (he) table 
 cānzhuō (ph) 餐桌 (he) dining table
@@ -2017,21 +2253,73 @@ cānzhuō (ph) 餐桌 (he) dining table
 
 shelf (eh) 架子 (hp) jiàzǐ
 chair  (eh) 椅子 (hp) yǐzi
-@box xiāngzǐ  (ph) 箱子  (he) box
-
-refrigerator (eh) 冰箱 (hp) bīngxiāng
 
 chōutì  (ph) 抽屉  (he) drawer
    "    (e.g.) $drawerex.1
 
+@box xiāngzǐ  (ph) 箱子  (he) box
+
+ :: devices, appliances ::
+
+refrigerator (eh) 冰箱 (hp) bīngxiāng
+
+##########################
+
+ :: cleaning, domestic ::
+
+clean  (eh) 干净 (hp) gānjìng
+to clean up  (eh) 打扫 (hp) dǎsǎo
+house  (eh) 房子 (hp) fángzi
+
+:: throw away , rubbish ::
+
+bucket  (eh) 桶 (hp) tǒng
+rubbish bin (eh) 垃圾桶 (hp) lājī/lèsè tǒng (note)  lājī/lèsè alternate pronounciations
+$PREV.3 (e.g.) bǎ lājī/lèsè tǒng fàng zài chuáng zuǒbiān  (ph) 把垃圾桶放在床左边 (he) Put the rubbish bin on the left side of the bed
+wǒ māmā diūle wǒ de yóuxì (ph) 我妈妈丢了我的游戏 (he) my mum threw away my games
+will not disturb neighbors  (eh) 不会影响邻居(hp)  bù huì yǐngxiǎng línjū
+
+
 ###########################################################
 
-:: directions ::
+ #
+ # DIRECTIONS
+ #
+
+ :: directions, compass, up, down, in, out ::
+
+"DIAGRAM                        北边 běibian
+                                北方 běifāng
+                ----------------------------------------------
+                 西北 xīběi         北 běi         东北 dōngběi  
+               |                                              |
+               |                                              |
+ 西边 xībian      西 xī               o            东 dōng       东边 dōngbian
+                                 这里 zhèlǐ                    
+               |                                              |
+               |                                              |
+                 西南 xīnán         南 nán         东南 dōngnán 
+                ----------------------------------------------
+                                南边 nánbian
+                                南方 nánfāng"
+ 
+  "  (about) north
+  "  (about) south
+  "  (about) east
+  "  (about) west
+  "  (about) southeast
+  "  (about) southwest
+  "  (about) northeast
+  "  (about) northwest
+
+
 
 shàng  (ph) 上   (he) up, above, upon, top, superior
    "   (e.g.) nǐ shànglái zhǎo wǒ (ph) 你上来找我 (he) come up and find me
 
 xià    (ph) 下   (he) down, below, under
+
+ :: expressions involving shang and xia ::
 
 shàngwǎng (ph) 上网 (he) go online
 shàngbān (ph) 上班  (he) go to work
@@ -2044,12 +2332,7 @@ xià xuě 下雪 snow
 xià yǔ 下雨 rain
 
 
-going up/upwards (eh) 上行 (hp) shàngxíng
-going down/downwards (eh) 下行 (hp) xiàxíng
-
-
 tāmen pǎole shànglái (ph) 他们跑了上来 (he) they ran up
-
 
 get off work / climbing off  (eh) 下班(hp)  xiàbān
 start work /getting off  (eh) 上班 (hp) shàngbān
@@ -2067,42 +2350,7 @@ zuìhòu wǎng zuǒ zǒu (ph) 最后往左走 (he) finally, go left
 arrive  (eh) 到  (hp) dào
 leave  (eh) 离开  (hp) líkāi
 
- :: to, from, directions ::
-
-
 Wǒmen cóng shūdiàn chūláile  (ph) 我们从书店出来了  (he) We came out of the bookstore.
-
-
-:: caring, interest ::
-
-yǒuqù (ph) 有趣 (he) interesting
-
-gǎn xìngqù (ph) 感兴趣 (he) be interested
-
-yánjiū wùlǐ tèbié yǒuqù  (ph) 研究物理特别有趣  (he) Physics is particularly interesting to study
-
-question/problem  (eh) 问题 (hp) wèntí
- bànfǎ (hp) 办法 (he) solution/way
-  " (e.g.) nǐ yǒu shé me bànfǎ  (ph) 你有什么办法  (he) what can you do/what solutions do you have
-
-i am not interested  (eh) 我不感兴趣 (hp) wǒ bùgǎn xìngqù
-i am not interested  (eh) 我没有兴趣 (hp) wǒ méiyǒu xìngqù
-
-想 (hp) xiǎng (pe) want/would like
-想 (hp) xiǎng (pe) to miss/think about someone
-
-
-想干 (hp) xiǎnggàn (pe) want to do
-香港 (hp) xiānggǎng (pe) hong kong
-最  (hp) zuì (pe) most
-
-zuì  (ph) 最  (he) most
-
-
-
-  :: position, location , directions | orientation | configuration, containment ::
-
-
 
 在 (hp)zài (pe) positional
 
@@ -2117,15 +2365,11 @@ shìnèi  (ph) 室内  (he) indoor
    " (e.g.) shìnèi huódòng (ph)  室内活动  (he) Indoor activities / event
 
 hùwài  (ph) 户外  (he) outdoor
-
-
 inside  (eh) 里面 (hp) lǐ miàn
 outside  (eh) 外面 (hp) wàimiàn
 
 +:: up, down::
 
-on top of.. (ep) zài .. shàng (ph) 在 .. 上
-underneath (ep) zài .. xià  (ph) 在 .. 下
 outside of (ep)zài .. wài (ph) 在..外
 inside of(ep) zài .. lǐ  (ph) 在..里
 
@@ -2133,20 +2377,22 @@ inside of(ep) zài .. lǐ  (ph) 在..里
 
 jiǔdiàn wài yǒuyī liàng chūzū chē (ph) 酒店外有一辆出租车 (he) there is a taxi outside the hotel
 shù shàng yǒu liù zhǐ niǎo        (ph) 树上有六只鸟     (he) there are six birds in the tree
-zhuōzǐ shàng yǒuyī běn shū        (ph) 桌子上有一本书    (he) there is a book on the table
-bīngxiāng li yǒu niúnǎi           (ph) 冰箱里有牛奶      (he) there is milk in the fridge
-zhàopiàn zài jiàzǐ shàng          (ph) 照片在架子上      (he) the photo is on the shelf
+zhuōzǐ shàng yǒu yī běn shū        (ph) 桌子上有一本书    (he) there is a book on the table
+   " (similar) bīngxiāng li yǒu niúnǎi           (ph) 冰箱里有牛奶      (he) there is milk in the fridge
+   " (contrast) zhàopiàn zài jiàzǐ shàng          (ph) 照片在架子上      (he) the photo is on the shelf
 diànnǎo li yǒu wǒ de zhàopiàn    (ph) 电脑里有我的照片    (he) the computer contains my photos
 wǒ jiā li yǒuyī zhǐ māo          (ph) 我家里有一只猫     (he) there is a cat at home
 
 wǒ de xínglǐ zài fángjiān lǐ (ph) 我的行李在房间里 (he) my luggage is in the room
-fángjiān li yǒu wǒ de xínglǐ (ph) 房间里有我的行李 (he) the room has my luggage in it
+   " (contrast) fángjiān li yǒu wǒ de xínglǐ (ph) 房间里有我的行李 (he) the room has my luggage in it
 
-the lift is going up   (eh) 电梯正在上升 (hp) diàntī zhèngzài shàngshēng
-the lift is going down (eh) 电梯正在下降 (hp) diàntī zhèngzài xiàjiàng
+ :: under, over ::
 
-wǒmen zuò diàntī xiàqùle (ph) 我们坐电梯下去了 (he) We took the elevator down.
+on top of.. (ep) zài .. shàng (ph) 在 .. 上
+underneath (ep) zài .. xià  (ph) 在 .. 下
 
+under (eh) 在下面 zài (hp) xiàmiàn
+over/on top of (eh) 在上面 (hp) zài shàngmiàn
 
 tā zài dìxià (ph) 他在地下 (he) he is underground
 
@@ -2160,9 +2406,9 @@ first floor/layer  (eh) 一层(hp)  yī céng
 
 tíngchēchǎng zài dìxià èr céng (ph)  停车场在地下二层  (he) the parking lot is on the second underground floor
 
+############################
 
-
-:: home, floors, upstairs, downstairs ::
+ :: home, floors, upstairs, downstairs ::
 
 Wǒ yào shōushí yīxià jiā  (ph) 我要收拾一下家 (he) I need/am going to tidy up the house
 Wǒ xiǎng shàng lóu 我想上楼  (he) I want to go upstairs
@@ -2171,9 +2417,9 @@ Wǒ bǎ nǐ sòng dào lóu xià ba 我把你送到楼下吧  (he) Let me take y
 
 yuànzǐ (ph)  院子  (he) courtyard
 
-Dìxiàshì (ph)  地下室  (he) basement
+dìxiàshì (ph)  地下室  (he) basement
 
-Dìxià (ph)  地下  (he) underground
+dìxià (ph)  地下  (he) underground
 
 
  :: position, relative position, examples::
@@ -2205,8 +2451,6 @@ the luggage is in our room (eh) 行李在我们的房间里 (hp) xínglǐ zài w
 wàimiàn (ph) 外面 (he) outside
 lǐmiàn (ph) 里面 (he) inside
 
-under (eh) 在下面 zài (hp) xiàmiàn
-over/on top of (eh) 在上面 (hp) zài shàngmiàn
 
 north  (eh) 北 (hp) běi
 south  (eh) 南 (hp) nán
@@ -2331,6 +2575,16 @@ take selfie  (eh) 自拍 (hp)  zìpāi
 
 :: social media, internet, electronic::
 
+
+wǎng  (ph) 网  (he) net / network
+
+wúxiàn wǎng (ph)  无线网  (he) wireless network
+
+  " (e.g.) shāngchǎng li yǒu wúxiàn wǎng (ph)  商场里有无线网  (he)There is wireless internet in the mall
+
+  " (e.g.) miǎnfèi de wúxiàn wǎng (ph)  免费的无线网  (he) free wifi
+
+
 follow me on weibo  (eh) 关注我的微博 (hp)  guānzhù wǒ de wéi bó
 forward to me  (eh) 转发 给我 (hp)  zhuǎnfā gěi wǒ
 wechat  (eh) 微信 (hp)  wēixìn
@@ -2360,7 +2614,12 @@ click  (eh) 点击 (hp)  diǎnjī
 
 :: play , recreation , entertainment , performance ::
 
-玩  (hp) wán  (pe)play
+玩  (hp) wán  (pe)play ... a game
+
+$PREV.3 (contrast) play an instrument (ep) =zòu =奏 
+    "   (contrast) play a sport (ep) dǎ
+$PREV.2 (contrast) play an instrument
+
 游戏  (hp) yóuxì  (pe)game
 音乐  (hp) yīnyuè  (pe)music
 听  (hp) tīng  (pe)listen
@@ -2401,11 +2660,19 @@ jiéguǒ (ph) 结果 (he) result
  cízhí (ph) 辞职 (he) resign
    " (e.g.) nǐ wèishéme xiǎng cízhí (ph) 你为什么想辞职 (he) why do you want to resign?
 
+   " (e.g.) wǒ bā yuè cáinéng cízhí (ph)  我八月才能辞职  (he) I can't quit until August.
+
 nǐ méi huídá zhège wèntí (ph) 你没回答这个问题 (he) you didn't answer the question
 
 zìjǐ (e.g.) wǒ xiān jièshào yīxià zìjǐ (ph) 我先介绍一下自己 (he) let me introduce myself first
 
 dānxīn (e.g.) wǒ wéi zhōngwén kǎoshì dānxīn (ph) 我为中文考试担心 (he) i'm worried about the chinese exam 
+
+#############################################################
+
+ #
+ # SCHOOL, STUDY
+ #
 
 
 :: childhood, school ::
@@ -2453,7 +2720,7 @@ wùlǐ zhuānyè (ph)  物理专业  (he) physics major/graduate
 
 yánjiū wùlǐ tèbié yǒuqù (ph) 研究物理特别有趣 (he) researching/studying physics is especially interesting
 
-
+ :: easy, hard, difficult ::
 
 easy/easily  (eh) 容易地 (hp) róngyì
 simple  (eh) 简单 (hp) jiǎndān 
@@ -2461,6 +2728,40 @@ difficult (eh)  难  (hp) nán
 easy  (eh) 容易 (hp) róngyì
 improve  (eh) 提高 (hp) tígāo
 convenient  (eh) 方便 (hp) fāngbiàn
+
+
+
+ :: studying ::
+
+we are going to review math today (eh) 我们今天要复习数学 (hp) wǒmen jīntiān yào fùxí shùxué
+talk (eh) 讲 (hp) jiǎng
+
+while speaking (eh) 在讲的时候 (hp) zài jiǎng de shíhòu
+
+during the lecture you should take notes (eh) 在讲座期间你应该做笔记 (hp) zài jiǎngzuò qíjiān nǐ yīnggāi zuò bǐjì
+
+lecture       (eh) 演讲   (hp) yǎnjiǎng
+tell stories  (eh) 讲故事  (hp) jiǎng gùshì
+jiǎng         (eh) 讲     (hp) speak/speech/lecture
+
+what's your university major (eh) 你大学的专业是什么 (hp)  nǐ dàxué de zhuānyè shì shénme
+i'm worried about the chinese exam (eh) 我对中文考试担心  (hp) wǒ duì zhōngwén kǎoshì dānxīn
+don't talk in class  (eh) 课堂上不要说话  (hp) kètáng shàng bùyào shuōhuà
+
+
+:: work, writing, notes, ::
+
+pen  (eh) 笔 (hp) bǐ
+pencil  (eh) 铅笔 (hp) qiānbǐ
+note/notes  (eh) 笔记 (hp) bǐjì
+paper  (eh) 纸 (hp) zhǐ
+notebook  (eh) 笔记本 (hp) bǐjìběn
+
+dictionary  (eh) 字典 zìdiǎn 词典 (hp) cídiǎn
+
+borrow  (eh) 借 (hp) jiè
+my notebook is missing (eh) 我的笔记本不见了 (hp) wǒ de bǐjìběn bùjiànle
+can i borrow the notebook from you (eh) 我可以向你借笔记本吗 (hp) wǒ kěyǐ xiàng nǐ jiè bǐjìběn ma
 
 
 měi gè xuéshēng xūyào shàng kēxué kè  (ph) 每个学生需要上科学课  (he) every student needs to take a science class
@@ -2506,7 +2807,7 @@ why is there no one in the classroom?  (eh) 为什么 教室 里 没有人 (hp) 
 zhège wèntí néng jiějué ma (ph) 这个问题能解决吗 (he) can this problem be solved?
 
 
-jiéshù  (ph) 结束 (he) finish a task
+
 finish class  (eh) 下课 (hp) xiàkè
 class start  (eh) 上课 (hp) shàngkè
 homework/assignment  (eh) 作业 (hp) zuòyè
@@ -2535,7 +2836,7 @@ what is today's assignment  (eh) 今天的作业是什么 (hp) jīntiān de zuò
 
 
 
- :: talking, conversation, lecture, class, speech::
+ :: talking, conversation, speech::
 
 talk  (eh) 讲话  (hp) jiǎng huà
 discuss/talk about  (eh) 谈  (hp) tán
@@ -2545,40 +2846,10 @@ discuss/talk about  (eh) 谈  (hp) tán
 手  (hp) shǒu  (pe) hand
 shuō (sl) shǒu 
 
-we are going to review math today(eh) 我们今天要复习数学 (hp) wǒmen jīntiān yào fùxí shùxué
-talk (eh) 讲 (hp) jiǎng
 
-while speaking 在讲的时候 zài jiǎng de shíhòu
-
-during the lecture you should take notes (eh) 在讲座期间你应该做笔记 (hp) zài jiǎngzuò qíjiān nǐ yīnggāi zuò bǐjì
-
-lecture  (eh)演讲  (hp) yǎnjiǎng
-tell stories  (eh) 讲故事  (hp) jiǎng gùshì
-jiǎng (eh) 讲  (hp) speak/speech/lecture
-
-what's your university major (eh) 你大学的专业是什么 (hp)  nǐ dàxué de zhuānyè shì shénme
-i'm worried about the chinese exam (eh) 我对中文考试担心  (hp) wǒ duì zhōngwén kǎoshì dānxīn
-don't talk in class  (eh) 课堂上不要说话  (hp) kètáng shàng bùyào shuōhuà
-
-
-:: work, writing, notes, ::
-
-pen  (eh) 笔 (hp) bǐ
-pencil  (eh) 铅笔 (hp) qiānbǐ
-note/notes  (eh) 笔记 (hp) bǐjì
-paper  (eh) 纸 (hp) zhǐ
-notebook  (eh) 笔记本 (hp) bǐjìběn
-
-dictionary  (eh) 字典 zìdiǎn 词典 (hp) cídiǎn
-
-
-
-
-borrow  (eh) 借 (hp) jiè
-
-my notebook is missing (eh) 我的笔记本不见了 (hp) wǒ de bǐjìběn bùjiànle
-can i borrow the notebook from you (eh) 我可以向你借笔记本吗 (hp) wǒ kěyǐ xiàng nǐ jiè bǐjìběn ma
-
+ #
+ # SOCIAL, LEISURE
+ #
 
 :: gatherings, groups, classify, classification ::
 
@@ -2588,7 +2859,7 @@ páiduì (sl) pàiduì
 
 yuēdìng (ph) 约定 (he) appointment/agreement/agree
 
-  " (confuse) yuēhuì (ph) 约会 (he) dating appointment / a date
+  " (!confuse) yuēhuì (ph) 约会 (he) dating appointment / a date
 
 agree on/agreement e.g. legal (eh) 协议 (hp) xiéyì
 
@@ -2612,6 +2883,11 @@ liánjiē  (ph) 连接  (he) connect
 meet someone  (eh) 见面(hp)  jiànmiàn
 chat  (eh) 聊天 (hp) liáotiān
 
+##################################################################
+
+ #
+ # WORK, OFFICE etc
+ #
 
 :: work, effort, try, strive ::
 
@@ -2790,7 +3066,7 @@ jīntiān de huì zhǔyào shi guānyú shénme (ph) 今天的会主要是关于
 会议 (hp) huìyì (pe) meeting / conference 
 date as in dating/appointment (ep) yuēhuì (ph) 约会
 
-  " (confuse) date on calendar
+  " (!confuse) date on calendar
 
  :: activity, busy , traffic ::
  
@@ -2908,6 +3184,9 @@ yíng (ph) 赢 (he) win
 shū (ph) 输 (he) lose
 
 
+tiǎozhàn  (ph) 挑战  (he) challenge
+    "    (e.g.)  zhè shì yīgè hěn dà tiǎozhàn  (ph) 这是一个很大挑战  (he) This is a big challenge
+
 
 踢 (hp) tī (pe) kick e.g. a football
 踢足球 (hp) tī zúqiú (pe) play football 
@@ -2925,9 +3204,6 @@ practice/train (eh) 练习 (hp) liànxí
 bǐsài kuàiyàole (ph) 比赛快要了 (he) the game is about to start
 
 
-tiǎozhàn  (ph) 挑战  (he) challenge
-    "    (e.g.)  zhè shì yīgè hěn dà tiǎozhàn  (ph) 这是一个很大挑战  (he) This is a big challenge
-
 
 节目 (hp) jiémù (pe) show / programme
 电视节目 (hp) diànshì jiémù (pe) tv show
@@ -2936,47 +3212,6 @@ tiǎozhàn  (ph) 挑战  (he) challenge
 physical education (ep) tǐyù (ph)体育
 tǐ yù jiémù (ph)体育节目 (he)sports programme
 
-
-
-#########################################################
-
-  :: countries, geography, travel, foreign, languages, han ::
-
-grammar (eh) 语法 (hp) yǔfǎ
-
-韩国人 (hp) hánguó rén (pe) koreans
-韩语 (hp) hányǔ (pe) korean language
-汉语 (hp) hànyǔ (pe) chinese language
-
-zhōngwén yǒu jǐ gè shēngdiào (ph)  中文有几个声调  (he) How many tones does Chinese have?
-
-yǔyán (ph)  语言  (he) language
-  " (e.g.) wǒ xǐhuān yǔyán hái hěn shàncháng xué wàiyǔ  (ph) 我喜欢语言还很擅长学外语  (he) I like languages ​​and I am good at learning foreign languages
-
-$PREV.2 (ex) shàncháng  (ph) 擅长  (he) proficient in/good at
-wàiyǔ (ph)  外语  (he) foreign languages
-
-
-spain (he)  西班牙 (hp) xībānyá
-germany (he)  德国  (hp) déguó
-italy (he)  意大利  (hp) yìdàlì
-uk  (he) 英国  (hp) yīngguó
-france (he)  法国  (hp) fàguó
-
-japan  (he) 日本  (hp) rìběn
-
-rìyǔ  (ph) 日语  (he)  japanese as a language
-
-india  (he) 印度  (hp) yìndù
-
-
-wǒ bùnéng shuō liúlì zhōngwén (ph) 我不能说流利中文  (he) i can't speak chinese fluently
-
-nǐ de yīngyǔ yuè lái yuè hǎo(ph)  你的英语越来越好  (he) your english is getting better and better
-tā liǎng gè xīngqí hòu huì qù rìběn (ph) 他两个星期后会去日本  (he) he will go to japan in two weeks
-
-
-tā zài gēn wàiguó rén yuēhuì  (ph) 他在跟外国人约会  (he) he is dating a foreigner
 
 
 
@@ -3020,48 +3255,6 @@ close  (eh) 关 (hp) guān
   "    (e.g.) close the door  (eh) 关门 (hp) guānmén
 
 
-:: transport, vehicles, get on, get off, drive, ride ::
-
-car      (eh)  车    (hp) chē
-car      (eh)  汽车   (hp) qìchē
-taxi     (eh) 出租车   (hp) chūzū chē
-bicycle  (eh) 自行车   (hp) zìxíngchē
-bus      (eh) 公共汽车  (hp) gōnggòng qìchē
-train    (eh) 火车    (hp) huǒchē
-
-high speed rail (eh) 高铁 (hp) gāotiě (e.g.) gāotiě bǐ fēijī kuài ma (ph) 高铁比飞机快吗 (he) Is high-speed rail faster than airplane?
-
-vehicle     (eh) 车辆  (hp) chēliàng
-boat/ship   (eh) 船   (hp) chuán     (confuse) chuān
-dragon boat (eh) 龙舟  (hp) lóngzhōu
-
-get off vehicle (eh) 下车  (hp)  xià chē
-get off horse   (eh) 下马  (hp) xiàmǎ
-platform        (eh) 平台  (hp) píngtái
-platform        (eh) 站台  (hp) zhàntái
-
-stop the car    (eh) 停车  (hp) tíngchē
-stop the train  (eh) 停止火车  (hp) tíng zhǐ huǒchē
-
-kāichē  (ph)  开车  (he) drive
-   "   (e.g.) wǒ kāichē qù bàngōngshì (ph)  我开车去办公室  (he) i drive to the office 
-   "   (e.g.) wǒ bùdàn huì kāichē érqiě huì xiū chē (ph)  我不但会开车而且会修车  (he) I can not only drive but also repair cars
-
-xiū chē (ph) 修车 (he) repair car
-
-ticket  (eh) 票  (hp) piào
-
-dìtiě    (ph) 地铁  (he) subway 
-railway  (eh) 铁路  (hp) tiělù
-iron     (eh) 铁   (hp) tiě
-
-dìtiě zhàn  (ph) 地铁站  (he) subway station
-
-sit   (eh) 坐 (hp) zuò
-stand (eh) 站 (hp) zhàn
-bus/train stop (eh) 站     (hp) zhàn 
-train station  (eh) 火车站  (hp) huǒchē zhàn
-
  :: crowd, public ::
 
 yǒngjǐ (ph) 拥挤 (he) crowded
@@ -3100,8 +3293,11 @@ are you ready?  (eh) 你准备好了吗(hp)  nǐ zhǔnbèi hǎole ma
 say/speak  (eh) 说话  (hp) shuōhuà 
 introduce  (eh) 介绍 (hp) jièshào
 
+#############################################################
 
-
+ #
+ #  WEATHER, CONDITIONS, TEMP
+ #
 
 :: seasons ::
 
@@ -3129,6 +3325,8 @@ snowing  (eh) 下雪 (hp) xià xuě
 wind  (eh) 风 (hp) fēng
 the wind is very strong now  (eh) 现在的风很大 (hp) xiànzài de fēng hěn dà
 
+ +:: temperature ::
+
 hot  (eh) 热 (hp) rè
 warm  (eh) 暖和 (hp) nuǎnhuo
 cold  (eh) 冷 (hp) lěng
@@ -3140,14 +3338,17 @@ what's the temperature  (eh) 温度是多少 (hp) wēndù shì duōshǎo
 
 tiānqì hěn gānzào nǐ yào duō hē shuǐ(ph) 天气很干燥你要多喝水 (he) the weather is very dry. you need to drink more water.
 
+###########################################################
 
-:: place ::
+#
+# LOCATION, REGION, AREA
+#
+
+:: place, location, region, area ::
 
 这里  (hp) zhè lǐ  (pe) here
 那里  (hp) nà lǐ  (pe) there
 
-
-library  (eh) 图书馆 túshū guǎn
 
 city  (eh) 城市(hp)  chéngshì
 shìzhōngxīn (he) 市中心 (he) city centre
@@ -3234,14 +3435,43 @@ friend  (eh) 朋友 (hp) péngyǒu
 dream 梦 (hp) mèng
 story 故事 (hp) gùshì
 
+###############################################################################
+
+ #
+ # CARE, INTEREST, THINKING
+ #
+
+:: caring, interest ::
+
+yǒuqù (ph) 有趣 (he) interesting
+
+gǎn xìngqù (ph) 感兴趣 (he) be interested
+
+yánjiū wùlǐ tèbié yǒuqù  (ph) 研究物理特别有趣  (he) Physics is particularly interesting to study
+
+question/problem  (eh) 问题 (hp) wèntí
+ bànfǎ (hp) 办法 (he) solution/way
+  " (e.g.) nǐ yǒu shé me bànfǎ  (ph) 你有什么办法  (he) what can you do/what solutions do you have
+
+i am not interested  (eh) 我不感兴趣 (hp) wǒ bùgǎn xìngqù
+i am not interested  (eh) 我没有兴趣 (hp) wǒ méiyǒu xìngqù
+
+想 (hp) xiǎng (pe) want/would like
+想 (hp) xiǎng (pe) to miss/think about someone
 
 
+想干 (hp) xiǎnggàn (pe) want to do
+香港 (hp) xiānggǎng (pe) hong kong
+最  (hp) zuì (pe) most
 
+zuì  (ph) 最  (he) most
 
 :: walking | browsing | caution ::
 
 street  (eh) 街道 (hp) jiēdào
 road  (eh) 路 (hp) lù
+
+nàgè lùkǒu (ph)  那个路口 (he) that intersection
 
 be careful  (eh) 小心 (hp) xiǎoxīn
 
@@ -3320,6 +3550,7 @@ wash clothes  (eh) 洗衣服(hp)  xǐ yīfú
 wash  (eh) 洗 (hp) xǐ
 apartment  (eh) 公寓 (hp) gōngyù
 
+
 jiājù  (ph) 家具 (he) furniture
 
   " (e.g.) qǐngwèn jiājù qū zài nǎlǐ (ph) 请问家具区在哪里 (he) where is the furniture section?
@@ -3332,33 +3563,6 @@ wear out/break  (eh) 用坏 (hp) yòng huài
 painting  (eh) 画 (hp) huà
 a painting (eh) 一张画  (hp)  yī zhāng huà
 sofa  (eh) 沙发 (hp) shāfā
-lift/elevator  (eh) 电梯 (hp) diàntī
-
-" (e.g.) nǐ zuò diàntī shànglái  (ph) 你坐电梯上来  (he) You take the elevator up
-
-
-escalator  (eh) 自动扶梯 (hp) zìdòng fútī 
-   "       (eh) 电扶梯 (hp) diàn fútī
-by  (eh) 被 (hp) bèi 
-clean  (eh) 干净 (hp) gānjìng
-
-to clean up  (eh) 打扫 (hp) dǎsǎo
-
-house  (eh) 房子 (hp) fángzi
-
-:: throw away , rubbish ::
-
-bucket  (eh) 桶 (hp) tǒng
-
-
-rubbish bin (eh) 垃圾桶 (hp) lājī/lèsè tǒng (note)  lājī/lèsè alternate pronounciations
-
-$PREV.3 (e.g.) bǎ lājī/lèsè tǒng fàng zài chuáng zuǒbiān  (ph) 把垃圾桶放在床左边 (he) Put the rubbish bin on the left side of the bed
-
-wǒ māmā diūle wǒ de yóuxì (ph) 我妈妈丢了我的游戏 (he) my mum threw away my games
-
-
-will not disturb neighbors  (eh) 不会影响邻居(hp)  bù huì yǐngxiǎng línjū
 
 :: habits|behaviours, living, routines, domestic  ::
 
@@ -3367,10 +3571,18 @@ usually  (eh) 平时 (hp) píngshí
 generally (eh) 通常 (hp) tōngcháng
 
 
-Wǒmen shēnghuó 我们生活 we live ...
+ :: life, living ::
+
+shēnghuó (ph) 生活 (he) life
+
+wǒmen shēnghuó (ph) 我们生活 (he) we live ...
     "  (e.g.) Wǒmen shēnghuó hěn xìngfú 我们生活很幸福 we live a happy life
 
-+:: activities ::
+tā xǐhuān shēnzhèn de shēnghuó (ph) 他喜欢深圳的生活 (he) He likes life in Shenzhen
+
+
+
+:: activities ::
 
 brush teeth  (eh) 刷牙 (hp) shuāyá
 shower  (eh) 洗澡 (hp) xǐzǎo
@@ -3484,10 +3696,8 @@ sightseeing  (eh) 观光 (hp) guānguāng
 museum  (eh) 博物馆 (hp) bówùguǎn
 
 how long is the yangtze river?  (eh) 长江有多长  (hp) chángjiāng yǒu duō zhǎng
-
-
 huánghé (ph) 黄河 (he) yellow river
-gùgōng (ph) 故宫 (he) forbidden city (e.g.) the forbidden city in beijing is not far from the metro  (eh) 北京故宫离地铁不远 (hp) běijīng gùgōng lí dìtiě bù yuǎn
+gùgōng (ph) 故宫 (he) forbidden city (e.g.) the forbidden city in beijing is not far from the >>subway  (eh) 北京故宫离地铁不远 (hp) běijīng gùgōng lí dìtiě bù yuǎn
 
 ::: nature :::
 
@@ -3550,7 +3760,7 @@ nǐ néng lái ma?  (ph) 你能来吗？ (he)  can you come?
 
 
 
-suīrán nà jiàn chènshān hé hǎokàn dànshì tài guìle  (ph) 虽然那件衬衫和好看但是太贵了  (he) although that shirt looks nice, it’s too expensive
+
 nǐ bù xūyào jièshào, wǒ rènshí tā  (ph) 你不需要介绍, 我认识他  (he) you don't need to introduce us, i know him
 wǒ gěi nǐ jièshào  (ph) 我给你介绍  (he) i'll introduce it to you
 
@@ -3559,9 +3769,6 @@ zhèlǐ tiānqì hěn hǎo  (ph) 这里天气很好  (he) the weather is very go
 nàlǐ de tiānqì biànhuà hěn dà 那里的天气变化很大 the weather there changes a lot
 
 
-
-
-qǐng zài jiǎnchá yīcì  (ph) 请再检查一次  (he) please check again
 
 
 
@@ -3648,8 +3855,91 @@ jīchǎng (ph) 机场 (he) airport = machine field
 xǐyījī (ph) 洗衣机  (he)  washing machhine
     " (useword) $machine.1
 
+###################################################################
+# Random notes
+###################################################################
+
+:: similar sounds, phonetics ::
+
+kuàizi (ph) 筷子 (he) chopsticks
+kuài   (ph) 块 (he) yuan / quid
+kuàilè (ph) 快乐 (he) happy
+
+块 (sounds like) 快 (sl) 筷   // don't confuse these
+
+  diǎnxīn (sl)  duǎnxìn
+
+  zuì (sounds like,0.4)  shuì , shéi 
+
+############
+
+  zou  (sl) zuo (ll) zou
+  zou (sl) zao (ll) zuo
+
+zǒu (sl) zòu
+zǒu 走 (he) walk
+zǒu 走 (pe) walk
+  "      (has-cmpt) zǒu
+  "     (has-cmpt) 走
+
+#########
+
+zòu 奏 (he) play perform music on an instrument
+zòu 奏 (pe) play perform music on an instrument
+   "     (has-cmpt) zòu
+   "     (has-cmpt) 奏
+
+zòuyuè (ph) 奏乐 (he) play music
+
+################
+
+  zuo  (sl) zhuo
+  zhuo (ll) zhao
+  zhuo (sl) zhou
+  zhuo (ll) zhou
 
 
+#####
+
+zǎo 早 (sl) zào 造  
+zǎo 早 (has-cmpt) zǎo
+zǎo 早 (has-cmpt) 早
+  "  (he) morning/early
+  "  (pe) morning/early
+
+
+
+##########
+
+ zhǎo 找 (sl) zhào 照
+
+ zhǎo 找  (has-cmpt)  zhǎo
+    "       (has-cmpt)  找 
+
+ zhào 照 (has-cmpt)  zhào
+  "      (has-cmpt)  照
+
+
+
+#################
+
+  zuò fàn (sl) zǎofàn
+
+// this should scale ok, as we know strings of length > 3 are generally unique 
+
+huì (sl) huí (sl) huǐ 
+  会 (sl) 回 (sl) 悔
+
+ dǔchē (sl)  dǎchē       // traffic, get a cab
+ 堵车 (sounds like) 打车
+
+
+#################################################
+
+:: private.commentary.mark.norwegian ::
+
+
+ bønder (sl) bønner  // not pronounced like, because that's against downstream 
 
 
 
