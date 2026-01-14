@@ -254,7 +254,50 @@ const DashboardModule = {
 
     async selectCase(caseId) {
         try {
+            // Charger le cas de base via l'API standard
             this.currentCase = await this.apiCall(`/api/cases/${caseId}`);
+
+            // Initialiser le DataProvider avec ce cas
+            // Le DataProvider tentera de charger/parser le N4L si disponible
+            try {
+                const n4lData = await DataProvider.init(caseId);
+
+                // Si le DataProvider a des données N4L, les utiliser
+                if (n4lData && DataProvider.n4lContent) {
+                    // Synchroniser les données parsées vers currentCase
+                    this.currentCase.entities = n4lData.entities || this.currentCase.entities || [];
+                    this.currentCase.evidence = n4lData.evidence || this.currentCase.evidence || [];
+                    this.currentCase.timeline = n4lData.timeline || this.currentCase.timeline || [];
+                    this.currentCase.hypotheses = n4lData.hypotheses || this.currentCase.hypotheses || [];
+
+                    // Ajouter les relations depuis N4L
+                    if (n4lData.relations && n4lData.relations.length > 0) {
+                        // Enrichir les entités avec leurs relations
+                        const relationsByFromId = {};
+                        n4lData.relations.forEach(rel => {
+                            if (!relationsByFromId[rel.from_id]) {
+                                relationsByFromId[rel.from_id] = [];
+                            }
+                            relationsByFromId[rel.from_id].push(rel);
+                        });
+
+                        this.currentCase.entities.forEach(entity => {
+                            entity.relations = relationsByFromId[entity.id] || entity.relations || [];
+                        });
+                    }
+
+                    console.log('DataProvider: Données chargées depuis N4L', {
+                        entities: this.currentCase.entities.length,
+                        evidence: this.currentCase.evidence.length,
+                        timeline: this.currentCase.timeline.length,
+                        hypotheses: this.currentCase.hypotheses.length
+                    });
+                }
+            } catch (n4lError) {
+                // Si l'API N4L échoue, utiliser les données standard du cas
+                console.warn('DataProvider: Fallback vers données standard', n4lError.message);
+            }
+
             this.saveRecentCase(caseId);
             document.getElementById('case-title').textContent = this.currentCase.name;
             this.renderCasesList();

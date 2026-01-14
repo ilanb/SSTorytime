@@ -131,7 +131,17 @@ const EvidenceModule = {
             if (!evidence.name) return;
 
             try {
-                await this.apiCall(`/api/evidence?case_id=${this.currentCase.id}`, 'POST', evidence);
+                // Utiliser le DataProvider si disponible pour générer le N4L
+                if (typeof DataProvider !== 'undefined' && DataProvider.currentCaseId) {
+                    try {
+                        await DataProvider.addEvidence(evidence);
+                    } catch (dpError) {
+                        console.warn('DataProvider.addEvidence failed, falling back to API:', dpError);
+                        await this.apiCall(`/api/evidence?case_id=${this.currentCase.id}`, 'POST', evidence);
+                    }
+                } else {
+                    await this.apiCall(`/api/evidence?case_id=${this.currentCase.id}`, 'POST', evidence);
+                }
                 await this.selectCase(this.currentCase.id);
             } catch (error) {
                 console.error('Error adding evidence:', error);
@@ -148,54 +158,173 @@ const EvidenceModule = {
         const evidence = this.currentCase.evidence.find(e => e.id === evidenceId);
         if (!evidence) return;
 
+        // Fonction pour normaliser les IDs (tirets et underscores sont équivalents)
+        const normalizeId = (id) => id ? id.replace(/-/g, '_') : '';
+
+        console.log('showEvidenceLinks:', {
+            evidenceId,
+            evidenceName: evidence.name,
+            linked_entities: evidence.linked_entities,
+            entitiesCount: (this.currentCase.entities || []).length,
+            hypothesesCount: (this.currentCase.hypotheses || []).length,
+            timelineCount: (this.currentCase.timeline || []).length
+        });
+
+        // Créer des maps pour accès rapide - mapper par ID normalisé ET original
         const entityMap = {};
         (this.currentCase.entities || []).forEach(e => {
             entityMap[e.id] = e;
+            entityMap[normalizeId(e.id)] = e;
+            // Aussi mapper par nom pour correspondance N4L
+            entityMap[e.name] = e;
         });
 
-        const linkedEntities = (evidence.linked_entities || [])
-            .map(id => entityMap[id])
+        // 1. Entités liées - depuis linked_entities OU depuis les arêtes du graphe
+        const linkedEntityIds = new Set(evidence.linked_entities || []);
+
+        // Chercher aussi dans les arêtes du graphe (pour les données N4L)
+        if (this.graphEdges && this.graphNodes) {
+            const evidenceName = evidence.name;
+            const allEdges = this.graphEdges.get();
+            const allNodeIds = this.graphNodes.getIds();
+
+            // Trouver le nœud de la preuve dans le graphe (par ID ou par label)
+            let evidenceNodeId = null;
+            for (const nodeId of allNodeIds) {
+                const node = this.graphNodes.get(nodeId);
+                if (nodeId === evidenceId || node.label === evidenceName) {
+                    evidenceNodeId = nodeId;
+                    break;
+                }
+            }
+
+            // Si on trouve le nœud, chercher les entités connectées via les arêtes
+            if (evidenceNodeId) {
+                allEdges.forEach(edge => {
+                    let connectedNodeId = null;
+                    if (edge.from === evidenceNodeId) {
+                        connectedNodeId = edge.to;
+                    } else if (edge.to === evidenceNodeId) {
+                        connectedNodeId = edge.from;
+                    }
+
+                    if (connectedNodeId) {
+                        const connectedNode = this.graphNodes.get(connectedNodeId);
+                        if (connectedNode) {
+                            // Chercher l'entité correspondante
+                            const entity = entityMap[connectedNodeId] || entityMap[connectedNode.label];
+                            if (entity) {
+                                linkedEntityIds.add(entity.id);
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        const linkedEntities = Array.from(linkedEntityIds)
+            .map(id => entityMap[id] || entityMap[normalizeId(id)])
             .filter(Boolean);
 
-        const relatedHypotheses = (this.currentCase.hypotheses || [])
-            .filter(h => h.supporting_evidence && h.supporting_evidence.includes(evidenceId));
+        console.log('showEvidenceLinks - linkedEntityIds:', Array.from(linkedEntityIds));
+        console.log('showEvidenceLinks - linkedEntities found:', linkedEntities.length);
 
-        const relatedEvents = (this.currentCase.timeline || [])
-            .filter(e => evidence.location && e.location &&
-                e.location.toLowerCase().includes(evidence.location.toLowerCase()));
+        // Normaliser l'ID de la preuve actuelle pour comparaison
+        const normalizedEvidenceId = normalizeId(evidenceId);
 
+        // 2. Hypothèses supportées - depuis supporting_evidence OU qui mentionnent cette preuve
+        const relatedHypotheses = (this.currentCase.hypotheses || []).filter(h => {
+            // Vérifier supporting_evidence avec normalisation des IDs
+            if (h.supporting_evidence) {
+                const normalizedSupporting = h.supporting_evidence.map(normalizeId);
+                if (normalizedSupporting.includes(normalizedEvidenceId)) {
+                    console.log('Hypothesis match by ID:', h.title, h.supporting_evidence);
+                    return true;
+                }
+            }
+            // Vérifier aussi par nom
+            if (h.supporting_evidence && h.supporting_evidence.some(e => e === evidence.name)) {
+                console.log('Hypothesis match by name:', h.title);
+                return true;
+            }
+            // Vérifier dans la description de l'hypothèse
+            if (h.description && h.description.toLowerCase().includes(evidence.name.toLowerCase())) {
+                console.log('Hypothesis match by description:', h.title);
+                return true;
+            }
+            return false;
+        });
+
+        console.log('showEvidenceLinks - relatedHypotheses:', relatedHypotheses.length);
+
+        // 3. Événements liés - par localisation OU qui impliquent cette preuve
+        const relatedEvents = (this.currentCase.timeline || []).filter(e => {
+            // Par localisation
+            if (evidence.location && e.location &&
+                e.location.toLowerCase().includes(evidence.location.toLowerCase())) {
+                console.log('Event match by location:', e.title);
+                return true;
+            }
+            // Par evidence associée - avec normalisation des IDs
+            if (e.evidence) {
+                const normalizedEventEvidence = e.evidence.map(normalizeId);
+                if (normalizedEventEvidence.includes(normalizedEvidenceId) || e.evidence.includes(evidence.name)) {
+                    console.log('Event match by evidence array:', e.title, e.evidence);
+                    return true;
+                }
+            }
+            // Dans la description
+            if (e.description && e.description.toLowerCase().includes(evidence.name.toLowerCase())) {
+                console.log('Event match by description:', e.title);
+                return true;
+            }
+            return false;
+        });
+
+        console.log('showEvidenceLinks - relatedEvents:', relatedEvents.length);
+
+        // Générer le HTML avec boutons pour naviguer vers le graphe
         const entitiesHtml = linkedEntities.length > 0
             ? linkedEntities.map(e => `
-                <div class="link-item entity-link" onclick="app.goToSearchResult('entities', '${e.id}')">
+                <div class="link-item entity-link">
                     <span class="material-icons">${this.getEntityIcon(e.type)}</span>
                     <div class="link-details">
                         <span class="link-name">${e.name}</span>
                         <span class="link-meta entity-badge ${e.role}">${e.role}</span>
                     </div>
+                    <button class="btn btn-ghost btn-sm" onclick="app.closeModal(); app.showEntityGraph('${e.id}')" title="Voir sur le graphe">
+                        <span class="material-icons">hub</span>
+                    </button>
                 </div>
             `).join('')
             : '<div class="empty">Aucune entité liée</div>';
 
         const hypothesesHtml = relatedHypotheses.length > 0
             ? relatedHypotheses.map(h => `
-                <div class="link-item hypothesis-link" onclick="app.goToSearchResult('hypotheses', '${h.id}')">
+                <div class="link-item hypothesis-link">
                     <span class="material-icons">lightbulb</span>
                     <div class="link-details">
                         <span class="link-name">${h.title}</span>
-                        <span class="link-meta">Confiance: ${h.confidence_level}%</span>
+                        <span class="link-meta">Confiance: ${h.confidence_level || 50}%</span>
                     </div>
+                    <button class="btn btn-ghost btn-sm" onclick="app.closeModal(); app.goToSearchResult('hypotheses', '${h.id}')" title="Voir l'hypothèse">
+                        <span class="material-icons">open_in_new</span>
+                    </button>
                 </div>
             `).join('')
             : '<div class="empty">Aucune hypothèse associée</div>';
 
         const eventsHtml = relatedEvents.length > 0
             ? relatedEvents.map(e => `
-                <div class="link-item event-link" onclick="app.goToSearchResult('timeline', '${e.id}')">
+                <div class="link-item event-link">
                     <span class="material-icons">event</span>
                     <div class="link-details">
                         <span class="link-name">${e.title}</span>
-                        <span class="link-meta">${new Date(e.timestamp).toLocaleDateString('fr-FR')}</span>
+                        <span class="link-meta">${e.timestamp ? new Date(e.timestamp).toLocaleDateString('fr-FR') : 'Date non définie'}</span>
                     </div>
+                    <button class="btn btn-ghost btn-sm" onclick="app.closeModal(); app.goToSearchResult('timeline', '${e.id}')" title="Voir l'événement">
+                        <span class="material-icons">open_in_new</span>
+                    </button>
                 </div>
             `).join('')
             : '<div class="empty">Aucun événement associé</div>';
@@ -302,7 +431,17 @@ const EvidenceModule = {
             if (!updatedEvidence.name) return;
 
             try {
-                await this.apiCall(`/api/evidence/update?case_id=${this.currentCase.id}`, 'PUT', updatedEvidence);
+                // Utiliser le DataProvider si disponible
+                if (typeof DataProvider !== 'undefined' && DataProvider.currentCaseId) {
+                    try {
+                        await DataProvider.updateEvidence(updatedEvidence);
+                    } catch (dpError) {
+                        console.warn('DataProvider.updateEvidence failed, falling back to API:', dpError);
+                        await this.apiCall(`/api/evidence/update?case_id=${this.currentCase.id}`, 'PUT', updatedEvidence);
+                    }
+                } else {
+                    await this.apiCall(`/api/evidence/update?case_id=${this.currentCase.id}`, 'PUT', updatedEvidence);
+                }
                 await this.selectCase(this.currentCase.id);
                 this.showToast('Preuve mise à jour');
             } catch (error) {
@@ -320,9 +459,21 @@ const EvidenceModule = {
         if (!confirm('Êtes-vous sûr de vouloir supprimer cette preuve ?')) return;
 
         try {
-            await fetch(`/api/evidence/delete?case_id=${this.currentCase.id}&evidence_id=${evidenceId}`, {
-                method: 'DELETE'
-            });
+            // Utiliser le DataProvider si disponible
+            if (typeof DataProvider !== 'undefined' && DataProvider.currentCaseId) {
+                try {
+                    await DataProvider.deleteEvidence(evidenceId);
+                } catch (dpError) {
+                    console.warn('DataProvider.deleteEvidence failed, falling back to API:', dpError);
+                    await fetch(`/api/evidence/delete?case_id=${this.currentCase.id}&evidence_id=${evidenceId}`, {
+                        method: 'DELETE'
+                    });
+                }
+            } else {
+                await fetch(`/api/evidence/delete?case_id=${this.currentCase.id}&evidence_id=${evidenceId}`, {
+                    method: 'DELETE'
+                });
+            }
             await this.selectCase(this.currentCase.id);
             this.showToast('Preuve supprimée');
         } catch (error) {

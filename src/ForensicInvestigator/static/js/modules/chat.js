@@ -245,6 +245,14 @@ const ChatModule = {
 
         if (onStart) onStart();
 
+        // Fonction pour nettoyer le markdown des blocs de code wrapper
+        const cleanMarkdown = (text) => {
+            // Retirer les blocs ```markdown ... ``` qui encapsulent le contenu
+            let cleaned = text.replace(/^```(?:markdown)?\s*\n?/i, '');
+            cleaned = cleaned.replace(/\n?```\s*$/i, '');
+            return cleaned;
+        };
+
         try {
             const response = await fetch(endpoint, {
                 method: 'POST',
@@ -277,12 +285,14 @@ const ChatModule = {
                                     onChunk(fullResponse);
                                 } else {
                                     const cursor = showCursor ? '<span class="streaming-cursor">▊</span>' : '';
-                                    targetElement.innerHTML = marked.parse(fullResponse) + cursor;
+                                    const cleanedResponse = cleanMarkdown(fullResponse);
+                                    targetElement.innerHTML = marked.parse(cleanedResponse) + cursor;
                                 }
                             }
                             if (data.done) {
-                                targetElement.innerHTML = marked.parse(fullResponse);
-                                if (onComplete) onComplete(fullResponse);
+                                const cleanedResponse = cleanMarkdown(fullResponse);
+                                targetElement.innerHTML = marked.parse(cleanedResponse);
+                                if (onComplete) onComplete(cleanedResponse);
                             }
                         } catch (e) {
                             // Ignore parsing errors for incomplete chunks
@@ -293,8 +303,9 @@ const ChatModule = {
 
             // Final render
             if (fullResponse) {
-                targetElement.innerHTML = marked.parse(fullResponse);
-                if (onComplete) onComplete(fullResponse);
+                const cleanedResponse = cleanMarkdown(fullResponse);
+                targetElement.innerHTML = marked.parse(cleanedResponse);
+                if (onComplete) onComplete(cleanedResponse);
             }
 
             return fullResponse;
@@ -499,6 +510,125 @@ const ChatModule = {
 
         html += '</table>';
         return html;
+    },
+
+    // ============================================
+    // Ask Suggested Question
+    // ============================================
+    askSuggestedQuestion(button) {
+        const question = button.textContent.trim();
+        const input = document.getElementById('ai-input');
+
+        if (input && question) {
+            input.value = question;
+            this.sendAIMessage();
+
+            // Hide suggestions after first use
+            const suggestions = document.getElementById('ai-suggestions');
+            if (suggestions) {
+                suggestions.style.display = 'none';
+            }
+        }
+    },
+
+    // ============================================
+    // Show Suggestions (reset)
+    // ============================================
+    showAISuggestions() {
+        const suggestions = document.getElementById('ai-suggestions');
+        if (suggestions) {
+            suggestions.style.display = 'grid';
+        }
+    },
+
+    // ============================================
+    // Save Chat to Notebook
+    // ============================================
+    async saveChatToNotebook() {
+        if (!this.currentCase) {
+            this.showToast('Sélectionnez une affaire d\'abord', 'warning');
+            return;
+        }
+
+        const messagesContainer = document.getElementById('ai-messages');
+        if (!messagesContainer) return;
+
+        // Extract messages from the chat
+        const messages = messagesContainer.querySelectorAll('.ai-message');
+        if (messages.length <= 1) {
+            this.showToast('Aucune conversation à sauvegarder', 'warning');
+            return;
+        }
+
+        // Build markdown content from chat
+        let content = `## Conversation avec l'Assistant IA\n\n`;
+        content += `**Date:** ${new Date().toLocaleString('fr-FR')}\n\n`;
+        content += `---\n\n`;
+
+        messages.forEach(msg => {
+            if (msg.classList.contains('ai-message-user')) {
+                const text = msg.textContent.replace('Vous:', '').trim();
+                content += `### Question\n${text}\n\n`;
+            } else if (msg.classList.contains('ai-message-bot')) {
+                // Get innerHTML to preserve markdown formatting
+                let text = msg.innerHTML;
+                // Remove "Assistant:" prefix if present
+                text = text.replace(/<strong>Assistant:<\/strong>/gi, '').trim();
+                // Convert back to plain text but keep structure
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = text;
+                content += `### Réponse\n${tempDiv.textContent.trim()}\n\n`;
+            }
+        });
+
+        try {
+            // Save to notebook via /api/notes endpoint
+            const response = await fetch(`/api/notes?case_id=${this.currentCase.id}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: `Chat IA - ${new Date().toLocaleDateString('fr-FR')}`,
+                    content: content,
+                    type: 'ai_analysis'
+                })
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                this.showToast('Note sauvegardée dans le Notebook', 'success');
+                console.log('Note saved:', result);
+                // Refresh notebook if visible
+                if (typeof this.loadNotebook === 'function') {
+                    this.loadNotebook();
+                }
+            } else {
+                const errorText = await response.text();
+                console.error('Save failed:', response.status, errorText);
+                throw new Error(errorText || 'Erreur lors de la sauvegarde');
+            }
+        } catch (error) {
+            console.error('Error saving chat to notebook:', error);
+            this.showToast(`Erreur: ${error.message}`, 'error');
+        }
+    },
+
+    // ============================================
+    // Clear AI Chat
+    // ============================================
+    clearAIChat() {
+        const messagesContainer = document.getElementById('ai-messages');
+        if (messagesContainer) {
+            messagesContainer.innerHTML = `
+                <div class="ai-message ai-message-bot">
+                    <strong>Assistant:</strong> Bonjour! Je suis votre assistant d'enquête. Posez-moi des questions sur l'affaire en cours.
+                </div>
+            `;
+        }
+
+        // Show suggestions again
+        this.showAISuggestions();
+
+        this.showToast('Conversation effacée');
     }
 };
 

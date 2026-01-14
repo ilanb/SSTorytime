@@ -493,6 +493,33 @@ type ConePath struct {
 	Length int      `json:"length"`
 }
 
+// resolveNodeID résout un ID de nœud en cherchant par ID ou par Label (pour compatibilité N4L)
+// Retourne l'ID réel du nœud et un booléen indiquant si le nœud a été trouvé
+func resolveNodeID(graph *models.GraphData, nodeID string) (string, bool) {
+	// Créer les maps
+	for _, node := range graph.Nodes {
+		if node.ID == nodeID {
+			return nodeID, true
+		}
+	}
+	// Chercher par label
+	for _, node := range graph.Nodes {
+		if node.Label == nodeID {
+			return node.ID, true
+		}
+	}
+	return nodeID, false
+}
+
+// resolveNodeIDs résout plusieurs IDs de nœuds
+func resolveNodeIDs(graph *models.GraphData, nodeIDs []string) []string {
+	resolved := make([]string, len(nodeIDs))
+	for i, id := range nodeIDs {
+		resolved[i], _ = resolveNodeID(graph, id)
+	}
+	return resolved
+}
+
 // ConeSearch effectue une recherche par cône d'expansion sur le graphe
 func (s *SearchService) ConeSearch(graph *models.GraphData, req ConeSearchRequest) (*ConeSearchResult, error) {
 	if req.Depth <= 0 {
@@ -504,6 +531,9 @@ func (s *SearchService) ConeSearch(graph *models.GraphData, req ConeSearchReques
 	if req.Direction == "" {
 		req.Direction = ConeBidirectional
 	}
+
+	// Résoudre l'ID du nœud de départ (compatibilité N4L - accepter les labels)
+	req.StartNode, _ = resolveNodeID(graph, req.StartNode)
 
 	// Construire les maps d'adjacence selon la direction
 	forwardAdj := make(map[string][]models.GraphEdge)
@@ -772,6 +802,10 @@ func (s *SearchService) DiracPathSearch(graph *models.GraphData, startNodes, end
 		maxDepth = 5
 	}
 
+	// Résoudre les IDs de nœuds (compatibilité N4L - accepter les labels)
+	startNodes = resolveNodeIDs(graph, startNodes)
+	endNodes = resolveNodeIDs(graph, endNodes)
+
 	// Construire l'adjacence bidirectionnelle
 	adj := make(map[string][]struct {
 		Target string
@@ -913,6 +947,10 @@ func (s *SearchService) ContrawaveSearch(graph *models.GraphData, req Contrawave
 	if len(req.StartNodes) == 0 || len(req.EndNodes) == 0 {
 		return nil, fmt.Errorf("start_nodes et end_nodes sont requis")
 	}
+
+	// Résoudre les IDs de nœuds (compatibilité N4L - accepter les labels)
+	req.StartNodes = resolveNodeIDs(graph, req.StartNodes)
+	req.EndNodes = resolveNodeIDs(graph, req.EndNodes)
 
 	// Créer les maps de nœuds et d'adjacence
 	nodeMap := make(map[string]models.GraphNode)
@@ -1928,6 +1966,10 @@ func (s *SearchService) FindConstrainedPaths(graph *models.GraphData, req Constr
 		req.MaxPaths = 10
 	}
 
+	// Résoudre les IDs de nœuds (compatibilité N4L - accepter les labels)
+	req.FromNode, _ = resolveNodeID(graph, req.FromNode)
+	req.ToNode, _ = resolveNodeID(graph, req.ToNode)
+
 	// Créer les structures
 	nodeMap := make(map[string]models.GraphNode)
 	for _, node := range graph.Nodes {
@@ -2465,15 +2507,27 @@ func (s *SearchService) AnalyzeOrbits(graph *models.GraphData, req OrbitRequest)
 		req.MaxLevel = 3
 	}
 
-	// Créer les structures
+	// Créer les structures - mapper par ID ET par Label pour supporter les noms N4L
 	nodeMap := make(map[string]models.GraphNode)
+	labelToID := make(map[string]string)
 	for _, node := range graph.Nodes {
 		nodeMap[node.ID] = node
+		if node.Label != "" {
+			labelToID[node.Label] = node.ID
+		}
 	}
 
+	// Chercher le nœud par ID ou par Label (pour compatibilité N4L)
+	actualNodeID := req.NodeID
 	if _, exists := nodeMap[req.NodeID]; !exists {
-		return nil, fmt.Errorf("nœud '%s' non trouvé", req.NodeID)
+		// Essayer de trouver par label
+		if id, found := labelToID[req.NodeID]; found {
+			actualNodeID = id
+		} else {
+			return nil, fmt.Errorf("nœud '%s' non trouvé", req.NodeID)
+		}
 	}
+	req.NodeID = actualNodeID
 
 	// Construire l'adjacence bidirectionnelle avec les labels d'arêtes
 	type neighborInfo struct {

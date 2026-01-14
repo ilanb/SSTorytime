@@ -249,6 +249,15 @@ const SocialNetworkModule = {
     },
 
     // ============================================
+    // Réinitialiser le graphe réseau social
+    // ============================================
+    async resetSocialNetworkGraph() {
+        const graphData = await this.getGraphData();
+        if (!graphData.nodes || graphData.nodes.length === 0) return;
+        this.renderSocialNetworkGraph(graphData);
+    },
+
+    // ============================================
     // Rendu du graphe réseau social
     // ============================================
     renderSocialNetworkGraph(graphData) {
@@ -297,6 +306,9 @@ const SocialNetworkModule = {
     // Détection de communautés (Louvain simplifié)
     // ============================================
     async detectCommunities() {
+        // Réinitialiser le graphe avant l'analyse
+        await this.resetSocialNetworkGraph();
+
         const graphData = await this.getGraphData();
         if (!graphData.nodes || graphData.nodes.length < 2) {
             this.showToast('Pas assez de données pour détecter des communautés', 'warning');
@@ -618,18 +630,38 @@ const SocialNetworkModule = {
         if (!this.communities[communityIdx] || !this.socialNetworkGraph) return;
 
         const community = this.communities[communityIdx];
+        const colors = this.getCommunityColors();
+        const communityColor = colors[communityIdx % colors.length];
 
-        // Mettre en évidence la communauté
-        const updates = this.snNodes.get().map(node => {
+        // Masquer les nœuds qui ne sont pas dans la communauté
+        const nodeUpdates = this.snNodes.get().map(node => {
             const inCommunity = community.includes(node.id);
             return {
                 id: node.id,
-                opacity: inCommunity ? 1 : 0.2,
-                borderWidth: inCommunity ? 4 : 1
+                hidden: !inCommunity,
+                opacity: inCommunity ? 1 : 0.1,
+                borderWidth: inCommunity ? 4 : 1,
+                color: inCommunity
+                    ? { background: communityColor, border: communityColor }
+                    : { background: '#e2e8f0', border: '#cbd5e0' }
             };
         });
+        this.snNodes.update(nodeUpdates);
 
-        this.snNodes.update(updates);
+        // Masquer les arêtes qui ne connectent pas des nœuds de la communauté
+        if (this.snEdges) {
+            const edgeUpdates = this.snEdges.get().map(edge => {
+                const bothInCommunity = community.includes(edge.from) && community.includes(edge.to);
+                return {
+                    id: edge.id,
+                    hidden: !bothInCommunity,
+                    color: bothInCommunity
+                        ? { color: communityColor, opacity: 1 }
+                        : { color: '#e2e8f0', opacity: 0.1 }
+                };
+            });
+            this.snEdges.update(edgeUpdates);
+        }
 
         // Focus sur les noeuds
         this.socialNetworkGraph.fit({
@@ -697,6 +729,9 @@ Questions à analyser:
     // Identification des brokers
     // ============================================
     async identifyBrokers() {
+        // Réinitialiser le graphe avant l'analyse
+        await this.resetSocialNetworkGraph();
+
         const graphData = await this.getGraphData();
         if (!graphData.nodes || graphData.nodes.length < 3) {
             this.showToast('Pas assez de données pour identifier des brokers', 'warning');
@@ -876,42 +911,89 @@ Questions à analyser:
     },
 
     highlightBrokers(brokers) {
-        if (!this.snNodes) return;
+        if (!this.snNodes || !this.snEdges) return;
 
         const brokerIds = new Set(brokers.map(b => b.nodeId));
 
-        const updates = this.snNodes.get().map(node => {
+        // Collecter tous les voisins des brokers
+        const brokerNeighbors = new Set(brokerIds);
+        this.snEdges.get().forEach(e => {
+            if (brokerIds.has(e.from)) brokerNeighbors.add(e.to);
+            if (brokerIds.has(e.to)) brokerNeighbors.add(e.from);
+        });
+
+        // Masquer les nœuds qui ne sont pas des brokers ou leurs voisins
+        const nodeUpdates = this.snNodes.get().map(node => {
             const isBroker = brokerIds.has(node.id);
+            const isNeighbor = brokerNeighbors.has(node.id);
             return {
                 id: node.id,
                 size: isBroker ? 30 : 15,
                 borderWidth: isBroker ? 4 : 2,
-                color: isBroker ? { background: '#ef4444', border: '#dc2626' } : undefined
+                color: isBroker
+                    ? { background: '#ef4444', border: '#dc2626' }
+                    : isNeighbor
+                        ? { background: '#fca5a5', border: '#f87171' }
+                        : { background: '#e2e8f0', border: '#cbd5e0' },
+                hidden: !isNeighbor
             };
         });
+        this.snNodes.update(nodeUpdates);
 
-        this.snNodes.update(updates);
+        // Masquer les arêtes qui ne connectent pas aux brokers
+        const edgeUpdates = this.snEdges.get().map(edge => {
+            const connectsToBroker = brokerIds.has(edge.from) || brokerIds.has(edge.to);
+            return {
+                id: edge.id,
+                hidden: !connectsToBroker,
+                color: connectsToBroker
+                    ? { color: '#ef4444', opacity: 0.8 }
+                    : { color: '#e2e8f0', opacity: 0.1 },
+                width: connectsToBroker ? 2 : 1
+            };
+        });
+        this.snEdges.update(edgeUpdates);
     },
 
     focusBroker(nodeId) {
-        if (!this.socialNetworkGraph) return;
+        if (!this.socialNetworkGraph || !this.snNodes || !this.snEdges) return;
 
         // Mettre en évidence le broker et ses connexions
-        const graphData = { nodes: this.snNodes.get(), edges: this.snEdges.get() };
         const neighbors = new Set([nodeId]);
 
-        graphData.edges.forEach(e => {
+        this.snEdges.get().forEach(e => {
             if (e.from === nodeId) neighbors.add(e.to);
             if (e.to === nodeId) neighbors.add(e.from);
         });
 
-        const updates = this.snNodes.get().map(node => ({
+        // Masquer les nœuds qui ne sont pas le broker ou ses voisins
+        const nodeUpdates = this.snNodes.get().map(node => ({
             id: node.id,
-            opacity: neighbors.has(node.id) ? 1 : 0.2,
-            borderWidth: node.id === nodeId ? 6 : (neighbors.has(node.id) ? 3 : 1)
+            hidden: !neighbors.has(node.id),
+            opacity: neighbors.has(node.id) ? 1 : 0.1,
+            borderWidth: node.id === nodeId ? 6 : (neighbors.has(node.id) ? 3 : 1),
+            color: node.id === nodeId
+                ? { background: '#ef4444', border: '#dc2626' }
+                : neighbors.has(node.id)
+                    ? { background: '#fca5a5', border: '#f87171' }
+                    : { background: '#e2e8f0', border: '#cbd5e0' }
         }));
+        this.snNodes.update(nodeUpdates);
 
-        this.snNodes.update(updates);
+        // Masquer les arêtes qui ne connectent pas au broker
+        const edgeUpdates = this.snEdges.get().map(edge => {
+            const connectsToBroker = edge.from === nodeId || edge.to === nodeId;
+            return {
+                id: edge.id,
+                hidden: !connectsToBroker,
+                color: connectsToBroker
+                    ? { color: '#ef4444', opacity: 1 }
+                    : { color: '#e2e8f0', opacity: 0.1 },
+                width: connectsToBroker ? 3 : 1
+            };
+        });
+        this.snEdges.update(edgeUpdates);
+
         this.socialNetworkGraph.focus(nodeId, { scale: 1.5, animation: true });
     },
 
@@ -978,6 +1060,9 @@ Questions à analyser:
     // Analyse des flux
     // ============================================
     async analyzeFlows() {
+        // Réinitialiser le graphe avant l'analyse
+        await this.resetSocialNetworkGraph();
+
         const graphData = await this.getGraphData();
         if (!graphData.edges || graphData.edges.length === 0) {
             this.showToast('Pas de relations pour analyser les flux', 'warning');
@@ -1084,7 +1169,7 @@ Questions à analyser:
     },
 
     updateFlowVisualization(flowType) {
-        if (!this.flowAnalysis || !this.snEdges) return;
+        if (!this.flowAnalysis || !this.snEdges || !this.snNodes) return;
 
         const flowColors = {
             information: '#3b82f6',
@@ -1096,13 +1181,24 @@ Questions à analyser:
         const detailsContainer = document.getElementById('sn-flow-details');
 
         if (flowType === 'all') {
-            // Réinitialiser les couleurs
-            const updates = this.snEdges.get().map(e => ({
+            // Réinitialiser les couleurs des arêtes et les rendre visibles
+            const edgeUpdates = this.snEdges.get().map(e => ({
                 id: e.id,
                 color: { color: '#1e3a5f', opacity: 0.6 },
-                width: 1
+                width: 1,
+                hidden: false
             }));
-            this.snEdges.update(updates);
+            this.snEdges.update(edgeUpdates);
+
+            // Réinitialiser les couleurs des nœuds et les rendre visibles
+            const nodeUpdates = this.snNodes.get().map(n => ({
+                id: n.id,
+                color: this.getNodeColor(n),
+                opacity: 1,
+                borderWidth: 2,
+                hidden: false
+            }));
+            this.snNodes.update(nodeUpdates);
 
             if (detailsContainer) {
                 detailsContainer.innerHTML = '<p class="sn-hint">Sélectionnez un type de flux pour voir les détails</p>';
@@ -1111,21 +1207,42 @@ Questions à analyser:
         }
 
         const selectedEdges = this.flowAnalysis[flowType] || [];
-        const selectedIds = new Set(selectedEdges.map((e, i) => `edge-${i}`));
 
-        // Mettre à jour la visualisation
-        const updates = this.snEdges.get().map(e => {
+        // Collecter les nœuds impliqués dans ce type de flux
+        const involvedNodes = new Set();
+        selectedEdges.forEach(edge => {
+            involvedNodes.add(edge.from);
+            involvedNodes.add(edge.to);
+        });
+
+        // Mettre à jour les arêtes - masquer celles qui ne sont pas sélectionnées
+        const edgeUpdates = this.snEdges.get().map(e => {
             // Trouver si cet edge correspond au flux sélectionné
             const matchingEdge = selectedEdges.find(se => se.from === e.from && se.to === e.to);
 
             return {
                 id: e.id,
-                color: matchingEdge ? { color: flowColors[flowType], opacity: 1 } : { color: '#e2e8f0', opacity: 0.2 },
-                width: matchingEdge ? 3 : 1
+                color: matchingEdge ? { color: flowColors[flowType], opacity: 1 } : { color: '#e2e8f0', opacity: 0.1 },
+                width: matchingEdge ? 3 : 1,
+                hidden: !matchingEdge
             };
         });
+        this.snEdges.update(edgeUpdates);
 
-        this.snEdges.update(updates);
+        // Mettre à jour les nœuds - masquer ceux qui ne sont pas impliqués
+        const nodeUpdates = this.snNodes.get().map(n => {
+            const isInvolved = involvedNodes.has(n.id);
+            return {
+                id: n.id,
+                color: isInvolved
+                    ? { background: flowColors[flowType], border: flowColors[flowType] }
+                    : { background: '#e2e8f0', border: '#cbd5e0' },
+                opacity: isInvolved ? 1 : 0.1,
+                borderWidth: isInvolved ? 3 : 1,
+                hidden: !isInvolved
+            };
+        });
+        this.snNodes.update(nodeUpdates);
 
         // Afficher les détails
         if (detailsContainer && selectedEdges.length > 0) {
@@ -1202,6 +1319,9 @@ Questions à analyser:
     // Évolution temporelle
     // ============================================
     async showTemporalEvolution() {
+        // Réinitialiser le graphe avant l'analyse
+        await this.resetSocialNetworkGraph();
+
         if (!this.currentCase?.timeline || this.currentCase.timeline.length === 0) {
             this.showToast('Pas d\'événements dans la timeline pour l\'évolution temporelle', 'warning');
             return;
@@ -1225,6 +1345,15 @@ Questions à analyser:
         const snapshots = [];
         const graphData = { nodes: this.snNodes?.get() || [], edges: this.snEdges?.get() || [] };
 
+        // Normaliser les IDs et créer une map entité ID -> nom
+        const normalizeId = (id) => id ? id.replace(/-/g, '_') : '';
+        const entityIdToName = {};
+        (this.currentCase?.entities || []).forEach(e => {
+            entityIdToName[e.id] = e.name;
+            entityIdToName[normalizeId(e.id)] = e.name;
+            entityIdToName[e.name] = e.name; // Aussi mapper le nom vers lui-même
+        });
+
         // Créer un snapshot initial (vide)
         const activeNodes = new Set();
         const activeEdges = new Set();
@@ -1232,12 +1361,14 @@ Questions à analyser:
         // Pour chaque événement, ajouter les entités impliquées
         events.forEach((event, idx) => {
             const entities = event.entities || [];
-            entities.forEach(e => activeNodes.add(e));
+            // Convertir les IDs d'entités en noms (car le graphe N4L utilise les noms)
+            const entityNames = entities.map(e => entityIdToName[e] || entityIdToName[normalizeId(e)] || e);
+            entityNames.forEach(name => activeNodes.add(name));
 
             // Créer des liens entre les entités de l'événement
-            for (let i = 0; i < entities.length; i++) {
-                for (let j = i + 1; j < entities.length; j++) {
-                    activeEdges.add(`${entities[i]}-${entities[j]}`);
+            for (let i = 0; i < entityNames.length; i++) {
+                for (let j = i + 1; j < entityNames.length; j++) {
+                    activeEdges.add(`${entityNames[i]}-${entityNames[j]}`);
                 }
             }
 
@@ -1336,16 +1467,24 @@ Questions à analyser:
         const eventIdxEl = document.getElementById('temporal-event-idx');
         if (eventIdxEl) eventIdxEl.textContent = `${index + 1}/${this.temporalSnapshots.length}`;
 
-        // Mettre à jour le graphe
+        // Mettre à jour le graphe - masquer les nœuds non actifs
         if (this.snNodes) {
-            const updates = this.snNodes.get().map(node => ({
-                id: node.id,
-                opacity: snapshot.nodes.has(node.id) ? 1 : 0.1,
-                borderWidth: snapshot.nodes.has(node.id) ? 3 : 1
-            }));
+            const updates = this.snNodes.get().map(node => {
+                const isActive = snapshot.nodes.has(node.id);
+                return {
+                    id: node.id,
+                    hidden: !isActive,
+                    opacity: isActive ? 1 : 0.1,
+                    borderWidth: isActive ? 3 : 1,
+                    color: isActive
+                        ? { background: '#3b82f6', border: '#2563eb' }
+                        : { background: '#e2e8f0', border: '#cbd5e0' }
+                };
+            });
             this.snNodes.update(updates);
         }
 
+        // Masquer les arêtes non actives
         if (this.snEdges) {
             const updates = this.snEdges.get().map(edge => {
                 const edgeKey1 = `${edge.from}-${edge.to}`;
@@ -1353,6 +1492,7 @@ Questions à analyser:
                 const isActive = snapshot.edges.has(edgeKey1) || snapshot.edges.has(edgeKey2);
                 return {
                     id: edge.id,
+                    hidden: !isActive,
                     color: isActive ? { color: '#3b82f6', opacity: 1 } : { color: '#e2e8f0', opacity: 0.1 },
                     width: isActive ? 2 : 1
                 };

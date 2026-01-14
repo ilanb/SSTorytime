@@ -276,7 +276,17 @@ const HypothesesModule = {
             if (!hypothesis.title) return;
 
             try {
-                await this.apiCall(`/api/hypotheses?case_id=${this.currentCase.id}`, 'POST', hypothesis);
+                // Utiliser le DataProvider si disponible
+                if (typeof DataProvider !== 'undefined' && DataProvider.currentCaseId) {
+                    try {
+                        await DataProvider.addHypothesis(hypothesis);
+                    } catch (dpError) {
+                        console.warn('DataProvider.addHypothesis failed, falling back to API:', dpError);
+                        await this.apiCall(`/api/hypotheses?case_id=${this.currentCase.id}`, 'POST', hypothesis);
+                    }
+                } else {
+                    await this.apiCall(`/api/hypotheses?case_id=${this.currentCase.id}`, 'POST', hypothesis);
+                }
                 await this.selectCase(this.currentCase.id);
             } catch (error) {
                 console.error('Error adding hypothesis:', error);
@@ -319,6 +329,18 @@ const HypothesesModule = {
         const hypothesis = this.currentCase.hypotheses.find(h => h.id === hypothesisId);
         if (!hypothesis) return;
 
+        // Fonction pour normaliser les IDs (tirets et underscores sont équivalents)
+        const normalizeId = (id) => id ? id.replace(/-/g, '_') : '';
+
+        // Créer une map des preuves par ID et ID normalisé
+        const evidenceMap = {};
+        (this.currentCase.evidence || []).forEach(e => {
+            evidenceMap[e.id] = e;
+            evidenceMap[normalizeId(e.id)] = e;
+            // Aussi par nom pour correspondance N4L
+            evidenceMap[e.name] = e;
+        });
+
         const nodes = [];
         const edges = [];
 
@@ -331,16 +353,17 @@ const HypothesesModule = {
         });
 
         (hypothesis.supporting_evidence || []).forEach(evId => {
-            const ev = this.currentCase.evidence.find(e => e.id === evId);
+            // Chercher par ID, ID normalisé, ou par nom
+            const ev = evidenceMap[evId] || evidenceMap[normalizeId(evId)];
             if (ev) {
                 nodes.push({
-                    id: evId,
+                    id: ev.id,
                     label: ev.name,
                     color: '#22c55e',
                     shape: 'ellipse'
                 });
                 edges.push({
-                    from: evId,
+                    from: ev.id,
                     to: hypothesis.id,
                     label: 'soutient',
                     color: '#22c55e'
@@ -349,16 +372,17 @@ const HypothesesModule = {
         });
 
         (hypothesis.contradicting_evidence || []).forEach(evId => {
-            const ev = this.currentCase.evidence.find(e => e.id === evId);
+            // Chercher par ID, ID normalisé, ou par nom
+            const ev = evidenceMap[evId] || evidenceMap[normalizeId(evId)];
             if (ev) {
                 nodes.push({
-                    id: evId,
+                    id: ev.id,
                     label: ev.name,
                     color: '#ef4444',
                     shape: 'ellipse'
                 });
                 edges.push({
-                    from: evId,
+                    from: ev.id,
                     to: hypothesis.id,
                     label: 'contredit',
                     color: '#ef4444'
@@ -404,6 +428,20 @@ const HypothesesModule = {
         const supportingIds = hypothesis.supporting_evidence || [];
         const contradictingIds = hypothesis.contradicting_evidence || [];
 
+        // Normalize ID function to handle dash vs underscore differences
+        const normalizeId = (id) => id ? id.replace(/-/g, '_') : '';
+
+        // Create normalized sets for comparison
+        const normalizedSupportingIds = supportingIds.map(normalizeId);
+        const normalizedContradictingIds = contradictingIds.map(normalizeId);
+
+        // Helper to check if evidence is in a list (checks both original and normalized)
+        const isInList = (evId, normalizedList, originalList) => {
+            return originalList.includes(evId) ||
+                   normalizedList.includes(normalizeId(evId)) ||
+                   originalList.some(id => normalizeId(id) === normalizeId(evId));
+        };
+
         const content = `
             <div class="modal-explanation">
                 <span class="material-icons">link</span>
@@ -415,23 +453,27 @@ const HypothesesModule = {
                 <div class="evidence-section">
                     <h4><span class="material-icons" style="color: #22c55e;">check_circle</span> Preuves à l'appui</h4>
                     <div class="evidence-checkboxes">
-                        ${allEvidence.map(ev => `
-                            <label class="evidence-checkbox ${supportingIds.includes(ev.id) ? 'selected' : ''}">
-                                <input type="checkbox" name="supporting" value="${ev.id}" ${supportingIds.includes(ev.id) ? 'checked' : ''}>
+                        ${allEvidence.map(ev => {
+                            const isSupporting = isInList(ev.id, normalizedSupportingIds, supportingIds);
+                            return `
+                            <label class="evidence-checkbox ${isSupporting ? 'selected' : ''}">
+                                <input type="checkbox" name="supporting" value="${ev.id}" ${isSupporting ? 'checked' : ''}>
                                 ${ev.name}
                             </label>
-                        `).join('')}
+                        `}).join('')}
                     </div>
                 </div>
                 <div class="evidence-section">
                     <h4><span class="material-icons" style="color: #ef4444;">cancel</span> Preuves contradictoires</h4>
                     <div class="evidence-checkboxes">
-                        ${allEvidence.map(ev => `
-                            <label class="evidence-checkbox ${contradictingIds.includes(ev.id) ? 'selected' : ''}">
-                                <input type="checkbox" name="contradicting" value="${ev.id}" ${contradictingIds.includes(ev.id) ? 'checked' : ''}>
+                        ${allEvidence.map(ev => {
+                            const isContradicting = isInList(ev.id, normalizedContradictingIds, contradictingIds);
+                            return `
+                            <label class="evidence-checkbox ${isContradicting ? 'selected' : ''}">
+                                <input type="checkbox" name="contradicting" value="${ev.id}" ${isContradicting ? 'checked' : ''}>
                                 ${ev.name}
                             </label>
-                        `).join('')}
+                        `}).join('')}
                     </div>
                 </div>
             </div>
@@ -583,7 +625,17 @@ const HypothesesModule = {
         if (!confirm('Supprimer cette hypothèse ?')) return;
 
         try {
-            await this.apiCall(`/api/hypotheses/delete?case_id=${this.currentCase.id}&hypothesis_id=${hypothesisId}`, 'DELETE');
+            // Utiliser le DataProvider si disponible
+            if (typeof DataProvider !== 'undefined' && DataProvider.currentCaseId) {
+                try {
+                    await DataProvider.deleteHypothesis(hypothesisId);
+                } catch (dpError) {
+                    console.warn('DataProvider.deleteHypothesis failed, falling back to API:', dpError);
+                    await this.apiCall(`/api/hypotheses/delete?case_id=${this.currentCase.id}&hypothesis_id=${hypothesisId}`, 'DELETE');
+                }
+            } else {
+                await this.apiCall(`/api/hypotheses/delete?case_id=${this.currentCase.id}&hypothesis_id=${hypothesisId}`, 'DELETE');
+            }
             await this.selectCase(this.currentCase.id);
             this.showToast('Hypothèse supprimée');
         } catch (error) {

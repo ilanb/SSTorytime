@@ -3,7 +3,9 @@ package services
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
+	"time"
 
 	"forensicinvestigator/internal/models"
 )
@@ -87,6 +89,66 @@ type ParsedN4L struct {
 	Contexts   []string            `json:"contexts"`
 	Sequences  [][]string          `json:"sequences"`
 	TodoItems  []string            `json:"todo_items"`
+}
+
+// ForensicParsedN4L étend ParsedN4L avec les structures forensiques complètes
+// Cette structure permet d'utiliser N4L comme source unique de données
+type ForensicParsedN4L struct {
+	ParsedN4L
+	Entities   []models.Entity     `json:"entities"`
+	Evidence   []models.Evidence   `json:"evidence"`
+	Timeline   []models.Event      `json:"timeline"`
+	Hypotheses []models.Hypothesis `json:"hypotheses"`
+	Relations  []models.Relation   `json:"relations"`
+}
+
+// EntityAttributes stocke les attributs extraits d'une entité N4L
+type EntityAttributes struct {
+	ID          string
+	Name        string
+	Type        models.EntityType
+	Role        models.EntityRole
+	Description string
+	Attributes  map[string]string
+	Context     string
+}
+
+// EvidenceAttributes stocke les attributs extraits d'une preuve N4L
+type EvidenceAttributes struct {
+	ID             string
+	Name           string
+	Type           models.EvidenceType
+	Location       string
+	Reliability    int
+	Description    string
+	LinkedEntities []string
+	CollectedBy    string
+}
+
+// TimelineEventAttributes stocke les attributs d'un événement timeline
+type TimelineEventAttributes struct {
+	ID          string
+	Title       string
+	Timestamp   time.Time
+	Location    string
+	Description string
+	Importance  string
+	Verified    bool
+	Entities    []string
+	Evidence    []string
+}
+
+// HypothesisAttributes stocke les attributs d'une hypothèse
+type HypothesisAttributes struct {
+	ID                    string
+	Title                 string
+	Description           string
+	Status                models.HypothesisStatus
+	ConfidenceLevel       int
+	SupportingEvidence    []string
+	ContradictingEvidence []string
+	GeneratedBy           string
+	Questions             []string
 }
 
 // ParseN4L parse le contenu d'un fichier N4L avec support complet SSTorytime
@@ -297,6 +359,595 @@ func (s *N4LService) ParseN4L(content string) ParsedN4L {
 	}
 
 	return result
+}
+
+// ParseForensicN4L parse le contenu N4L et extrait les structures forensiques complètes
+// Cette fonction permet d'utiliser N4L comme source unique de données pour le dashboard
+func (s *N4LService) ParseForensicN4L(content string, caseID string) ForensicParsedN4L {
+	// Parser le N4L de base
+	baseParsed := s.ParseN4L(content)
+
+	result := ForensicParsedN4L{
+		ParsedN4L:  baseParsed,
+		Entities:   []models.Entity{},
+		Evidence:   []models.Evidence{},
+		Timeline:   []models.Event{},
+		Hypotheses: []models.Hypothesis{},
+		Relations:  []models.Relation{},
+	}
+
+	// Maps pour stocker les attributs par alias/nom
+	entityAttrs := make(map[string]*EntityAttributes)
+	evidenceAttrs := make(map[string]*EvidenceAttributes)
+	timelineAttrs := make(map[string]*TimelineEventAttributes)
+	hypothesisAttrs := make(map[string]*HypothesisAttributes)
+
+	// Regex pour extraire les attributs de continuation
+	continuationAttrRegex := regexp.MustCompile(`^"\s+\(([^)]+)\)\s+(.+)$`)
+	// Regex pour extraire le timestamp d'un événement timeline
+	timestampRegex := regexp.MustCompile(`^(\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2})?)\s+(.+)$`)
+	// Regex pour les dates au format français
+	frenchDateRegex := regexp.MustCompile(`^(\d{2}/\d{2}/\d{4}(?:\s+\d{2}:\d{2})?)\s+(.+)$`)
+
+	// Contexte actuel pour déterminer le type d'élément
+	currentContext := "general"
+	var currentItem string
+	var currentItemType string // "entity", "evidence", "timeline", "hypothesis"
+
+	lines := strings.Split(content, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "//") {
+			continue
+		}
+
+		// Détecter le changement de contexte
+		if matches := s.contextRegex.FindStringSubmatch(line); len(matches) == 2 {
+			currentContext = strings.ToLower(strings.TrimSpace(matches[1]))
+			continue
+		}
+		if matches := s.extendContextRegex.FindStringSubmatch(line); len(matches) == 2 {
+			ctx := strings.ToLower(strings.TrimSpace(matches[1]))
+			if ctx != "" && ctx != "_sequence_" && ctx != "_timeline_" {
+				currentContext = ctx
+			}
+			continue
+		}
+
+		// Traiter les continuations (attributs)
+		if strings.HasPrefix(line, "\"") {
+			if matches := continuationAttrRegex.FindStringSubmatch(line); len(matches) == 3 {
+				key := strings.ToLower(strings.TrimSpace(matches[1]))
+				value := strings.TrimSpace(matches[2])
+
+				switch currentItemType {
+				case "entity":
+					if attrs, ok := entityAttrs[currentItem]; ok {
+						s.applyEntityAttribute(attrs, key, value)
+					}
+				case "evidence":
+					if attrs, ok := evidenceAttrs[currentItem]; ok {
+						s.applyEvidenceAttribute(attrs, key, value)
+					}
+				case "timeline":
+					if attrs, ok := timelineAttrs[currentItem]; ok {
+						s.applyTimelineAttribute(attrs, key, value)
+					}
+				case "hypothesis":
+					if attrs, ok := hypothesisAttrs[currentItem]; ok {
+						s.applyHypothesisAttribute(attrs, key, value)
+					}
+				}
+			}
+			continue
+		}
+
+		// Détecter le type d'élément selon le contexte
+		itemType := s.determineItemType(currentContext)
+
+		// Traiter les définitions d'alias: @alias Nom
+		if matches := s.aliasDefRegex.FindStringSubmatch(line); len(matches) == 3 {
+			aliasName := matches[1]
+			itemName := strings.TrimSpace(matches[2])
+
+			// Extraire le nom réel (avant toute relation)
+			if parenIdx := strings.Index(itemName, "("); parenIdx > 0 {
+				itemName = strings.TrimSpace(itemName[:parenIdx])
+			}
+			if arrowIdx := strings.Index(itemName, "->"); arrowIdx > 0 {
+				itemName = strings.TrimSpace(itemName[:arrowIdx])
+			}
+
+			currentItem = aliasName
+			currentItemType = itemType
+
+			switch itemType {
+			case "entity":
+				entityAttrs[aliasName] = &EntityAttributes{
+					ID:         aliasName,
+					Name:       itemName,
+					Type:       s.inferEntityType(currentContext),
+					Role:       s.inferEntityRole(currentContext),
+					Attributes: make(map[string]string),
+					Context:    currentContext,
+				}
+			case "evidence":
+				evidenceAttrs[aliasName] = &EvidenceAttributes{
+					ID:          aliasName,
+					Name:        itemName,
+					Type:        models.EvidencePhysical,
+					Reliability: 5,
+				}
+			case "timeline":
+				// Parser le timestamp si présent
+				var timestamp time.Time
+				title := itemName
+				if tsMatches := timestampRegex.FindStringSubmatch(itemName); len(tsMatches) == 3 {
+					if t, err := time.Parse("2006-01-02T15:04:05", tsMatches[1]); err == nil {
+						timestamp = t
+					} else if t, err := time.Parse("2006-01-02", tsMatches[1]); err == nil {
+						timestamp = t
+					}
+					title = tsMatches[2]
+				} else if tsMatches := frenchDateRegex.FindStringSubmatch(itemName); len(tsMatches) == 3 {
+					if t, err := time.Parse("02/01/2006 15:04", tsMatches[1]); err == nil {
+						timestamp = t
+					} else if t, err := time.Parse("02/01/2006", tsMatches[1]); err == nil {
+						timestamp = t
+					}
+					title = tsMatches[2]
+				}
+				timelineAttrs[aliasName] = &TimelineEventAttributes{
+					ID:         aliasName,
+					Title:      title,
+					Timestamp:  timestamp,
+					Importance: "medium",
+				}
+			case "hypothesis":
+				hypothesisAttrs[aliasName] = &HypothesisAttributes{
+					ID:              aliasName,
+					Title:           itemName,
+					Status:          models.HypothesisPending,
+					ConfidenceLevel: 50,
+					GeneratedBy:     "user",
+				}
+			}
+			continue
+		}
+
+		// Traiter les lignes sans alias (entités directes)
+		// Format: Nom (relation) Cible ou Nom -> relation -> Cible
+		if itemType == "entity" && !strings.HasPrefix(line, "\"") {
+			entityName := line
+			// Extraire le nom avant la relation
+			if parenIdx := strings.Index(line, "("); parenIdx > 0 {
+				entityName = strings.TrimSpace(line[:parenIdx])
+			}
+			if arrowIdx := strings.Index(line, "->"); arrowIdx > 0 {
+				entityName = strings.TrimSpace(line[:arrowIdx])
+			}
+			if entityName != "" && entityName != line {
+				id := sanitizeN4LName(entityName)
+				if _, exists := entityAttrs[id]; !exists {
+					entityAttrs[id] = &EntityAttributes{
+						ID:         id,
+						Name:       entityName,
+						Type:       s.inferEntityType(currentContext),
+						Role:       s.inferEntityRole(currentContext),
+						Attributes: make(map[string]string),
+						Context:    currentContext,
+					}
+				}
+				currentItem = id
+				currentItemType = "entity"
+			}
+		}
+	}
+
+	// Convertir les attributs en modèles
+	now := time.Now()
+
+	// Entités
+	for _, attrs := range entityAttrs {
+		entity := models.Entity{
+			ID:          attrs.ID,
+			CaseID:      caseID,
+			Name:        attrs.Name,
+			Type:        attrs.Type,
+			Role:        attrs.Role,
+			Description: attrs.Description,
+			Attributes:  attrs.Attributes,
+			Relations:   []models.Relation{},
+			CreatedAt:   now,
+		}
+		result.Entities = append(result.Entities, entity)
+	}
+
+	// Preuves
+	for _, attrs := range evidenceAttrs {
+		evidence := models.Evidence{
+			ID:             attrs.ID,
+			CaseID:         caseID,
+			Name:           attrs.Name,
+			Type:           attrs.Type,
+			Location:       attrs.Location,
+			Reliability:    attrs.Reliability,
+			Description:    attrs.Description,
+			LinkedEntities: attrs.LinkedEntities,
+			CollectedBy:    attrs.CollectedBy,
+		}
+		result.Evidence = append(result.Evidence, evidence)
+	}
+
+	// Timeline
+	for _, attrs := range timelineAttrs {
+		event := models.Event{
+			ID:          attrs.ID,
+			CaseID:      caseID,
+			Title:       attrs.Title,
+			Timestamp:   attrs.Timestamp,
+			Location:    attrs.Location,
+			Description: attrs.Description,
+			Importance:  attrs.Importance,
+			Verified:    attrs.Verified,
+			Entities:    attrs.Entities,
+			Evidence:    attrs.Evidence,
+		}
+		result.Timeline = append(result.Timeline, event)
+	}
+
+	// Hypothèses
+	for _, attrs := range hypothesisAttrs {
+		hypothesis := models.Hypothesis{
+			ID:                    attrs.ID,
+			CaseID:                caseID,
+			Title:                 attrs.Title,
+			Description:           attrs.Description,
+			Status:                attrs.Status,
+			ConfidenceLevel:       attrs.ConfidenceLevel,
+			SupportingEvidence:    attrs.SupportingEvidence,
+			ContradictingEvidence: attrs.ContradictingEvidence,
+			GeneratedBy:           attrs.GeneratedBy,
+			Questions:             attrs.Questions,
+			CreatedAt:             now,
+			UpdatedAt:             now,
+		}
+		result.Hypotheses = append(result.Hypotheses, hypothesis)
+	}
+
+	// Construire les relations à partir des edges du graphe
+	for _, edge := range baseParsed.Graph.Edges {
+		relation := models.Relation{
+			ID:       fmt.Sprintf("%s_%s_%s", edge.From, edge.Label, edge.To),
+			FromID:   edge.From,
+			ToID:     edge.To,
+			Label:    edge.Label,
+			Type:     edge.Type,
+			Context:  edge.Context,
+			Verified: edge.Type != "new",
+		}
+		result.Relations = append(result.Relations, relation)
+	}
+
+	// Enrichir les nœuds du graphe avec les types et rôles des entités
+	entityTypeMap := make(map[string]string)
+	entityRoleMap := make(map[string]string)
+	entityContextMap := make(map[string]string)
+
+	for _, entity := range result.Entities {
+		entityTypeMap[entity.Name] = string(entity.Type)
+		entityRoleMap[entity.Name] = string(entity.Role)
+		// Aussi mapper par ID (alias)
+		if entity.ID != entity.Name {
+			entityTypeMap[entity.ID] = string(entity.Type)
+			entityRoleMap[entity.ID] = string(entity.Role)
+		}
+	}
+
+	// Aussi mapper les attributs des entités
+	for alias, attrs := range entityAttrs {
+		entityTypeMap[alias] = string(attrs.Type)
+		entityRoleMap[alias] = string(attrs.Role)
+		entityContextMap[alias] = attrs.Context
+		if attrs.Name != alias {
+			entityTypeMap[attrs.Name] = string(attrs.Type)
+			entityRoleMap[attrs.Name] = string(attrs.Role)
+			entityContextMap[attrs.Name] = attrs.Context
+		}
+	}
+
+	// Mettre à jour les nœuds du graphe
+	enrichedNodes := make([]models.GraphNode, 0, len(baseParsed.Graph.Nodes))
+	for _, node := range baseParsed.Graph.Nodes {
+		enrichedNode := node
+		if nodeType, ok := entityTypeMap[node.ID]; ok && nodeType != "" {
+			enrichedNode.Type = nodeType
+		} else if nodeType, ok := entityTypeMap[node.Label]; ok && nodeType != "" {
+			enrichedNode.Type = nodeType
+		}
+		if nodeRole, ok := entityRoleMap[node.ID]; ok && nodeRole != "" {
+			enrichedNode.Role = nodeRole
+		} else if nodeRole, ok := entityRoleMap[node.Label]; ok && nodeRole != "" {
+			enrichedNode.Role = nodeRole
+		}
+		if nodeContext, ok := entityContextMap[node.ID]; ok && nodeContext != "" {
+			enrichedNode.Context = nodeContext
+		} else if nodeContext, ok := entityContextMap[node.Label]; ok && nodeContext != "" {
+			enrichedNode.Context = nodeContext
+		}
+		enrichedNodes = append(enrichedNodes, enrichedNode)
+	}
+	result.Graph.Nodes = enrichedNodes
+
+	return result
+}
+
+// determineItemType détermine le type d'élément selon le contexte
+func (s *N4LService) determineItemType(context string) string {
+	context = strings.ToLower(context)
+
+	// Contextes de preuves
+	if strings.Contains(context, "preuve") || strings.Contains(context, "indice") ||
+		strings.Contains(context, "evidence") {
+		return "evidence"
+	}
+
+	// Contextes de timeline
+	if strings.Contains(context, "chronologie") || strings.Contains(context, "timeline") ||
+		strings.Contains(context, "séquence") || strings.Contains(context, "sequence") {
+		return "timeline"
+	}
+
+	// Contextes d'hypothèses
+	if strings.Contains(context, "hypothèse") || strings.Contains(context, "hypothese") ||
+		strings.Contains(context, "piste") {
+		return "hypothesis"
+	}
+
+	// Par défaut: entité
+	return "entity"
+}
+
+// inferEntityType infère le type d'entité depuis le contexte
+func (s *N4LService) inferEntityType(context string) models.EntityType {
+	context = strings.ToLower(context)
+
+	if strings.Contains(context, "lieu") || strings.Contains(context, "location") ||
+		strings.Contains(context, "adresse") {
+		return models.EntityPlace
+	}
+	if strings.Contains(context, "objet") || strings.Contains(context, "object") ||
+		strings.Contains(context, "arme") {
+		return models.EntityObject
+	}
+	if strings.Contains(context, "organisation") || strings.Contains(context, "org") ||
+		strings.Contains(context, "entreprise") || strings.Contains(context, "société") {
+		return models.EntityOrg
+	}
+	if strings.Contains(context, "document") || strings.Contains(context, "doc") {
+		return models.EntityDocument
+	}
+	if strings.Contains(context, "événement") || strings.Contains(context, "evenement") ||
+		strings.Contains(context, "event") {
+		return models.EntityEvent
+	}
+
+	// Par défaut: personne
+	return models.EntityPerson
+}
+
+// inferEntityRole infère le rôle d'entité depuis le contexte
+func (s *N4LService) inferEntityRole(context string) models.EntityRole {
+	context = strings.ToLower(context)
+
+	if strings.Contains(context, "victime") || strings.Contains(context, "victim") {
+		return models.RoleVictim
+	}
+	if strings.Contains(context, "suspect") {
+		return models.RoleSuspect
+	}
+	if strings.Contains(context, "témoin") || strings.Contains(context, "temoin") ||
+		strings.Contains(context, "witness") {
+		return models.RoleWitness
+	}
+	if strings.Contains(context, "enquêteur") || strings.Contains(context, "enqueteur") ||
+		strings.Contains(context, "investigator") {
+		return models.RoleInvestigator
+	}
+
+	return models.RoleOther
+}
+
+// applyEntityAttribute applique un attribut à une entité
+func (s *N4LService) applyEntityAttribute(attrs *EntityAttributes, key, value string) {
+	switch key {
+	case "type":
+		attrs.Type = s.parseEntityType(value)
+	case "role", "rôle":
+		attrs.Role = s.parseEntityRole(value)
+	case "description":
+		attrs.Description = value
+	default:
+		attrs.Attributes[key] = value
+	}
+}
+
+// applyEvidenceAttribute applique un attribut à une preuve
+func (s *N4LService) applyEvidenceAttribute(attrs *EvidenceAttributes, key, value string) {
+	switch key {
+	case "type", "categorie", "catégorie":
+		attrs.Type = s.parseEvidenceType(value)
+	case "localisation", "location", "lieu":
+		attrs.Location = value
+	case "fiabilite", "fiabilité", "reliability":
+		if r, err := strconv.Atoi(value); err == nil {
+			attrs.Reliability = r
+		}
+	case "description":
+		attrs.Description = value
+	case "concerne", "linked", "entite", "entité":
+		// Peut contenir plusieurs entités séparées par des virgules
+		entities := strings.Split(value, ",")
+		for _, e := range entities {
+			e = strings.TrimSpace(e)
+			e = strings.TrimPrefix(e, "@")
+			if e != "" {
+				attrs.LinkedEntities = append(attrs.LinkedEntities, e)
+			}
+		}
+	case "collecte_par", "collected_by":
+		attrs.CollectedBy = value
+	}
+}
+
+// applyTimelineAttribute applique un attribut à un événement timeline
+func (s *N4LService) applyTimelineAttribute(attrs *TimelineEventAttributes, key, value string) {
+	switch key {
+	case "lieu", "location":
+		attrs.Location = value
+	case "description":
+		attrs.Description = value
+	case "importance":
+		attrs.Importance = value
+	case "verifie", "vérifié", "verified":
+		attrs.Verified = value == "true" || value == "oui" || value == "yes"
+	case "implique", "entities", "entites", "entités":
+		entities := strings.Split(value, ",")
+		for _, e := range entities {
+			e = strings.TrimSpace(e)
+			e = strings.TrimPrefix(e, "@")
+			if e != "" {
+				attrs.Entities = append(attrs.Entities, e)
+			}
+		}
+	case "preuve", "preuves", "evidence":
+		evidences := strings.Split(value, ",")
+		for _, e := range evidences {
+			e = strings.TrimSpace(e)
+			e = strings.TrimPrefix(e, "@")
+			if e != "" {
+				attrs.Evidence = append(attrs.Evidence, e)
+			}
+		}
+	}
+}
+
+// applyHypothesisAttribute applique un attribut à une hypothèse
+func (s *N4LService) applyHypothesisAttribute(attrs *HypothesisAttributes, key, value string) {
+	switch key {
+	case "statut", "status":
+		attrs.Status = s.parseHypothesisStatus(value)
+	case "confiance", "confidence":
+		// Retirer le % si présent
+		value = strings.TrimSuffix(value, "%")
+		if c, err := strconv.Atoi(value); err == nil {
+			attrs.ConfidenceLevel = c
+		}
+	case "description":
+		attrs.Description = value
+	case "supporte", "supporting", "pour":
+		evidences := strings.Split(value, ",")
+		for _, e := range evidences {
+			e = strings.TrimSpace(e)
+			e = strings.TrimPrefix(e, "@")
+			if e != "" {
+				attrs.SupportingEvidence = append(attrs.SupportingEvidence, e)
+			}
+		}
+	case "contredit", "contradicting", "contre":
+		evidences := strings.Split(value, ",")
+		for _, e := range evidences {
+			e = strings.TrimSpace(e)
+			e = strings.TrimPrefix(e, "@")
+			if e != "" {
+				attrs.ContradictingEvidence = append(attrs.ContradictingEvidence, e)
+			}
+		}
+	case "genere_par", "generated_by", "source":
+		attrs.GeneratedBy = value
+	case "questions":
+		questions := strings.Split(value, ";")
+		for _, q := range questions {
+			q = strings.TrimSpace(q)
+			if q != "" {
+				attrs.Questions = append(attrs.Questions, q)
+			}
+		}
+	}
+}
+
+// parseEntityType parse le type d'entité depuis une chaîne
+func (s *N4LService) parseEntityType(value string) models.EntityType {
+	value = strings.ToLower(value)
+	switch value {
+	case "personne", "person":
+		return models.EntityPerson
+	case "lieu", "place", "location":
+		return models.EntityPlace
+	case "objet", "object":
+		return models.EntityObject
+	case "evenement", "événement", "event":
+		return models.EntityEvent
+	case "organisation", "org":
+		return models.EntityOrg
+	case "document", "doc":
+		return models.EntityDocument
+	default:
+		return models.EntityPerson
+	}
+}
+
+// parseEntityRole parse le rôle d'entité depuis une chaîne
+func (s *N4LService) parseEntityRole(value string) models.EntityRole {
+	value = strings.ToLower(value)
+	switch value {
+	case "victime", "victim":
+		return models.RoleVictim
+	case "suspect":
+		return models.RoleSuspect
+	case "temoin", "témoin", "witness":
+		return models.RoleWitness
+	case "enqueteur", "enquêteur", "investigator":
+		return models.RoleInvestigator
+	default:
+		return models.RoleOther
+	}
+}
+
+// parseEvidenceType parse le type de preuve depuis une chaîne
+func (s *N4LService) parseEvidenceType(value string) models.EvidenceType {
+	value = strings.ToLower(value)
+	switch value {
+	case "physique", "physical":
+		return models.EvidencePhysical
+	case "testimoniale", "testimonial":
+		return models.EvidenceTestimonial
+	case "documentaire", "documentary":
+		return models.EvidenceDocumentary
+	case "numerique", "numérique", "digital":
+		return models.EvidenceDigital
+	case "forensique", "forensic":
+		return models.EvidenceForensic
+	default:
+		return models.EvidencePhysical
+	}
+}
+
+// parseHypothesisStatus parse le statut d'hypothèse depuis une chaîne
+func (s *N4LService) parseHypothesisStatus(value string) models.HypothesisStatus {
+	value = strings.ToLower(value)
+	switch value {
+	case "en_attente", "pending", "attente":
+		return models.HypothesisPending
+	case "corroboree", "corroborée", "supported", "confirmee", "confirmée":
+		return models.HypothesisSupported
+	case "refutee", "réfutée", "refuted", "rejected":
+		return models.HypothesisRefuted
+	case "partielle", "partial":
+		return models.HypothesisPartial
+	default:
+		return models.HypothesisPending
+	}
 }
 
 // parseNoteToEdges retourne plusieurs arêtes (pour les relations chaînées)

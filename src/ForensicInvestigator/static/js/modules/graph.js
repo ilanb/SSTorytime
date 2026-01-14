@@ -3,20 +3,49 @@
 
 const GraphModule = {
     // ============================================
-    // Get Graph Data from API
+    // Get Graph Data - Source unique: API /api/graph (priorise N4L côté backend)
     // ============================================
     async getGraphData() {
         if (!this.currentCase) return { nodes: [], edges: [] };
 
+        // Utiliser l'API /api/graph qui priorise le contenu N4L côté backend
+        // Cela garantit la cohérence entre le graphe principal et le graphe N4L
         try {
-            return await this.apiCall(`/api/graph?case_id=${this.currentCase.id}`);
-        } catch {
+            const graphData = await this.apiCall(`/api/graph?case_id=${this.currentCase.id}`);
+            console.log('GraphModule: Données depuis /api/graph (N4L prioritaire)', {
+                nodes: graphData.nodes?.length || 0,
+                edges: graphData.edges?.length || 0
+            });
+
+            // Synchroniser avec DataProvider si disponible
+            if (typeof DataProvider !== 'undefined' && DataProvider.parsedData) {
+                DataProvider._cache.graph = graphData;
+            }
+
+            return graphData;
+        } catch (error) {
+            console.error('GraphModule: Erreur chargement graphe', error);
             return { nodes: [], edges: [] };
         }
     },
 
     // ============================================
-    // Render Graph
+    // Get Edge Color based on N4L type
+    // ============================================
+    getEdgeColor(edge) {
+        switch (edge.type) {
+            case 'never': return '#dc2626';      // Rouge - relation interdite
+            case 'new': return '#059669';         // Vert - nouvelle relation
+            case 'sequence': return '#f59e0b';    // Orange - séquence
+            case 'equivalence': return '#8b5cf6'; // Violet - équivalence
+            case 'group': return '#06b6d4';       // Cyan - groupe
+            case 'contains': return '#3b82f6';    // Bleu - contient
+            default: return '#1e3a5f';            // Bleu foncé par défaut
+        }
+    },
+
+    // ============================================
+    // Render Graph - Unifié (DB + N4L)
     // ============================================
     async renderGraph() {
         const container = document.getElementById('graph-container');
@@ -41,23 +70,37 @@ const GraphModule = {
         this.graphNodesData = graphData.nodes;
         this.graphEdgesData = graphData.edges;
 
+        // Créer les noeuds avec support des métadonnées N4L
         const nodes = new vis.DataSet(graphData.nodes.map(n => ({
             id: n.id,
             label: n.label,
             color: this.getNodeColor(n),
-            shape: this.getNodeShape(n.type),
-            originalColor: this.getNodeColor(n)
+            shape: this.getNodeShape(n),
+            title: this.getNodeTooltip(n),
+            originalColor: this.getNodeColor(n),
+            // Métadonnées N4L
+            context: n.context,
+            nodeType: n.type,
+            role: n.role
         })));
 
-        const edges = new vis.DataSet(graphData.edges.map((e, i) => ({
-            id: `edge-${i}`,
-            from: e.from,
-            to: e.to,
-            label: e.label,
-            arrows: 'to',
-            color: { color: '#1e3a5f' },
-            originalColor: '#1e3a5f'
-        })));
+        // Créer les arêtes avec support des types N4L
+        const edges = new vis.DataSet(graphData.edges.map((e, i) => {
+            const edgeColor = this.getEdgeColor(e);
+            return {
+                id: `edge-${i}`,
+                from: e.from,
+                to: e.to,
+                label: e.label,
+                arrows: e.type === 'equivalence' ? '' : 'to',
+                dashes: e.type === 'new',
+                color: { color: edgeColor },
+                title: e.context ? `Contexte: ${e.context}` : '',
+                originalColor: edgeColor,
+                edgeType: e.type,
+                context: e.context
+            };
+        }));
 
         const options = {
             nodes: {
@@ -113,31 +156,188 @@ const GraphModule = {
 
         // Setup context menu actions
         this.setupContextMenuActions();
+
+        // Ajouter la légende N4L si des types spéciaux sont présents
+        this.addGraphLegendIfNeeded(container, graphData);
+
+        // Afficher les métadonnées du graphe (comme N4L)
+        this.renderGraphMetadata();
+    },
+
+    // ============================================
+    // Add Legend for N4L edge types
+    // ============================================
+    addGraphLegendIfNeeded(container, graphData) {
+        // Vérifier si des types N4L spéciaux existent
+        const hasSpecialTypes = graphData.edges?.some(e =>
+            e.type && ['never', 'new', 'sequence', 'equivalence', 'group', 'contains'].includes(e.type)
+        );
+
+        if (!hasSpecialTypes) return;
+
+        const legendHtml = `
+            <div class="graph-legend" style="position: absolute; bottom: 10px; left: 10px; background: rgba(255,255,255,0.95); padding: 8px 12px; border-radius: 8px; font-size: 11px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); z-index: 100;">
+                <div style="font-weight: 600; margin-bottom: 6px; color: #1a1a2e;">Types de relations</div>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                    <span style="display: flex; align-items: center; gap: 4px;"><span style="width: 20px; height: 2px; background: #1e3a5f;"></span> Standard</span>
+                    <span style="display: flex; align-items: center; gap: 4px;"><span style="width: 20px; height: 2px; background: #059669;"></span> Nouvelle</span>
+                    <span style="display: flex; align-items: center; gap: 4px;"><span style="width: 20px; height: 2px; background: #dc2626;"></span> Interdite</span>
+                    <span style="display: flex; align-items: center; gap: 4px;"><span style="width: 20px; height: 2px; background: #f59e0b;"></span> Séquence</span>
+                    <span style="display: flex; align-items: center; gap: 4px;"><span style="width: 20px; height: 2px; background: #8b5cf6;"></span> Équivalence</span>
+                </div>
+            </div>
+        `;
+
+        const legendDiv = document.createElement('div');
+        legendDiv.innerHTML = legendHtml;
+        container.style.position = 'relative';
+        container.appendChild(legendDiv.firstElementChild);
+    },
+
+    // ============================================
+    // Unified Graph Access Methods
+    // Ces méthodes permettent d'accéder au graphe de manière transparente
+    // qu'il s'agisse du graphe principal ou du graphe N4L
+    // ============================================
+
+    /**
+     * Retourne le graphe actif (principal ou N4L selon le contexte)
+     * @param {boolean} preferN4L - Si true, préfère le graphe N4L si disponible
+     * @returns {vis.Network|null} Le graphe vis.js
+     */
+    getActiveGraph(preferN4L = false) {
+        if (preferN4L && this.n4lGraph) {
+            return this.n4lGraph;
+        }
+        return this.graph || this.n4lGraph || null;
+    },
+
+    /**
+     * Retourne les noeuds du graphe actif
+     * @param {boolean} preferN4L - Si true, préfère les noeuds N4L
+     * @returns {vis.DataSet|null} DataSet des noeuds
+     */
+    getActiveGraphNodes(preferN4L = false) {
+        if (preferN4L && this.n4lGraphNodes) {
+            return this.n4lGraphNodes;
+        }
+        return this.graphNodes || this.n4lGraphNodes || null;
+    },
+
+    /**
+     * Retourne les arêtes du graphe actif
+     * @param {boolean} preferN4L - Si true, préfère les arêtes N4L
+     * @returns {vis.DataSet|null} DataSet des arêtes
+     */
+    getActiveGraphEdges(preferN4L = false) {
+        if (preferN4L && this.n4lGraphEdges) {
+            return this.n4lGraphEdges;
+        }
+        return this.graphEdges || this.n4lGraphEdges || null;
+    },
+
+    /**
+     * Vérifie si les deux graphes sont synchronisés (mêmes données)
+     * @returns {boolean} True si synchronisés
+     */
+    areGraphsSynchronized() {
+        if (!this.graphNodes || !this.n4lGraphNodes) return false;
+
+        const mainNodeIds = new Set(this.graphNodes.getIds());
+        const n4lNodeIds = new Set(this.n4lGraphNodes.getIds());
+
+        if (mainNodeIds.size !== n4lNodeIds.size) return false;
+
+        for (const id of mainNodeIds) {
+            if (!n4lNodeIds.has(id)) return false;
+        }
+
+        return true;
+    },
+
+    /**
+     * Synchronise le graphe N4L avec le graphe principal
+     * Copie les données du graphe principal vers le graphe N4L
+     */
+    syncGraphToN4L() {
+        if (!this.graph || !this.graphNodes || !this.graphEdges) return;
+
+        // Si le conteneur N4L existe, mettre à jour son graphe
+        const n4lContainer = document.getElementById('n4l-graph-container');
+        if (n4lContainer && this.graphNodesData && this.graphEdgesData) {
+            this.renderN4LGraph({
+                nodes: this.graphNodesData,
+                edges: this.graphEdgesData
+            });
+        }
     },
 
     // ============================================
     // Node Colors and Shapes
     // ============================================
     getNodeColor(node) {
-        const colors = {
-            victime: { background: '#152a45', border: '#1e3a5f' },
-            suspect: { background: '#2d4a6f', border: '#1e3a5f' },
-            temoin: { background: '#4a5568', border: '#2d3748' },
-            preuve: { background: '#718096', border: '#4a5568' },
-            default: { background: '#e2e8f0', border: '#cbd5e0' }
+        // Couleurs par rôle (prioritaire)
+        const roleColors = {
+            victime: { background: '#dc2626', border: '#991b1b' },      // Rouge
+            suspect: { background: '#f59e0b', border: '#d97706' },      // Orange
+            temoin: { background: '#3b82f6', border: '#2563eb' },       // Bleu
+            enqueteur: { background: '#10b981', border: '#059669' }     // Vert
         };
-        return colors[node.role] || colors.default;
+
+        // Couleurs par type (si pas de rôle)
+        const typeColors = {
+            personne: { background: '#6366f1', border: '#4f46e5' },     // Indigo
+            lieu: { background: '#14b8a6', border: '#0d9488' },         // Teal
+            objet: { background: '#8b5cf6', border: '#7c3aed' },        // Violet
+            preuve: { background: '#ec4899', border: '#db2777' },       // Pink
+            evenement: { background: '#06b6d4', border: '#0891b2' },    // Cyan
+            document: { background: '#84cc16', border: '#65a30d' },     // Lime
+            organisation: { background: '#f97316', border: '#ea580c' }  // Orange
+        };
+
+        if (node.role && roleColors[node.role]) {
+            return roleColors[node.role];
+        }
+        if (node.type && typeColors[node.type]) {
+            return typeColors[node.type];
+        }
+        return { background: '#64748b', border: '#475569' }; // Slate default
     },
 
-    getNodeShape(type) {
-        const shapes = {
-            personne: 'dot',
-            lieu: 'square',
-            objet: 'triangle',
-            evenement: 'diamond',
-            preuve: 'star'
+    getNodeShape(node) {
+        // Forme par rôle (prioritaire)
+        const role = node.role?.toLowerCase();
+        if (role) {
+            const roleShapes = {
+                victime: 'star',           // Étoile pour victimes
+                suspect: 'triangle',       // Triangle pour suspects
+                temoin: 'square',          // Carré pour témoins
+                enqueteur: 'hexagon'       // Hexagone pour enquêteurs
+            };
+            if (roleShapes[role]) return roleShapes[role];
+        }
+
+        // Forme par type
+        const type = node.type?.toLowerCase();
+        const typeShapes = {
+            personne: 'dot',           // Cercle pour personnes
+            lieu: 'square',            // Carré pour lieux
+            objet: 'diamond',          // Losange pour objets
+            preuve: 'star',            // Étoile pour preuves
+            evenement: 'triangleDown', // Triangle inversé pour événements
+            document: 'box',           // Rectangle pour documents
+            organisation: 'ellipse'    // Ellipse pour organisations
         };
-        return shapes[type] || 'dot';
+
+        return typeShapes[type] || 'dot';
+    },
+
+    getNodeTooltip(node) {
+        const parts = [node.label];
+        if (node.role) parts.push(`Rôle: ${node.role}`);
+        if (node.type) parts.push(`Type: ${node.type}`);
+        if (node.context) parts.push(`Contexte: ${node.context}`);
+        return parts.join('\n');
     },
 
     // ============================================
@@ -203,9 +403,10 @@ const GraphModule = {
     resetGraphFocus() {
         if (!this.graph || !this.originalGraphData) return;
 
-        // Restore original nodes with their original colors
+        // Restore original nodes with their original colors and visibility
         const nodeUpdates = this.originalGraphData.nodes.map(node => ({
             id: node.id,
+            hidden: false,
             color: node.originalColor || this.getNodeColor(node),
             opacity: 1,
             borderWidth: 2,
@@ -214,9 +415,10 @@ const GraphModule = {
 
         this.graphNodes.update(nodeUpdates);
 
-        // Restore original edges (including label color)
+        // Restore original edges (including label color and visibility)
         const edgeUpdates = this.originalGraphData.edges.map(edge => ({
             id: edge.id,
+            hidden: false,
             color: { color: edge.originalColor || '#1e3a5f', opacity: 1 },
             font: { color: '#4a5568' }
         }));
@@ -369,31 +571,67 @@ const GraphModule = {
     // Path Highlighting
     // ============================================
     highlightPathInGraph(fromId, toId) {
-        if (!this.graph) return;
+        if (!this.graph || !this.graphNodes) return;
 
-        const allNodes = this.graph.body.data.nodes.getIds();
-        const updates = allNodes.map(id => {
-            if (id === fromId || id === toId) {
-                return {
-                    id,
-                    borderWidth: 4,
-                    color: {
-                        border: '#dc2626',
-                        background: id === fromId ? '#fee2e2' : '#dcfce7'
-                    }
-                };
+        try {
+            // Trouver les noms des entités pour les IDs (N4L utilise les noms comme IDs de nœuds)
+            const normalizeId = (id) => id ? id.replace(/-/g, '_') : '';
+            const entityMap = {};
+            (this.currentCase?.entities || []).forEach(e => {
+                entityMap[e.id] = e.name;
+                entityMap[normalizeId(e.id)] = e.name;
+            });
+
+            const fromName = entityMap[fromId] || entityMap[normalizeId(fromId)] || fromId;
+            const toName = entityMap[toId] || entityMap[normalizeId(toId)] || toId;
+
+            // Trouver les nœuds correspondants dans le graphe
+            const allNodeIds = this.graphNodes.getIds();
+            let fromNodeId = null;
+            let toNodeId = null;
+
+            for (const nodeId of allNodeIds) {
+                const node = this.graphNodes.get(nodeId);
+                if (node && (nodeId === fromName || node.label === fromName)) {
+                    fromNodeId = nodeId;
+                }
+                if (node && (nodeId === toName || node.label === toName)) {
+                    toNodeId = nodeId;
+                }
             }
-            return null;
-        }).filter(Boolean);
 
-        if (updates.length > 0) {
-            this.graph.body.data.nodes.update(updates);
+            if (!fromNodeId && !toNodeId) return;
+
+            const updates = [];
+            if (fromNodeId) {
+                updates.push({
+                    id: fromNodeId,
+                    borderWidth: 4,
+                    color: { border: '#dc2626', background: '#fee2e2' }
+                });
+            }
+            if (toNodeId) {
+                updates.push({
+                    id: toNodeId,
+                    borderWidth: 4,
+                    color: { border: '#16a34a', background: '#dcfce7' }
+                });
+            }
+
+            if (updates.length > 0) {
+                this.graphNodes.update(updates);
+            }
+
+            const fitNodes = [fromNodeId, toNodeId].filter(Boolean);
+            if (fitNodes.length > 0) {
+                this.graph.fit({
+                    nodes: fitNodes,
+                    animation: true
+                });
+            }
+        } catch (error) {
+            console.warn('[highlightPathInGraph] Error:', error);
         }
-
-        this.graph.fit({
-            nodes: [fromId, toId],
-            animation: true
-        });
     },
 
     // ============================================
@@ -888,24 +1126,33 @@ const GraphModule = {
             // For N4L graph, show node info in a modal
             this.showN4LNodeDetails(nodeId, node);
         } else {
-            const entity = this.currentCase?.entities?.find(e => e.id === nodeId);
+            // Chercher l'entité par ID ou par nom (le graphe N4L utilise les noms comme IDs)
+            const normalizeId = (id) => id ? id.replace(/-/g, '_') : '';
+            let entity = this.currentCase?.entities?.find(e =>
+                e.id === nodeId ||
+                normalizeId(e.id) === normalizeId(nodeId) ||
+                e.name === nodeId ||
+                e.name === node.label
+            );
+
             if (entity) {
                 this.showEntityDetails(entity);
             } else {
-                this.focusGraphNode(nodeId);
+                // Afficher les détails du nœud N4L même si ce n'est pas une entité connue
+                this.showN4LNodeDetails(nodeId, node);
             }
         }
     },
 
     showN4LNodeDetails(nodeId, node) {
-        // Get edges connected to this node
-        const edges = this.n4lGraphEdges?.get() || [];
+        // Get edges connected to this node (use graphEdges if n4lGraphEdges not available)
+        const edges = this.graphEdges?.get() || this.n4lGraphEdges?.get() || [];
         const connectedEdges = edges.filter(e => e.from === nodeId || e.to === nodeId);
 
         const incomingEdges = connectedEdges.filter(e => e.to === nodeId);
         const outgoingEdges = connectedEdges.filter(e => e.from === nodeId);
 
-        const allNodes = this.n4lGraphNodes?.get() || [];
+        const allNodes = this.graphNodes?.get() || this.n4lGraphNodes?.get() || [];
         const nodeMap = {};
         allNodes.forEach(n => { nodeMap[n.id] = n; });
 
@@ -958,18 +1205,65 @@ const GraphModule = {
             `).join('')
             : '<div class="empty">Aucun attribut</div>';
 
-        const relations = entity.relations || [];
+        // Créer une map des entités pour résoudre les noms
         const entityMap = {};
-        (this.currentCase?.entities || []).forEach(e => { entityMap[e.id] = e; });
+        const entityNameToEntity = {};
+        (this.currentCase?.entities || []).forEach(e => {
+            entityMap[e.id] = e;
+            entityNameToEntity[e.name] = e;
+        });
+
+        // Chercher les relations dans entity.relations ET dans les arêtes du graphe
+        const relations = [];
+
+        // 1. Relations de l'entité
+        if (entity.relations && entity.relations.length > 0) {
+            entity.relations.forEach(rel => {
+                const targetEntity = entityMap[rel.to_id] || entityNameToEntity[rel.to_id];
+                relations.push({
+                    label: rel.label || 'lié à',
+                    target: targetEntity ? targetEntity.name : rel.to_id,
+                    direction: 'outgoing'
+                });
+            });
+        }
+
+        // 2. Relations depuis les arêtes du graphe (le graphe N4L utilise les noms comme IDs)
+        const edges = this.graphEdges?.get() || [];
+        const entityNodeId = entity.name; // Le graphe N4L utilise les noms comme IDs
+
+        edges.forEach(edge => {
+            if (edge.from === entityNodeId) {
+                // Relation sortante
+                const targetEntity = entityNameToEntity[edge.to];
+                if (!relations.find(r => r.target === edge.to && r.label === edge.label)) {
+                    relations.push({
+                        label: edge.label || 'lié à',
+                        target: targetEntity ? targetEntity.name : edge.to,
+                        direction: 'outgoing'
+                    });
+                }
+            } else if (edge.to === entityNodeId) {
+                // Relation entrante
+                const sourceEntity = entityNameToEntity[edge.from];
+                if (!relations.find(r => r.target === edge.from && r.label === edge.label)) {
+                    relations.push({
+                        label: edge.label || 'lié à',
+                        target: sourceEntity ? sourceEntity.name : edge.from,
+                        direction: 'incoming'
+                    });
+                }
+            }
+        });
 
         const relationsHtml = relations.length > 0
             ? relations.map(rel => {
-                const targetEntity = entityMap[rel.to_id];
-                const targetName = targetEntity ? targetEntity.name : rel.to_id;
+                const icon = rel.direction === 'incoming' ? '←' : '→';
                 return `
                     <div class="relation-item">
-                        <span class="relation-label">${rel.label || 'lié à'}</span>
-                        <span class="relation-target">${targetName}</span>
+                        <span class="relation-direction">${icon}</span>
+                        <span class="relation-label">${rel.label}</span>
+                        <span class="relation-target">${rel.target}</span>
                     </div>
                 `;
             }).join('')
@@ -988,7 +1282,7 @@ const GraphModule = {
                     ${attributesHtml}
                 </div>
                 <div class="detail-section">
-                    <h4><span class="material-icons">hub</span> Relations</h4>
+                    <h4><span class="material-icons">hub</span> Relations (${relations.length})</h4>
                     ${relationsHtml}
                 </div>
             </div>
@@ -1393,6 +1687,10 @@ const GraphModule = {
                 max_depth: maxDepth
             });
 
+            console.log('[FindPath] API result:', result);
+            console.log('[FindPath] paths:', result?.paths, 'length:', result?.paths?.length);
+            console.log('[FindPath] Request params:', { case_id: this.currentCase.id, from_id: fromId, to_id: toId });
+
             if (result.paths && result.paths.length > 0) {
                 let pathsHtml = `<h4 style="color: var(--primary); margin-bottom: 1rem;">Chemins Découverts</h4>`;
                 pathsHtml += `<div style="margin-bottom: 1.5rem;">`;
@@ -1454,31 +1752,758 @@ Analyse demandée:
     },
 
     highlightPathInGraph(fromId, toId) {
-        if (!this.graph) return;
+        if (!this.graph || !this.graphNodes) return;
 
-        const allNodes = this.graph.body.data.nodes.getIds();
-        const updates = allNodes.map(id => {
-            if (id === fromId || id === toId) {
-                return {
-                    id,
-                    borderWidth: 4,
-                    color: {
-                        border: '#dc2626',
-                        background: id === fromId ? '#fee2e2' : '#dcfce7'
-                    }
-                };
+        try {
+            // Trouver les noms des entités pour les IDs (N4L utilise les noms comme IDs de nœuds)
+            const normalizeId = (id) => id ? id.replace(/-/g, '_') : '';
+            const entityMap = {};
+            (this.currentCase?.entities || []).forEach(e => {
+                entityMap[e.id] = e.name;
+                entityMap[normalizeId(e.id)] = e.name;
+            });
+
+            const fromName = entityMap[fromId] || entityMap[normalizeId(fromId)] || fromId;
+            const toName = entityMap[toId] || entityMap[normalizeId(toId)] || toId;
+
+            // Trouver les nœuds correspondants dans le graphe
+            const allNodeIds = this.graphNodes.getIds();
+            let fromNodeId = null;
+            let toNodeId = null;
+
+            for (const nodeId of allNodeIds) {
+                const node = this.graphNodes.get(nodeId);
+                if (node && (nodeId === fromName || node.label === fromName)) {
+                    fromNodeId = nodeId;
+                }
+                if (node && (nodeId === toName || node.label === toName)) {
+                    toNodeId = nodeId;
+                }
             }
-            return null;
-        }).filter(Boolean);
 
-        if (updates.length > 0) {
-            this.graph.body.data.nodes.update(updates);
+            if (!fromNodeId && !toNodeId) return;
+
+            const updates = [];
+            if (fromNodeId) {
+                updates.push({
+                    id: fromNodeId,
+                    borderWidth: 4,
+                    color: { border: '#dc2626', background: '#fee2e2' }
+                });
+            }
+            if (toNodeId) {
+                updates.push({
+                    id: toNodeId,
+                    borderWidth: 4,
+                    color: { border: '#16a34a', background: '#dcfce7' }
+                });
+            }
+
+            if (updates.length > 0) {
+                this.graphNodes.update(updates);
+            }
+
+            const fitNodes = [fromNodeId, toNodeId].filter(Boolean);
+            if (fitNodes.length > 0) {
+                this.graph.fit({
+                    nodes: fitNodes,
+                    animation: true
+                });
+            }
+        } catch (error) {
+            console.warn('[highlightPathInGraph] Error:', error);
+        }
+    },
+
+    // ============================================
+    // Graph Metadata Display (like N4L)
+    // ============================================
+    graphActiveContextFilter: null,
+    lastGraphParse: null,
+
+    async renderGraphMetadata() {
+        const metadataContainer = document.getElementById('graph-metadata-container');
+        if (!metadataContainer || !this.currentCase) return;
+
+        // Get parsed N4L data for metadata
+        try {
+            const n4lContent = await fetch(`/api/n4l/export?case_id=${this.currentCase.id}`).then(r => r.text());
+            if (!n4lContent) {
+                metadataContainer.innerHTML = '';
+                return;
+            }
+
+            const result = await fetch('/api/n4l/parse', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    content: n4lContent,
+                    case_id: this.currentCase.id
+                })
+            }).then(r => r.json());
+
+            this.lastGraphParse = result;
+            this.showGraphMetadata(result);
+        } catch (error) {
+            console.error('Error loading graph metadata:', error);
+            metadataContainer.innerHTML = '';
+        }
+    },
+
+    showGraphMetadata(result) {
+        const metadataContainer = document.getElementById('graph-metadata-container');
+        if (!metadataContainer) return;
+
+        const nodeCount = result.graph?.nodes?.length || 0;
+        const edgeCount = result.graph?.edges?.length || 0;
+        const contextCount = result.contexts?.length || 0;
+        const aliasCount = result.aliases ? Object.keys(result.aliases).length : 0;
+        const sequenceCount = result.sequences?.length || 0;
+
+        let metadataHtml = `
+            <!-- Info Banner -->
+            <div class="n4l-info-banner">
+                <span class="material-icons">info</span>
+                <div>
+                    <strong>Graphe des Relations</strong> - Visualisation interactive des liens entre entités.
+                    Cliquez sur un <em>contexte</em> pour filtrer le graphe, sur un <em>nœud</em> pour voir ses connexions.
+                </div>
+            </div>
+
+            <!-- Stats Row -->
+            <div class="n4l-stats-row">
+                <div class="n4l-stat-item">
+                    <span class="material-icons">hub</span>
+                    <span class="n4l-stat-value">${nodeCount}</span>
+                    <span class="n4l-stat-label">entités</span>
+                </div>
+                <div class="n4l-stat-item">
+                    <span class="material-icons">sync_alt</span>
+                    <span class="n4l-stat-value">${edgeCount}</span>
+                    <span class="n4l-stat-label">relations</span>
+                </div>
+                <div class="n4l-stat-item">
+                    <span class="material-icons">layers</span>
+                    <span class="n4l-stat-value">${contextCount}</span>
+                    <span class="n4l-stat-label">contextes</span>
+                </div>
+                ${aliasCount > 0 ? `
+                <div class="n4l-stat-item">
+                    <span class="material-icons">alternate_email</span>
+                    <span class="n4l-stat-value">${aliasCount}</span>
+                    <span class="n4l-stat-label">alias</span>
+                </div>
+                ` : ''}
+                ${sequenceCount > 0 ? `
+                <div class="n4l-stat-item">
+                    <span class="material-icons">timeline</span>
+                    <span class="n4l-stat-value">${sequenceCount}</span>
+                    <span class="n4l-stat-label">séquences</span>
+                </div>
+                ` : ''}
+            </div>
+
+            <!-- Layout Options -->
+            <div class="n4l-section">
+                <div class="n4l-section-header">
+                    <span class="material-icons">grid_view</span>
+                    <span>Disposition</span>
+                </div>
+                <div class="n4l-layout-grid">
+                    <button class="n4l-layout-btn ${this.currentGraphLayout === 'physics' || !this.currentGraphLayout ? 'active' : ''}" onclick="app.setGraphLayout('physics')" data-tooltip="Disposition automatique avec simulation physique">
+                        <span class="material-icons">bubble_chart</span>
+                        <span>Standard</span>
+                    </button>
+                    <button class="n4l-layout-btn ${this.currentGraphLayout === 'compact' ? 'active' : ''}" onclick="app.setGraphLayout('compact')" data-tooltip="Disposition compacte et resserrée">
+                        <span class="material-icons">compress</span>
+                        <span>Compact</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Légende des formes et couleurs -->
+            <div class="n4l-section">
+                <div class="n4l-section-header n4l-collapsible" onclick="app.toggleN4LSection(this)">
+                    <span class="material-icons">palette</span>
+                    <span>Légende</span>
+                    <span class="material-icons n4l-expand-icon">expand_more</span>
+                </div>
+                <div class="n4l-section-content n4l-collapsed">
+                    <div class="graph-legend-grid">
+                        <div class="legend-group">
+                            <div class="legend-group-title">Par rôle</div>
+                            <div class="legend-item"><span class="legend-shape star" style="background: #dc2626;"></span> Victime</div>
+                            <div class="legend-item"><span class="legend-shape triangle" style="--shape-color: #f59e0b;"></span> Suspect</div>
+                            <div class="legend-item"><span class="legend-shape square" style="background: #3b82f6;"></span> Témoin</div>
+                            <div class="legend-item"><span class="legend-shape hexagon" style="background: #10b981;"></span> Enquêteur</div>
+                        </div>
+                        <div class="legend-group">
+                            <div class="legend-group-title">Par type</div>
+                            <div class="legend-item"><span class="legend-shape dot" style="background: #6366f1;"></span> Personne</div>
+                            <div class="legend-item"><span class="legend-shape square" style="background: #14b8a6;"></span> Lieu</div>
+                            <div class="legend-item"><span class="legend-shape diamond" style="background: #8b5cf6;"></span> Objet</div>
+                            <div class="legend-item"><span class="legend-shape star" style="background: #ec4899;"></span> Preuve</div>
+                            <div class="legend-item"><span class="legend-shape triangle-down" style="--shape-color: #06b6d4;"></span> Événement</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Contexts Section with Filters
+        if (result.contexts && result.contexts.length > 0) {
+            metadataHtml += `
+                <div class="n4l-section">
+                    <div class="n4l-section-header">
+                        <span class="material-icons">filter_list</span>
+                        <span>Filtrer par contexte</span>
+                        <button class="n4l-reset-btn ${this.graphActiveContextFilter ? '' : 'hidden'}" onclick="app.resetGraphFilter()" title="Réinitialiser le filtre">
+                            <span class="material-icons">refresh</span> Reset
+                        </button>
+                    </div>
+                    <div class="n4l-context-grid">
+                        ${result.contexts.map(ctx => {
+                            const isActive = this.graphActiveContextFilter === ctx;
+                            const icon = this.getGraphContextIcon(ctx);
+                            return `
+                                <button class="n4l-context-btn ${isActive ? 'active' : ''}" onclick="app.filterGraphByContext('${ctx}')">
+                                    <span class="material-icons">${icon}</span>
+                                    <span>${ctx}</span>
+                                </button>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
         }
 
-        this.graph.fit({
-            nodes: [fromId, toId],
-            animation: true
+        // Sequences Section (collapsible)
+        if (result.sequences && result.sequences.length > 0) {
+            metadataHtml += `
+                <div class="n4l-section">
+                    <div class="n4l-section-header n4l-collapsible" onclick="app.toggleN4LSection(this)">
+                        <span class="material-icons">timeline</span>
+                        <span>Chronologie (${result.sequences.length} séquence${result.sequences.length > 1 ? 's' : ''})</span>
+                        <span class="material-icons n4l-expand-icon">expand_more</span>
+                    </div>
+                    <div class="n4l-section-content n4l-collapsed">
+                        ${result.sequences.map((seq, i) => `
+                            <div class="n4l-sequence-block" data-seq-index="${i}">
+                                <div class="n4l-sequence-item" onclick="app.highlightGraphSequence(${i})">
+                                    <div class="n4l-sequence-header">
+                                        <span class="n4l-sequence-number">${i + 1}</span>
+                                        <span class="n4l-sequence-count">${seq.length} étapes</span>
+                                    </div>
+                                    <div class="n4l-sequence-preview">
+                                        ${seq.slice(0, 4).join(' → ')}${seq.length > 4 ? ' → ...' : ''}
+                                    </div>
+                                </div>
+                                <div class="n4l-sequence-nav" id="graph-seq-nav-${i}" style="display: none;">
+                                    <div class="n4l-sequence-nav-header">
+                                        <button class="n4l-nav-btn" onclick="event.stopPropagation(); app.navigateGraphSequence(${i}, -1)" title="Étape précédente">
+                                            <span class="material-icons">skip_previous</span>
+                                        </button>
+                                        <span class="n4l-nav-indicator">
+                                            <span class="n4l-nav-current" id="graph-seq-current-${i}">1</span> / ${seq.length}
+                                        </span>
+                                        <button class="n4l-nav-btn" onclick="event.stopPropagation(); app.navigateGraphSequence(${i}, 1)" title="Étape suivante">
+                                            <span class="material-icons">skip_next</span>
+                                        </button>
+                                        <button class="n4l-nav-btn n4l-nav-play" onclick="event.stopPropagation(); app.playGraphSequence(${i})" title="Lecture automatique" id="graph-seq-play-${i}">
+                                            <span class="material-icons">play_arrow</span>
+                                        </button>
+                                        <button class="n4l-nav-btn" onclick="event.stopPropagation(); app.stopGraphSequenceNav(${i})" title="Fermer">
+                                            <span class="material-icons">close</span>
+                                        </button>
+                                    </div>
+                                    <div class="n4l-sequence-current-label" id="graph-seq-label-${i}"></div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Aliases Section (collapsible)
+        if (result.aliases && Object.keys(result.aliases).length > 0) {
+            const aliases = Object.entries(result.aliases);
+            const escapeHtml = (str) => String(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+            const getDisplayName = (value) => {
+                let v = Array.isArray(value) ? value[0] : value;
+                if (!v) return '';
+                return v.split('(')[0].trim();
+            };
+            metadataHtml += `
+                <div class="n4l-section">
+                    <div class="n4l-section-header n4l-collapsible" onclick="app.toggleN4LSection(this)">
+                        <span class="material-icons">alternate_email</span>
+                        <span>Alias (${aliases.length})</span>
+                        <span class="material-icons n4l-expand-icon">expand_more</span>
+                    </div>
+                    <div class="n4l-section-content n4l-collapsed">
+                        <div class="n4l-alias-grid">
+                            ${aliases.map(([key, value]) => `
+                                <div class="n4l-alias-item" onclick="app.focusGraphNodeByLabel('${escapeHtml(getDisplayName(value))}')">
+                                    <span class="n4l-alias-key">${key}</span>
+                                    <span class="material-icons n4l-alias-arrow">arrow_forward</span>
+                                    <span class="n4l-alias-value">${getDisplayName(value)}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        metadataContainer.innerHTML = metadataHtml;
+    },
+
+    getGraphContextIcon(context) {
+        const icons = {
+            'victimes': 'person_off',
+            'suspects': 'person_search',
+            'témoins': 'record_voice_over',
+            'lieux': 'place',
+            'objets': 'category',
+            'preuves': 'verified',
+            'indices': 'search',
+            'chronologie': 'schedule',
+            'hypothèses': 'lightbulb',
+            'hypotheses': 'label',
+            'pistes': 'explore',
+            'réseau': 'share',
+            'relations': 'people'
+        };
+
+        const lowerCtx = context.toLowerCase();
+        for (const [key, icon] of Object.entries(icons)) {
+            if (lowerCtx.includes(key)) return icon;
+        }
+        return 'label';
+    },
+
+    // ============================================
+    // Graph Context Filtering
+    // ============================================
+    filterGraphByContext(context) {
+        if (!this.lastGraphParse || !this.graph || !this.graphNodes || !this.graphEdges) return;
+
+        // Toggle filter if clicking same context
+        if (this.graphActiveContextFilter === context) {
+            this.resetGraphFilter();
+            return;
+        }
+
+        // Set active filter
+        this.graphActiveContextFilter = context;
+
+        const result = this.lastGraphParse;
+        const filteredEdges = result.graph.edges.filter(e =>
+            !e.context || e.context === context || e.context.includes(context)
+        );
+
+        const involvedNodes = new Set();
+        filteredEdges.forEach(e => {
+            involvedNodes.add(e.from);
+            involvedNodes.add(e.to);
         });
+
+        // Hide non-matching nodes
+        const nodeUpdates = this.graphNodes.get().map(node => ({
+            id: node.id,
+            hidden: !involvedNodes.has(node.id),
+            opacity: involvedNodes.has(node.id) ? 1 : 0.2
+        }));
+        this.graphNodes.update(nodeUpdates);
+
+        // Hide non-matching edges
+        const edgeUpdates = this.graphEdges.get().map(edge => {
+            const matches = filteredEdges.some(fe =>
+                (fe.from === edge.from || fe.from === this.graphNodes.get(edge.from)?.label) &&
+                (fe.to === edge.to || fe.to === this.graphNodes.get(edge.to)?.label)
+            );
+            return {
+                id: edge.id,
+                hidden: !matches,
+                opacity: matches ? 1 : 0.2
+            };
+        });
+        this.graphEdges.update(edgeUpdates);
+
+        // Refresh metadata display to update button states
+        this.showGraphMetadata(this.lastGraphParse);
+
+        this.showToast(`Filtré: ${context} (${involvedNodes.size} entités)`);
+    },
+
+    resetGraphFilter() {
+        if (!this.graph || !this.graphNodes || !this.graphEdges) return;
+
+        this.graphActiveContextFilter = null;
+
+        // Reset all nodes
+        const nodeUpdates = this.graphNodes.get().map(node => ({
+            id: node.id,
+            hidden: false,
+            opacity: 1
+        }));
+        this.graphNodes.update(nodeUpdates);
+
+        // Reset all edges
+        const edgeUpdates = this.graphEdges.get().map(edge => ({
+            id: edge.id,
+            hidden: false,
+            opacity: 1
+        }));
+        this.graphEdges.update(edgeUpdates);
+
+        // Also reset node colors
+        this.resetGraphFocus();
+
+        // Refresh metadata display to update button states
+        if (this.lastGraphParse) {
+            this.showGraphMetadata(this.lastGraphParse);
+        }
+
+        this.showToast('Filtre réinitialisé');
+    },
+
+    // ============================================
+    // Graph Layout Options
+    // ============================================
+    currentGraphLayout: 'physics',
+
+    setGraphLayout(layoutType) {
+        if (!this.graph || !this.graphNodes || !this.graphEdges) return;
+
+        this.currentGraphLayout = layoutType;
+
+        // Update button states in UI
+        document.querySelectorAll('.n4l-layout-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        const activeBtn = document.querySelector(`.n4l-layout-btn[onclick*="'${layoutType}'"]`);
+        if (activeBtn) activeBtn.classList.add('active');
+
+        // vis.js doesn't handle hierarchical toggle well, so we recreate the network
+        const container = document.getElementById('graph-container');
+        if (!container) return;
+
+        // Get current nodes and edges data
+        const nodesData = this.graphNodes.get().map(node => ({
+            ...node,
+            x: undefined,
+            y: undefined
+        }));
+        const edgesData = this.graphEdges.get();
+
+        // Destroy current network
+        this.graph.destroy();
+
+        // Create new DataSets
+        const nodes = new vis.DataSet(nodesData);
+        const edges = new vis.DataSet(edgesData);
+
+        // Build options based on layout type
+        let options = {
+            nodes: {
+                font: { color: '#1a1a2e', size: 12 },
+                borderWidth: 2
+            },
+            edges: {
+                font: { size: 10, color: '#4a5568' },
+                smooth: { type: 'curvedCW', roundness: 0.2 }
+            },
+            interaction: {
+                hover: true,
+                tooltipDelay: 200
+            }
+        };
+
+        if (layoutType === 'physics') {
+            options.physics = {
+                enabled: true,
+                stabilization: { iterations: 150 },
+                barnesHut: {
+                    gravitationalConstant: -3000,
+                    springLength: 200,
+                    springConstant: 0.02,
+                    damping: 0.3,
+                    avoidOverlap: 0.5
+                },
+                minVelocity: 0.75
+            };
+            options.layout = { hierarchical: false };
+        } else if (layoutType === 'compact') {
+            // Mode compact: physique avec paramètres resserrés
+            options.physics = {
+                enabled: true,
+                stabilization: { iterations: 200 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springLength: 80,
+                    springConstant: 0.08,
+                    damping: 0.5,
+                    avoidOverlap: 0.8
+                },
+                minVelocity: 0.5
+            };
+            options.layout = { hierarchical: false };
+        }
+
+        // Create new network
+        this.graph = new vis.Network(container, { nodes, edges }, options);
+        this.graphNodes = nodes;
+        this.graphEdges = edges;
+
+        // Re-attach event handlers
+        this.graph.on('click', (params) => {
+            if (params.nodes.length > 0) {
+                this.focusGraphNode(params.nodes[0]);
+            } else {
+                this.resetGraphFocus();
+            }
+        });
+
+        this.graph.on('oncontext', (params) => {
+            params.event.preventDefault();
+            this.handleGraphRightClick(params);
+        });
+
+        // Fit after stabilization (both physics and compact use physics)
+        this.graph.once('stabilized', () => {
+            this.graph.fit({ animation: { duration: 300, easingFunction: 'easeInOutQuad' } });
+        });
+
+        const layoutNames = { physics: 'Standard', compact: 'Compact' };
+        this.showToast(`Disposition: ${layoutNames[layoutType] || layoutType}`);
+    },
+
+    // ============================================
+    // Sequence Highlighting in Main Graph
+    // ============================================
+    graphCurrentSequenceIndex: null,
+    graphCurrentSequenceNodeIds: null,
+    graphCurrentSequenceStep: 0,
+    graphSequencePlayInterval: null,
+
+    highlightGraphSequence(seqIndex) {
+        if (!this.lastGraphParse?.sequences || !this.graph || !this.graphNodes || !this.graphEdges) return;
+
+        const sequence = this.lastGraphParse.sequences[seqIndex];
+        if (!sequence || sequence.length === 0) return;
+
+        // Find nodes matching sequence labels
+        const seqNodeIds = [];
+        const allNodes = this.graphNodes.get();
+
+        sequence.forEach(label => {
+            const node = allNodes.find(n => n.label === label || n.id === label || n.label.includes(label));
+            if (node) seqNodeIds.push(node.id);
+        });
+
+        if (seqNodeIds.length === 0) {
+            this.showToast('Séquence non trouvée sur le graphe');
+            return;
+        }
+
+        // Store sequence navigation state
+        this.graphCurrentSequenceIndex = seqIndex;
+        this.graphCurrentSequenceNodeIds = seqNodeIds;
+        this.graphCurrentSequenceStep = 0;
+        this.graphSequencePlayInterval = null;
+
+        // Highlight all nodes in sequence
+        const seqNodeSet = new Set(seqNodeIds);
+        const nodeUpdates = allNodes.map(node => {
+            const inSeq = seqNodeSet.has(node.id);
+            return {
+                id: node.id,
+                color: inSeq ? { background: '#f59e0b', border: '#d97706' } : { background: '#e2e8f0', border: '#cbd5e0' },
+                opacity: inSeq ? 1 : 0.3,
+                borderWidth: inSeq ? 3 : 1
+            };
+        });
+        this.graphNodes.update(nodeUpdates);
+
+        // Show navigation controls
+        const navEl = document.getElementById(`graph-seq-nav-${seqIndex}`);
+        if (navEl) {
+            navEl.style.display = 'block';
+        }
+
+        // Navigate to first node
+        this.navigateToGraphSequenceStep(seqIndex, 0);
+
+        this.showToast(`Chronologie: ${seqNodeIds.length} étapes`);
+    },
+
+    // Navigate within sequence
+    navigateGraphSequence(seqIndex, direction) {
+        if (!this.graphCurrentSequenceNodeIds || this.graphCurrentSequenceIndex !== seqIndex) return;
+
+        const newStep = this.graphCurrentSequenceStep + direction;
+        if (newStep < 0 || newStep >= this.graphCurrentSequenceNodeIds.length) {
+            // Loop around
+            const loopedStep = newStep < 0 ? this.graphCurrentSequenceNodeIds.length - 1 : 0;
+            this.navigateToGraphSequenceStep(seqIndex, loopedStep);
+        } else {
+            this.navigateToGraphSequenceStep(seqIndex, newStep);
+        }
+    },
+
+    // Navigate to specific step
+    navigateToGraphSequenceStep(seqIndex, step) {
+        if (!this.graphCurrentSequenceNodeIds) return;
+
+        this.graphCurrentSequenceStep = step;
+        const nodeId = this.graphCurrentSequenceNodeIds[step];
+
+        // Update all nodes - highlight current step, show sequence nodes, hide others
+        const allNodes = this.graphNodes.get();
+        const seqNodeSet = new Set(this.graphCurrentSequenceNodeIds);
+
+        const nodeUpdates = allNodes.map(node => {
+            const isCurrentStep = node.id === nodeId;
+            const inSeq = seqNodeSet.has(node.id);
+
+            if (isCurrentStep) {
+                return {
+                    id: node.id,
+                    hidden: false,
+                    color: { background: '#dc2626', border: '#991b1b' },
+                    opacity: 1,
+                    borderWidth: 5
+                };
+            } else if (inSeq) {
+                return {
+                    id: node.id,
+                    hidden: false,
+                    color: { background: '#f59e0b', border: '#d97706' },
+                    opacity: 0.7,
+                    borderWidth: 2
+                };
+            } else {
+                return {
+                    id: node.id,
+                    hidden: true
+                };
+            }
+        });
+        this.graphNodes.update(nodeUpdates);
+
+        // Also hide edges not connected to sequence nodes
+        const allEdges = this.graphEdges.get();
+        const edgeUpdates = allEdges.map(edge => {
+            const fromInSeq = seqNodeSet.has(edge.from);
+            const toInSeq = seqNodeSet.has(edge.to);
+            return {
+                id: edge.id,
+                hidden: !(fromInSeq && toInSeq)
+            };
+        });
+        this.graphEdges.update(edgeUpdates);
+
+        // Focus on current node
+        this.graph.focus(nodeId, { scale: 1.2, animation: { duration: 300 } });
+
+        // Update UI
+        const currentEl = document.getElementById(`graph-seq-current-${seqIndex}`);
+        if (currentEl) currentEl.textContent = step + 1;
+
+        const labelEl = document.getElementById(`graph-seq-label-${seqIndex}`);
+        if (labelEl) {
+            const node = allNodes.find(n => n.id === nodeId);
+            labelEl.textContent = node ? node.label : nodeId;
+        }
+    },
+
+    // Auto-play sequence
+    playGraphSequence(seqIndex) {
+        if (this.graphSequencePlayInterval) {
+            this.pauseGraphSequence(seqIndex);
+            return;
+        }
+
+        const playBtn = document.getElementById(`graph-seq-play-${seqIndex}`);
+        if (playBtn) {
+            playBtn.querySelector('.material-icons').textContent = 'pause';
+        }
+
+        this.graphSequencePlayInterval = setInterval(() => {
+            const nextStep = this.graphCurrentSequenceStep + 1;
+            if (nextStep >= this.graphCurrentSequenceNodeIds.length) {
+                this.pauseGraphSequence(seqIndex);
+                this.navigateToGraphSequenceStep(seqIndex, 0);
+            } else {
+                this.navigateToGraphSequenceStep(seqIndex, nextStep);
+            }
+        }, 1500);
+    },
+
+    // Pause sequence playback
+    pauseGraphSequence(seqIndex) {
+        if (this.graphSequencePlayInterval) {
+            clearInterval(this.graphSequencePlayInterval);
+            this.graphSequencePlayInterval = null;
+        }
+
+        const playBtn = document.getElementById(`graph-seq-play-${seqIndex}`);
+        if (playBtn) {
+            playBtn.querySelector('.material-icons').textContent = 'play_arrow';
+        }
+    },
+
+    // Stop and close sequence navigation
+    stopGraphSequenceNav(seqIndex) {
+        this.pauseGraphSequence(seqIndex);
+
+        // Hide navigation
+        const navEl = document.getElementById(`graph-seq-nav-${seqIndex}`);
+        if (navEl) {
+            navEl.style.display = 'none';
+        }
+
+        // Show all nodes again
+        const allNodes = this.graphNodes.get();
+        const nodeUpdates = allNodes.map(node => ({
+            id: node.id,
+            hidden: false
+        }));
+        this.graphNodes.update(nodeUpdates);
+
+        // Show all edges again
+        const allEdges = this.graphEdges.get();
+        const edgeUpdates = allEdges.map(edge => ({
+            id: edge.id,
+            hidden: false
+        }));
+        this.graphEdges.update(edgeUpdates);
+
+        // Reset graph colors
+        this.resetGraphFocus();
+
+        // Clear state
+        this.graphCurrentSequenceIndex = null;
+        this.graphCurrentSequenceNodeIds = null;
+        this.graphCurrentSequenceStep = 0;
+    },
+
+    // ============================================
+    // Focus Node by Label
+    // ============================================
+    focusGraphNodeByLabel(label) {
+        if (!this.graph || !this.graphNodes) return;
+
+        const nodes = this.graphNodes.get();
+        const targetNode = nodes.find(n => n.label === label || n.id === label);
+
+        if (targetNode) {
+            this.focusGraphNode(targetNode.id);
+        } else {
+            this.showToast(`Nœud "${label}" non trouvé`);
+        }
     }
 };
 

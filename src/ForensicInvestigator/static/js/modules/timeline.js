@@ -108,11 +108,17 @@ const TimelineModule = {
         // Sort by timestamp
         events.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
-        // Build entity map
+        // Build entity map with ID normalization
+        const normalizeId = (id) => id ? id.replace(/-/g, '_') : '';
         const entityMap = {};
         if (this.currentCase.entities) {
             this.currentCase.entities.forEach(ent => {
                 entityMap[ent.id] = ent;
+                entityMap[normalizeId(ent.id)] = ent;
+                // Also map by name for N4L compatibility
+                if (ent.name) {
+                    entityMap[ent.name] = ent;
+                }
             });
         }
 
@@ -667,8 +673,11 @@ const TimelineModule = {
     // Render Timeline Event
     // ============================================
     renderTimelineEvent(event, entityMap, animationIndex) {
+        // Normalize ID function for lookup
+        const normalizeId = (id) => id ? id.replace(/-/g, '_') : '';
+
         const linkedEntities = (event.entities || [])
-            .map(id => entityMap[id])
+            .map(id => entityMap[id] || entityMap[normalizeId(id)])
             .filter(Boolean);
 
         return `
@@ -903,8 +912,11 @@ const TimelineModule = {
     // ============================================
     // Show Event on Graph
     // ============================================
-    showEventOnGraph(eventId) {
+    async showEventOnGraph(eventId) {
         if (!this.currentCase) return;
+
+        // Fonction pour normaliser les IDs (tirets et underscores sont équivalents)
+        const normalizeId = (id) => id ? id.replace(/-/g, '_') : '';
 
         const event = this.currentCase.timeline.find(e => e.id === eventId);
         if (!event || !event.entities || event.entities.length === 0) {
@@ -912,6 +924,7 @@ const TimelineModule = {
             return;
         }
 
+        // Naviguer vers le dashboard
         document.querySelectorAll('.nav-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.view === 'dashboard');
         });
@@ -919,28 +932,92 @@ const TimelineModule = {
             content.classList.toggle('hidden', content.id !== 'view-dashboard');
         });
 
-        if (this.graph) {
-            setTimeout(() => {
-                const nodeIds = event.entities;
-                this.graph.fit({
-                    nodes: nodeIds,
-                    animation: true
-                });
+        // Attendre que le graphe soit rendu
+        const waitForGraph = async () => {
+            if (!this.graph || !this.graphNodes) {
+                await this.renderGraph();
+            }
+            return this.graph && this.graphNodes;
+        };
 
-                const updates = nodeIds.map(id => ({
-                    id,
-                    borderWidth: 4,
-                    color: { border: '#f59e0b' }
-                }));
-                this.graph.body.data.nodes.update(updates);
-
-                setTimeout(() => {
-                    this.loadGraph();
-                }, 3000);
-            }, 200);
+        const graphReady = await waitForGraph();
+        if (!graphReady) {
+            this.showToast('Graphe non disponible');
+            return;
         }
 
-        this.showToast(`Événement: ${event.title}`);
+        // Créer une map des entités ID -> nom
+        const entityIdToName = {};
+        (this.currentCase.entities || []).forEach(e => {
+            entityIdToName[e.id] = e.name;
+            entityIdToName[normalizeId(e.id)] = e.name;
+        });
+
+        // Trouver les nœuds correspondants aux entités de l'événement
+        const allNodeIds = this.graphNodes.getIds();
+        const matchedNodeIds = [];
+
+        for (const entityId of event.entities) {
+            const normalizedEntityId = normalizeId(entityId);
+            // Obtenir le nom de l'entité à partir de son ID
+            const entityName = entityIdToName[entityId] || entityIdToName[normalizedEntityId];
+
+            // Chercher le nœud par nom d'entité (car les nœuds N4L utilisent les noms)
+            for (const nodeId of allNodeIds) {
+                const node = this.graphNodes.get(nodeId);
+
+                // Le graphe N4L utilise les noms comme IDs
+                if (entityName && (nodeId === entityName || node.label === entityName)) {
+                    matchedNodeIds.push(nodeId);
+                    break;
+                }
+                // Fallback: chercher aussi par ID technique
+                if (nodeId === entityId || normalizeId(nodeId) === normalizedEntityId) {
+                    matchedNodeIds.push(nodeId);
+                    break;
+                }
+            }
+        }
+
+        if (matchedNodeIds.length === 0) {
+            this.showToast('Aucune entité trouvée sur le graphe');
+            return;
+        }
+
+        // Masquer les nœuds non sélectionnés, mettre en évidence les sélectionnés
+        const allNodes = this.graphNodes.get();
+        const nodeUpdates = allNodes.map(node => {
+            const isHighlighted = matchedNodeIds.includes(node.id);
+            return {
+                id: node.id,
+                hidden: !isHighlighted,
+                borderWidth: isHighlighted ? 4 : 1,
+                color: isHighlighted ? {
+                    border: '#f59e0b',
+                    background: node.color?.background || '#6366f1'
+                } : undefined
+            };
+        });
+        this.graphNodes.update(nodeUpdates);
+
+        // Masquer les arêtes qui ne connectent pas les nœuds sélectionnés
+        const allEdges = this.graphEdges.get();
+        const edgeUpdates = allEdges.map(edge => {
+            const isConnected = matchedNodeIds.includes(edge.from) && matchedNodeIds.includes(edge.to);
+            return {
+                id: edge.id,
+                hidden: !isConnected
+            };
+        });
+        this.graphEdges.update(edgeUpdates);
+
+        // Centrer la vue sur les nœuds sélectionnés
+        this.graph.fit({
+            nodes: matchedNodeIds,
+            animation: { duration: 500, easingFunction: 'easeInOutQuad' }
+        });
+
+        this.showToast(`Événement: ${event.title} (${matchedNodeIds.length} entités)`);
     },
 
     // ============================================
@@ -1095,7 +1172,17 @@ const TimelineModule = {
             if (!event.title) return;
 
             try {
-                await this.apiCall(`/api/timeline?case_id=${this.currentCase.id}`, 'POST', event);
+                // Utiliser le DataProvider si disponible
+                if (typeof DataProvider !== 'undefined' && DataProvider.currentCaseId) {
+                    try {
+                        await DataProvider.addTimelineEvent(event);
+                    } catch (dpError) {
+                        console.warn('DataProvider.addTimelineEvent failed, falling back to API:', dpError);
+                        await this.apiCall(`/api/timeline?case_id=${this.currentCase.id}`, 'POST', event);
+                    }
+                } else {
+                    await this.apiCall(`/api/timeline?case_id=${this.currentCase.id}`, 'POST', event);
+                }
                 await this.selectCase(this.currentCase.id);
             } catch (error) {
                 console.error('Error adding event:', error);
@@ -1111,9 +1198,21 @@ const TimelineModule = {
         if (!confirm('Êtes-vous sûr de vouloir supprimer cet événement ?')) return;
 
         try {
-            await fetch(`/api/timeline/delete?case_id=${this.currentCase.id}&event_id=${eventId}`, {
-                method: 'DELETE'
-            });
+            // Utiliser le DataProvider si disponible
+            if (typeof DataProvider !== 'undefined' && DataProvider.currentCaseId) {
+                try {
+                    await DataProvider.deleteTimelineEvent(eventId);
+                } catch (dpError) {
+                    console.warn('DataProvider.deleteTimelineEvent failed, falling back to API:', dpError);
+                    await fetch(`/api/timeline/delete?case_id=${this.currentCase.id}&event_id=${eventId}`, {
+                        method: 'DELETE'
+                    });
+                }
+            } else {
+                await fetch(`/api/timeline/delete?case_id=${this.currentCase.id}&event_id=${eventId}`, {
+                    method: 'DELETE'
+                });
+            }
             await this.selectCase(this.currentCase.id);
             this.showToast('Événement supprimé');
         } catch (error) {

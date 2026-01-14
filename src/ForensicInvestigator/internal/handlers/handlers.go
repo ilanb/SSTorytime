@@ -17,6 +17,7 @@ type Handler struct {
 	ollama        *services.OllamaService
 	cases         *services.CaseService
 	n4l           *services.N4LService
+	n4lGenerator  *services.N4LGeneratorService  // Service de génération N4L (UI -> N4L)
 	hrm           *services.HRMService           // Service HRM externe (sapientinc/HRM + Ollama)
 	search        *services.SearchService
 	graphAnalyzer *services.GraphAnalyzerService // Service d'analyse de graphe
@@ -29,6 +30,7 @@ func NewHandler(ollama *services.OllamaService, cases *services.CaseService, n4l
 		ollama:        ollama,
 		cases:         cases,
 		n4l:           n4l,
+		n4lGenerator:  services.NewN4LGeneratorService(n4l),
 		hrm:           services.NewHRMService("http://localhost:8081"),
 		search:        services.NewSearchService("http://localhost:11434", "nomic-embed-text"),
 		graphAnalyzer: services.NewGraphAnalyzerService(),
@@ -399,7 +401,7 @@ func (h *Handler) HandleQuestions(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// HandleN4LParse parse un fichier N4L
+// HandleN4LParse parse un fichier N4L et retourne les données forensiques complètes
 func (h *Handler) HandleN4LParse(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Méthode non autorisée", http.StatusMethodNotAllowed)
@@ -408,13 +410,32 @@ func (h *Handler) HandleN4LParse(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 
+	// Support ancien format (body direct) et nouveau format (JSON)
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	result := h.n4l.ParseN4L(string(body))
+	var content string
+	var caseID string
+
+	// Essayer de parser comme JSON d'abord
+	var req struct {
+		Content string `json:"content"`
+		CaseID  string `json:"case_id"`
+	}
+	if err := json.Unmarshal(body, &req); err == nil && req.Content != "" {
+		content = req.Content
+		caseID = req.CaseID
+	} else {
+		// Fallback: contenu brut
+		content = string(body)
+		caseID = r.URL.Query().Get("case_id")
+	}
+
+	// Parser avec extraction forensique complète
+	result := h.n4l.ParseForensicN4L(content, caseID)
 	json.NewEncoder(w).Encode(result)
 }
 
@@ -431,18 +452,36 @@ func (h *Handler) HandleN4LExport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	format := r.URL.Query().Get("format") // "text" ou "json"
+
 	c, err := h.cases.GetCase(caseID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
-	n4lContent := h.n4l.ExportToN4L(c)
-	w.Header().Set("Content-Type", "text/plain")
-	w.Write([]byte(n4lContent))
+	// Si le cas a déjà du contenu N4L, le retourner
+	var n4lContent string
+	if c.N4LContent != "" {
+		n4lContent = c.N4LContent
+	} else {
+		// Générer le contenu N4L avec le nouveau générateur
+		n4lContent = h.n4lGenerator.ExportCaseToN4L(c)
+	}
+
+	if format == "json" {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"n4l_content": n4lContent,
+		})
+	} else {
+		w.Header().Set("Content-Type", "text/plain")
+		w.Write([]byte(n4lContent))
+	}
 }
 
 // HandleGraph construit et retourne le graphe d'une affaire
+// Utilise toujours le N4L comme source unique (généré à la volée si nécessaire)
 func (h *Handler) HandleGraph(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Méthode non autorisée", http.StatusMethodNotAllowed)
@@ -457,13 +496,24 @@ func (h *Handler) HandleGraph(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	graph, err := h.cases.BuildGraphData(caseID)
+	caseData, err := h.cases.GetCase(caseID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
-	json.NewEncoder(w).Encode(graph)
+	// Obtenir le contenu N4L (existant ou généré à la volée)
+	var n4lContent string
+	if caseData.N4LContent != "" {
+		n4lContent = caseData.N4LContent
+	} else {
+		// Générer le N4L à partir des données du cas
+		n4lContent = h.n4lGenerator.ExportCaseToN4L(caseData)
+	}
+
+	// Parser le N4L et retourner le graphe
+	parsed := h.n4l.ParseForensicN4L(n4lContent, caseID)
+	json.NewEncoder(w).Encode(parsed.Graph)
 }
 
 // HandleLoadDemo charge les données de démonstration
@@ -1351,6 +1401,60 @@ func (h *Handler) HandleAnalyzePath(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Résoudre les IDs des nœuds (supporter les labels/noms pour compatibilité N4L)
+	resolveNodeID := func(nodeID string) string {
+		// D'abord chercher par ID exact
+		for _, node := range graphData.Nodes {
+			if node.ID == nodeID {
+				return nodeID
+			}
+		}
+		// Ensuite chercher par label (nom)
+		for _, node := range graphData.Nodes {
+			if node.Label == nodeID {
+				return node.ID
+			}
+		}
+		return nodeID
+	}
+
+	// Fonction pour normaliser les IDs (remplacer underscores par tirets)
+	normalizeID := func(id string) string {
+		return strings.ReplaceAll(id, "_", "-")
+	}
+
+	// Récupérer l'affaire pour trouver les noms des entités
+	caseData, _ := h.cases.GetCase(req.CaseID)
+	if caseData != nil {
+		// Chercher le nom de l'entité par son ID (avec normalisation pour supporter tirets et underscores)
+		normalizedFromID := normalizeID(req.FromID)
+		normalizedToID := normalizeID(req.ToID)
+
+		for _, entity := range caseData.Entities {
+			if entity.ID == req.FromID || entity.ID == normalizedFromID {
+				// L'entité a cet ID, chercher le nœud par son nom
+				resolved := resolveNodeID(entity.Name)
+				if resolved != entity.Name {
+					req.FromID = resolved
+				} else {
+					req.FromID = entity.Name // Utiliser le nom directement car N4L utilise les noms comme IDs
+				}
+				break
+			}
+		}
+		for _, entity := range caseData.Entities {
+			if entity.ID == req.ToID || entity.ID == normalizedToID {
+				resolved := resolveNodeID(entity.Name)
+				if resolved != entity.Name {
+					req.ToID = resolved
+				} else {
+					req.ToID = entity.Name
+				}
+				break
+			}
+		}
+	}
+
 	// Trouver les chemins entre les deux entités
 	paths := h.findPaths(graphData, req.FromID, req.ToID, req.MaxDepth)
 
@@ -2235,7 +2339,27 @@ func (h *Handler) HandleFindPaths(w http.ResponseWriter, r *http.Request) {
 		req.MaxDepth = 5
 	}
 
-	paths := h.graphAnalyzer.FindAllPaths(*graph, req.From, req.To, req.MaxDepth)
+	// Résoudre les IDs des nœuds (supporter les labels/noms pour compatibilité N4L)
+	resolveNodeID := func(nodeID string) string {
+		// D'abord chercher par ID exact
+		for _, node := range graph.Nodes {
+			if node.ID == nodeID {
+				return nodeID
+			}
+		}
+		// Ensuite chercher par label (nom)
+		for _, node := range graph.Nodes {
+			if node.Label == nodeID {
+				return node.ID
+			}
+		}
+		return nodeID
+	}
+
+	resolvedFrom := resolveNodeID(req.From)
+	resolvedTo := resolveNodeID(req.To)
+
+	paths := h.graphAnalyzer.FindAllPaths(*graph, resolvedFrom, resolvedTo, req.MaxDepth)
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"paths": paths,
 		"count": len(paths),
@@ -2640,14 +2764,25 @@ func (h *Handler) HandleGraphAnalyzeComplete(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	graph, err := h.cases.BuildGraphData(caseID)
+	// Récupérer l'affaire pour les analyses avancées
+	caseData, err := h.cases.GetCase(caseID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
-	// Récupérer l'affaire pour les analyses avancées
-	caseData, _ := h.cases.GetCase(caseID)
+	// Utiliser le graphe N4L comme source de données (comme HandleGraph)
+	var n4lContent string
+	if caseData.N4LContent != "" {
+		n4lContent = caseData.N4LContent
+	} else {
+		// Générer le N4L à partir des données du cas
+		n4lContent = h.n4lGenerator.ExportCaseToN4L(caseData)
+	}
+
+	// Parser le N4L pour obtenir le graphe
+	parsed := h.n4l.ParseForensicN4L(n4lContent, caseID)
+	graph := &parsed.Graph
 
 	// Effectuer toutes les analyses
 	clusters := h.graphAnalyzer.FindClusters(*graph)
@@ -3282,11 +3417,22 @@ func (h *Handler) HandleSSTorytimeAnalysis(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	graph, err := h.cases.BuildGraphData(caseID)
+	// Utiliser le graphe N4L comme source de données
+	caseData, err := h.cases.GetCase(caseID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
+
+	var n4lContent string
+	if caseData.N4LContent != "" {
+		n4lContent = caseData.N4LContent
+	} else {
+		n4lContent = h.n4lGenerator.ExportCaseToN4L(caseData)
+	}
+
+	parsed := h.n4l.ParseForensicN4L(n4lContent, caseID)
+	graph := &parsed.Graph
 
 	// Effectuer toutes les analyses SSTorytime
 	appointed := h.graphAnalyzer.FindAppointedNodes(*graph, 2)
@@ -3465,4 +3611,348 @@ func (h *Handler) HandleOrbits(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(result)
+}
+
+// ============================================
+// N4L Source Unique - Endpoints de migration et génération
+// ============================================
+
+// HandleN4LGenerate génère un fragment N4L à partir d'une structure
+func (h *Handler) HandleN4LGenerate(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Méthode non autorisée", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Déterminer le type d'élément à générer depuis l'URL
+	entityType := r.URL.Query().Get("type")
+	if entityType == "" {
+		// Essayer d'extraire du path
+		parts := strings.Split(r.URL.Path, "/")
+		if len(parts) > 0 {
+			entityType = parts[len(parts)-1]
+		}
+	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Erreur lecture body: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	var n4lFragment string
+
+	switch entityType {
+	case "entity":
+		var entity models.Entity
+		if err := json.Unmarshal(body, &entity); err != nil {
+			http.Error(w, "Entité invalide: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		n4lFragment = h.n4lGenerator.GenerateEntityN4L(entity)
+
+	case "evidence":
+		var evidence models.Evidence
+		if err := json.Unmarshal(body, &evidence); err != nil {
+			http.Error(w, "Preuve invalide: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		n4lFragment = h.n4lGenerator.GenerateEvidenceN4L(evidence)
+
+	case "timeline":
+		var event models.Event
+		if err := json.Unmarshal(body, &event); err != nil {
+			http.Error(w, "Événement invalide: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		n4lFragment = h.n4lGenerator.GenerateTimelineEventN4L(event)
+
+	case "hypothesis":
+		var hypothesis models.Hypothesis
+		if err := json.Unmarshal(body, &hypothesis); err != nil {
+			http.Error(w, "Hypothèse invalide: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		n4lFragment = h.n4lGenerator.GenerateHypothesisN4L(hypothesis)
+
+	case "relation":
+		var req struct {
+			Relation    models.Relation   `json:"relation"`
+			EntityNames map[string]string `json:"entity_names"`
+		}
+		if err := json.Unmarshal(body, &req); err != nil {
+			http.Error(w, "Relation invalide: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		n4lFragment = h.n4lGenerator.GenerateRelationN4L(req.Relation, req.EntityNames)
+
+	default:
+		http.Error(w, "Type non supporté: "+entityType, http.StatusBadRequest)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]string{
+		"n4l_fragment": n4lFragment,
+	})
+}
+
+// HandleN4LPatch applique un patch au contenu N4L d'un cas
+func (h *Handler) HandleN4LPatch(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method != http.MethodPatch && r.Method != http.MethodPost {
+		http.Error(w, "Méthode non autorisée", http.StatusMethodNotAllowed)
+		return
+	}
+
+	caseID := r.URL.Query().Get("case_id")
+	if caseID == "" {
+		http.Error(w, "case_id requis", http.StatusBadRequest)
+		return
+	}
+
+	var patch services.N4LPatch
+	if err := json.NewDecoder(r.Body).Decode(&patch); err != nil {
+		http.Error(w, "Patch invalide: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Récupérer le cas et son contenu N4L actuel
+	c, err := h.cases.GetCase(caseID)
+	if err != nil {
+		http.Error(w, "Cas non trouvé: "+err.Error(), http.StatusNotFound)
+		return
+	}
+
+	// Appliquer le patch
+	result := h.n4lGenerator.ApplyPatch(c.N4LContent, patch, caseID)
+
+	if result.Success {
+		// Sauvegarder le nouveau contenu N4L
+		c.N4LContent = result.N4LContent
+		if err := h.cases.UpdateCase(c); err != nil {
+			http.Error(w, "Erreur sauvegarde: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	json.NewEncoder(w).Encode(result)
+}
+
+// HandleN4LMigrate migre un cas de la base de données vers le format N4L
+func (h *Handler) HandleN4LMigrate(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Méthode non autorisée", http.StatusMethodNotAllowed)
+		return
+	}
+
+	caseID := r.URL.Query().Get("case_id")
+	if caseID == "" {
+		http.Error(w, "case_id requis", http.StatusBadRequest)
+		return
+	}
+
+	// Récupérer le cas complet
+	c, err := h.cases.GetCase(caseID)
+	if err != nil {
+		http.Error(w, "Cas non trouvé: "+err.Error(), http.StatusNotFound)
+		return
+	}
+
+	// Générer le contenu N4L à partir des données existantes
+	n4lContent := h.n4lGenerator.ExportCaseToN4L(c)
+
+	// Valider le N4L généré
+	errors := h.n4lGenerator.ValidateN4L(n4lContent)
+
+	// Sauvegarder le contenu N4L dans le cas
+	c.N4LContent = n4lContent
+	if err := h.cases.UpdateCase(c); err != nil {
+		http.Error(w, "Erreur sauvegarde: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Parser le N4L pour vérifier le round-trip
+	parsed := h.n4l.ParseForensicN4L(n4lContent, caseID)
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":           "migrated",
+		"case_id":          caseID,
+		"n4l_content":      n4lContent,
+		"validation_errors": errors,
+		"entity_count":     len(parsed.Entities),
+		"evidence_count":   len(parsed.Evidence),
+		"timeline_count":   len(parsed.Timeline),
+		"hypothesis_count": len(parsed.Hypotheses),
+		"relation_count":   len(parsed.Relations),
+	})
+}
+
+// HandleN4LMigrateAll migre tous les cas vers le format N4L
+func (h *Handler) HandleN4LMigrateAll(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Méthode non autorisée", http.StatusMethodNotAllowed)
+		return
+	}
+
+	cases := h.cases.GetAllCases()
+	results := []map[string]interface{}{}
+
+	for _, c := range cases {
+		// Générer le contenu N4L
+		n4lContent := h.n4lGenerator.ExportCaseToN4L(c)
+
+		// Sauvegarder
+		c.N4LContent = n4lContent
+		if err := h.cases.UpdateCase(c); err != nil {
+			results = append(results, map[string]interface{}{
+				"case_id": c.ID,
+				"status":  "error",
+				"error":   err.Error(),
+			})
+			continue
+		}
+
+		// Parser pour vérification
+		parsed := h.n4l.ParseForensicN4L(n4lContent, c.ID)
+
+		results = append(results, map[string]interface{}{
+			"case_id":        c.ID,
+			"case_name":      c.Name,
+			"status":         "migrated",
+			"entity_count":   len(parsed.Entities),
+			"evidence_count": len(parsed.Evidence),
+		})
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"total_cases":    len(cases),
+		"migrated_count": len(results),
+		"results":        results,
+	})
+}
+
+// HandleN4LValidate valide le contenu N4L
+func (h *Handler) HandleN4LValidate(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Méthode non autorisée", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Content string `json:"content"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Requête invalide: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	errors := h.n4lGenerator.ValidateN4L(req.Content)
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"valid":  len(errors) == 0,
+		"errors": errors,
+	})
+}
+
+// HandleN4LSync synchronise les données depuis le contenu N4L vers les structures du cas
+func (h *Handler) HandleN4LSync(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Méthode non autorisée", http.StatusMethodNotAllowed)
+		return
+	}
+
+	caseID := r.URL.Query().Get("case_id")
+	if caseID == "" {
+		http.Error(w, "case_id requis", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		N4LContent string `json:"n4l_content"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Requête invalide: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Parser le contenu N4L
+	parsed := h.n4l.ParseForensicN4L(req.N4LContent, caseID)
+
+	// Récupérer le cas existant
+	c, err := h.cases.GetCase(caseID)
+	if err != nil {
+		http.Error(w, "Cas non trouvé: "+err.Error(), http.StatusNotFound)
+		return
+	}
+
+	// Mettre à jour les données du cas depuis le N4L parsé
+	c.N4LContent = req.N4LContent
+	c.Entities = parsed.Entities
+	c.Evidence = parsed.Evidence
+	c.Timeline = parsed.Timeline
+	c.Hypotheses = parsed.Hypotheses
+
+	// Sauvegarder
+	if err := h.cases.UpdateCase(c); err != nil {
+		http.Error(w, "Erreur sauvegarde: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":           "synced",
+		"case_id":          caseID,
+		"entity_count":     len(parsed.Entities),
+		"evidence_count":   len(parsed.Evidence),
+		"timeline_count":   len(parsed.Timeline),
+		"hypothesis_count": len(parsed.Hypotheses),
+		"parsed_data":      parsed,
+	})
+}
+
+// HandleGetCaseWithN4L retourne le cas avec ses données parsées depuis N4L
+func (h *Handler) HandleGetCaseWithN4L(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method != http.MethodGet {
+		http.Error(w, "Méthode non autorisée", http.StatusMethodNotAllowed)
+		return
+	}
+
+	caseID := r.URL.Query().Get("case_id")
+	if caseID == "" {
+		http.Error(w, "case_id requis", http.StatusBadRequest)
+		return
+	}
+
+	c, err := h.cases.GetCase(caseID)
+	if err != nil {
+		http.Error(w, "Cas non trouvé: "+err.Error(), http.StatusNotFound)
+		return
+	}
+
+	// Si le cas a du contenu N4L, parser et retourner les données
+	if c.N4LContent != "" {
+		parsed := h.n4l.ParseForensicN4L(c.N4LContent, caseID)
+
+		// Remplacer les données du cas par celles du N4L
+		c.Entities = parsed.Entities
+		c.Evidence = parsed.Evidence
+		c.Timeline = parsed.Timeline
+		c.Hypotheses = parsed.Hypotheses
+	}
+
+	json.NewEncoder(w).Encode(c)
 }

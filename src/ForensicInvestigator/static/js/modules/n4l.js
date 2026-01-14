@@ -9,8 +9,18 @@ const N4LModule = {
         if (!this.currentCase) return;
 
         try {
-            const n4l = await this.apiCall(`/api/n4l/export?case_id=${this.currentCase.id}`);
+            // Charger le contenu N4L depuis l'API (retourne du texte brut)
+            const response = await fetch(`/api/n4l/export?case_id=${this.currentCase.id}`);
+            const n4l = await response.text();
+
             document.getElementById('n4l-editor').value = n4l;
+
+            // Mettre à jour le DataProvider si disponible
+            if (typeof DataProvider !== 'undefined') {
+                DataProvider.n4lContent = n4l;
+            }
+
+            // Parser et afficher le graphe N4L
             await this.parseN4L();
         } catch (error) {
             console.error('Error loading N4L:', error);
@@ -25,33 +35,84 @@ const N4LModule = {
         if (!content) return;
 
         try {
+            // Parser le N4L via l'API
             const result = await fetch('/api/n4l/parse', {
                 method: 'POST',
-                headers: { 'Content-Type': 'text/plain' },
-                body: content
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    content: content,
+                    case_id: this.currentCase?.id
+                })
             }).then(r => r.json());
 
             this.lastN4LParse = result;
-            this.renderN4LGraph(result.graph);
+
+            console.log('N4LModule: Résultat parsing complet', result);
+            console.log('N4LModule: Graphe', result.graph);
+
+            // Utiliser le graphe du résultat parsé - c'est la même source que /api/graph
+            // car les deux utilisent ParseForensicN4L
+            if (result.graph && result.graph.nodes && result.graph.nodes.length > 0) {
+                this.renderN4LGraph(result.graph);
+            } else {
+                console.warn('N4LModule: Graphe vide ou invalide, affichage message');
+                const container = document.getElementById('n4l-graph-container');
+                if (container) {
+                    container.innerHTML = `
+                        <div class="empty-state" style="height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+                            <span class="material-icons empty-state-icon">hub</span>
+                            <p class="empty-state-title">Graphe N4L vide</p>
+                            <p class="empty-state-description">Le contenu N4L ne contient pas de relations ou entités</p>
+                        </div>
+                    `;
+                }
+            }
             this.showN4LMetadata(result);
+
+            console.log('N4LModule: Graphe parsé', {
+                nodes: result.graph?.nodes?.length || 0,
+                edges: result.graph?.edges?.length || 0
+            });
         } catch (error) {
             console.error('Error parsing N4L:', error);
         }
     },
 
     // ============================================
-    // Render N4L Graph
+    // Render N4L Graph (utilise le même style que le graphe principal)
     // ============================================
     renderN4LGraph(graphData) {
+        console.log('N4LModule.renderN4LGraph appelé avec:', graphData);
+
         const container = document.getElementById('n4l-graph-container');
-        if (!container || !graphData || !graphData.nodes) return;
+        console.log('N4LModule: Container trouvé:', !!container);
+
+        if (!container) {
+            console.error('N4LModule: Container n4l-graph-container non trouvé!');
+            return;
+        }
+        if (!graphData || !graphData.nodes) {
+            console.error('N4LModule: graphData invalide:', graphData);
+            return;
+        }
+        if (graphData.nodes.length === 0) {
+            console.warn('N4LModule: graphData.nodes est vide');
+            container.innerHTML = '<div class="empty-state"><p>Aucun nœud dans le graphe</p></div>';
+            return;
+        }
+
+        console.log('N4LModule: Création du graphe avec', graphData.nodes.length, 'nœuds et', graphData.edges?.length || 0, 'arêtes');
 
         container.innerHTML = '';
 
         this.n4lGraphNodesData = graphData.nodes;
         this.n4lGraphEdgesData = graphData.edges;
 
+        // Utiliser getEdgeColor du GraphModule si disponible
         const getEdgeColor = (edge) => {
+            if (typeof this.getEdgeColor === 'function') {
+                return this.getEdgeColor(edge);
+            }
             switch (edge.type) {
                 case 'never': return '#dc2626';
                 case 'new': return '#059669';
@@ -66,9 +127,12 @@ const N4LModule = {
             id: n.id,
             label: n.label,
             color: this.getNodeColor(n),
-            shape: this.getNodeShape(n.type),
-            title: n.role ? `${n.label} (${n.role})` : n.label,
-            originalColor: this.getNodeColor(n)
+            shape: this.getNodeShape(n),
+            title: this.getNodeTooltip(n),
+            originalColor: this.getNodeColor(n),
+            context: n.context,
+            nodeType: n.type,
+            role: n.role
         })));
 
         const edges = new vis.DataSet(graphData.edges.map((e, i) => ({
@@ -81,7 +145,8 @@ const N4LModule = {
             color: { color: getEdgeColor(e) },
             title: e.context ? `Contexte: ${e.context}` : '',
             originalColor: getEdgeColor(e),
-            edgeType: e.type
+            edgeType: e.type,
+            context: e.context
         })));
 
         const options = {
@@ -639,9 +704,19 @@ const N4LModule = {
         const nodeUpdates = allNodes.map(id => ({
             id,
             hidden: false,
-            opacity: 1
+            opacity: 1,
+            font: { color: '#1a1a2e' }
         }));
         this.n4lGraph.body.data.nodes.update(nodeUpdates);
+
+        // Reset all edges
+        const allEdges = this.n4lGraph.body.data.edges.getIds();
+        const edgeUpdates = allEdges.map(id => ({
+            id,
+            hidden: false,
+            color: undefined
+        }));
+        this.n4lGraph.body.data.edges.update(edgeUpdates);
 
         // Also reset node colors
         this.resetN4LGraphFocus();
@@ -650,6 +725,13 @@ const N4LModule = {
         if (this.lastN4LParse) {
             this.showN4LMetadata(this.lastN4LParse);
         }
+
+        // Recentrer le graphe
+        setTimeout(() => {
+            if (this.n4lGraph) {
+                this.n4lGraph.fit({ animation: { duration: 300, easingFunction: 'easeInOutQuad' } });
+            }
+        }, 100);
 
         this.showToast('Filtre réinitialisé');
     },
@@ -677,16 +759,47 @@ const N4LModule = {
             involvedNodes.add(e.to);
         });
 
+        // Ne pas cacher les nœuds, juste les rendre très transparents pour que fit() fonctionne
         const allNodes = this.n4lGraph.body.data.nodes.getIds();
-        const nodeUpdates = allNodes.map(id => ({
-            id,
-            hidden: !involvedNodes.has(id),
-            opacity: involvedNodes.has(id) ? 1 : 0.2
-        }));
+        const visibleNodeIds = Array.from(involvedNodes);
+
+        const nodeUpdates = allNodes.map(id => {
+            const isVisible = involvedNodes.has(id);
+            return {
+                id,
+                hidden: false, // Ne pas cacher pour que fit() fonctionne
+                color: isVisible ? undefined : { background: 'rgba(200,200,200,0.1)', border: 'rgba(200,200,200,0.1)' },
+                font: { color: isVisible ? '#1a1a2e' : 'rgba(0,0,0,0.05)' },
+                opacity: isVisible ? 1 : 0.05
+            };
+        });
         this.n4lGraph.body.data.nodes.update(nodeUpdates);
+
+        // Cacher aussi les arêtes non concernées
+        const allEdges = this.n4lGraph.body.data.edges.getIds();
+        const edgeUpdates = allEdges.map(edgeId => {
+            const edge = this.n4lGraph.body.data.edges.get(edgeId);
+            const isVisible = involvedNodes.has(edge.from) && involvedNodes.has(edge.to);
+            return {
+                id: edgeId,
+                hidden: !isVisible,
+                color: isVisible ? undefined : { color: 'rgba(200,200,200,0.05)' }
+            };
+        });
+        this.n4lGraph.body.data.edges.update(edgeUpdates);
 
         // Refresh metadata display to update button states
         this.showN4LMetadata(this.lastN4LParse);
+
+        // Recentrer le graphe sur les nœuds visibles
+        setTimeout(() => {
+            if (this.n4lGraph && visibleNodeIds.length > 0) {
+                this.n4lGraph.fit({
+                    nodes: visibleNodeIds,
+                    animation: { duration: 400, easingFunction: 'easeInOutQuad' }
+                });
+            }
+        }, 100);
 
         this.showToast(`Filtré: ${context} (${involvedNodes.size} entités)`);
     },

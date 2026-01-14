@@ -1,5 +1,3 @@
-
-
 ## Propositions d'Améliorations pour ForensicInvestigator
 
 ### 🔴 **Priorité 1 : Fonctionnalités de Recherche Avancée**
@@ -273,11 +271,6 @@ Applications forensiques :
 • "Quelles preuves sont liées à ce lieu ?"
 • "Quel est le réseau de ce suspect ?"
 ```
-
-
-
-
-
 
 Voici des propositions de nouvelles fonctionnalités pour ForensicInvestigator, organisées par priorité et complexité :
 

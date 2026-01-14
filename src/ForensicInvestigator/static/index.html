@@ -706,8 +706,9 @@
                             <strong>Réseaux Sociaux</strong> analyse les clusters relationnels.
                             <strong>Analyser</strong> génère une analyse IA globale.
                         </div>
-                        <div class="panel-content">
-                            <div id="graph-container"></div>
+                        <div class="panel-content" style="display: flex; flex-direction: column; overflow: hidden;">
+                            <div id="graph-metadata-container" style="max-height: 200px; overflow-y: auto; margin-bottom: 0.5rem;"></div>
+                            <div id="graph-container" style="flex: 1; min-height: 300px;"></div>
                         </div>
                     </div>
 
@@ -1742,10 +1743,16 @@
                                 <div class="sstorytime-section">
                                     <h4><span class="material-icons">auto_awesome</span> Analyse Complète SSTorytime</h4>
                                     <p class="section-description">Lance toutes les analyses SSTorytime en une seule requête : Cônes d'expansion, Nœuds appointés, Eigenvector, STTypes, Contrawave, Super-Nœuds et Betweenness. <em>Génère un rapport complet de la structure du graphe en quelques secondes.</em></p>
-                                    <button class="btn btn-primary" id="btn-sstorytime-complete">
-                                        <span class="material-icons">play_circle</span>
-                                        Lancer l'analyse complète
-                                    </button>
+                                    <div class="btn-group">
+                                        <button class="btn btn-primary" id="btn-sstorytime-complete">
+                                            <span class="material-icons">play_circle</span>
+                                            Lancer l'analyse complète
+                                        </button>
+                                        <button class="btn btn-secondary" id="btn-sstorytime-report" disabled data-tooltip="Lancez d'abord l'analyse complète">
+                                            <span class="material-icons">description</span>
+                                            Rapport IA
+                                        </button>
+                                    </div>
                                     <div id="sstorytime-summary">
                                         <div class="empty-state">
                                             <span class="material-icons empty-state-icon">analytics</span>
@@ -2152,6 +2159,42 @@
         </div>
     </div>
 
+    <!-- SSTorytime Report Modal -->
+    <div class="modal-overlay" id="sstorytime-report-modal">
+        <div class="modal" style="max-width: 900px;">
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <span class="material-icons">auto_awesome</span>
+                    Rapport d'Analyse SSTorytime
+                </h3>
+                <button class="modal-close" onclick="document.getElementById('sstorytime-report-modal').classList.remove('active')">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="sstorytime-report-content" id="sstorytime-report-content">
+                    <div class="loading-indicator">
+                        <span class="material-icons spinning">sync</span>
+                        <span>Génération du rapport en cours...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="navigator.clipboard.writeText(document.getElementById('sstorytime-report-content').innerText); app.showToast('Rapport copié')">
+                    <span class="material-icons">content_copy</span>
+                    Copier
+                </button>
+                <button class="btn btn-warning" onclick="app.saveSStorytimeReportToNotebook()">
+                    <span class="material-icons">note_add</span>
+                    Noter
+                </button>
+                <button class="btn btn-primary" onclick="document.getElementById('sstorytime-report-modal').classList.remove('active')">
+                    Fermer
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- AI Assistant Panel (fixed bottom right, draggable, collapsed by default) -->
     <div class="ai-assistant collapsed" id="ai-assistant">
         <div class="ai-assistant-header" id="ai-assistant-toggle">
@@ -2165,10 +2208,35 @@
                     <strong>Assistant:</strong> Bonjour! Je suis votre assistant d'enquête. Posez-moi des questions sur l'affaire en cours.
                 </div>
             </div>
+            <div class="ai-assistant-suggestions" id="ai-suggestions">
+                <div class="ai-suggestions-label">Questions suggérées :</div>
+                <button class="ai-suggestion-btn" onclick="app.askSuggestedQuestion(this)">
+                    <span class="material-icons">person_search</span>
+                    Quel est le suspect principal ?
+                </button>
+                <button class="ai-suggestion-btn" onclick="app.askSuggestedQuestion(this)">
+                    <span class="material-icons">timeline</span>
+                    Résume la chronologie des faits
+                </button>
+                <button class="ai-suggestion-btn" onclick="app.askSuggestedQuestion(this)">
+                    <span class="material-icons">warning</span>
+                    Quelles sont les contradictions ?
+                </button>
+                <button class="ai-suggestion-btn" onclick="app.askSuggestedQuestion(this)">
+                    <span class="material-icons">link</span>
+                    Quels liens entre les suspects ?
+                </button>
+            </div>
             <div class="ai-assistant-input">
+                <button class="btn btn-ghost btn-icon" id="btn-ai-clear" onclick="app.clearAIChat()" data-tooltip="Effacer" data-tooltip-pos="top">
+                    <span class="material-icons">delete_outline</span>
+                </button>
                 <input type="text" id="ai-input" placeholder="Posez votre question..." class="form-input">
                 <button class="btn btn-primary btn-icon" id="btn-ai-send">
                     <span class="material-icons">send</span>
+                </button>
+                <button class="btn btn-secondary btn-icon" id="btn-ai-save-notebook" onclick="app.saveChatToNotebook()" data-tooltip="Noter" data-tooltip-pos="top">
+                    <span class="material-icons">menu_book</span>
                 </button>
             </div>
         </div>
@@ -2405,7 +2473,8 @@
 
     <!-- Version modulaire (active) -->
     <script src="/static/js/modules/core.js?v=3" defer></script>
-    <script src="/static/js/modules/dashboard.js" defer></script>
+    <script src="/static/js/modules/data-provider.js?v=1" defer></script>
+    <script src="/static/js/modules/dashboard.js?v=2" defer></script>
     <script src="/static/js/modules/entities.js?v=5" defer></script>
     <script src="/static/js/modules/evidence.js" defer></script>
     <script src="/static/js/modules/timeline.js" defer></script>

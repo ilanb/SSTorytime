@@ -1425,6 +1425,11 @@ const GraphAnalysisModule = {
             this.runSSTorytimeAnalysis();
         });
 
+        // SSTorytime Report
+        document.getElementById('btn-sstorytime-report')?.addEventListener('click', () => {
+            this.generateSStorytimeReport();
+        });
+
         // Constrained Paths
         document.getElementById('btn-constrained-paths')?.addEventListener('click', () => {
             this.executeConstrainedPaths();
@@ -1530,6 +1535,13 @@ const GraphAnalysisModule = {
             if (!response.ok) throw new Error('Erreur de recherche contrawave');
 
             const data = await response.json();
+            // Stocker les résultats pour le rapport
+            this.lastContrawaveResult = {
+                start_nodes: startNodes,
+                end_nodes: endNodes,
+                collision_points: data.collision_nodes || data.collision_points || [],
+                paths: data.paths || []
+            };
             this.renderContrawaveResults(data);
             this.showToast(`${data.collision_nodes?.length || 0} nœud(s) de collision trouvé(s)`, 'success');
         } catch (error) {
@@ -1847,6 +1859,9 @@ const GraphAnalysisModule = {
         container.innerHTML = html;
     },
 
+    // Stockage des données d'analyse SSTorytime pour le rapport
+    lastSStorytimeAnalysis: null,
+
     async runSSTorytimeAnalysis() {
         if (!this.currentCase) {
             this.showToast('Veuillez sélectionner une affaire', 'warning');
@@ -1854,6 +1869,7 @@ const GraphAnalysisModule = {
         }
 
         const btn = document.getElementById('btn-sstorytime-complete');
+        const reportBtn = document.getElementById('btn-sstorytime-report');
         const originalText = btn?.innerHTML;
         if (btn) {
             btn.innerHTML = '<span class="material-icons rotating">sync</span> Analyse complète...';
@@ -1865,7 +1881,15 @@ const GraphAnalysisModule = {
             if (!response.ok) throw new Error('Erreur d\'analyse SSTorytime');
 
             const data = await response.json();
+            this.lastSStorytimeAnalysis = data;
             this.renderSSTorytimeSummary(data);
+
+            // Activer le bouton rapport
+            if (reportBtn) {
+                reportBtn.disabled = false;
+                reportBtn.removeAttribute('data-tooltip');
+            }
+
             this.showToast('Analyse SSTorytime complète terminée', 'success');
         } catch (error) {
             console.error('Erreur SSTorytime:', error);
@@ -1875,6 +1899,349 @@ const GraphAnalysisModule = {
                 btn.innerHTML = originalText;
                 btn.disabled = false;
             }
+        }
+    },
+
+    async generateSStorytimeReport() {
+        // Vérifier qu'au moins une analyse a été effectuée
+        if (!this.lastSStorytimeAnalysis && !this.graphAnalysisData) {
+            this.showToast('Lancez d\'abord l\'analyse complète', 'warning');
+            return;
+        }
+
+        // Ouvrir la modal
+        const modal = document.getElementById('sstorytime-report-modal');
+        const contentDiv = document.getElementById('sstorytime-report-content');
+        modal.classList.add('active');
+
+        const sstData = this.lastSStorytimeAnalysis || {};
+        const graphData = this.graphAnalysisData || {};
+        const caseName = this.currentCase?.title || 'Affaire en cours';
+        const summary = graphData.summary || sstData.summary || {};
+
+        // Helper pour formater les données en liste
+        const formatList = (data, limit = 5) => {
+            if (!data) return '<em>Aucune donnée</em>';
+            let items = [];
+            if (Array.isArray(data)) items = data.slice(0, limit);
+            else if (data.centralities) items = data.centralities.slice(0, limit);
+            else if (data.groups) items = data.groups.slice(0, limit);
+            else if (data.nodes) items = data.nodes.slice(0, limit);
+            else if (data.appointed) items = data.appointed.slice(0, limit);
+            else if (data.pairs) items = data.pairs.slice(0, limit);
+            else return '<em>Données non structurées</em>';
+
+            if (items.length === 0) return '<em>Aucun résultat</em>';
+            return '<ul>' + items.map(item => {
+                if (typeof item === 'string') return `<li>${item}</li>`;
+                if (typeof item === 'number') return `<li>${item}</li>`;
+                // Gérer les paires de noeuds appointés
+                if (item.node1 && item.node2) {
+                    const n1 = typeof item.node1 === 'string' ? item.node1 : (item.node1.name || item.node1.label || item.node1.id || 'N/A');
+                    const n2 = typeof item.node2 === 'string' ? item.node2 : (item.node2.name || item.node2.label || item.node2.id || 'N/A');
+                    return `<li><strong>${n1}</strong> ↔ <strong>${n2}</strong> (${item.common_neighbors || item.pointers || 0} voisins communs)</li>`;
+                }
+                const name = item.node_id || item.name || item.label || item.id || '';
+                const score = item.score || item.centrality || item.similarity || '';
+                if (!name && !score) return `<li>${JSON.stringify(item).slice(0, 100)}</li>`;
+                return `<li><strong>${name}</strong>${score ? ` (${typeof score === 'number' ? score.toFixed(3) : score})` : ''}</li>`;
+            }).join('') + '</ul>';
+        };
+
+        // Récupérer les derniers résultats des analyses interactives si disponibles
+        const contrawaveData = this.lastContrawaveResult || null;
+        const diracData = this.lastDiracResult || null;
+        const orbitsData = this.lastOrbitsResult || null;
+
+        // Helper pour formater les chemins
+        const formatPaths = (paths, limit = 3) => {
+            if (!paths || paths.length === 0) return '<em>Aucun chemin trouvé</em>';
+            return paths.slice(0, limit).map(p => {
+                // Préférer labels à nodes (IDs)
+                const pathStr = p.labels?.join(' → ') || p.path?.join(' → ') || p.nodes?.join(' → ') || JSON.stringify(p);
+                return `<div class="path-item"><span class="material-icons">timeline</span> ${pathStr}</div>`;
+            }).join('');
+        };
+
+        // Construire le rapport avec toutes les sections SSTorytime
+        contentDiv.innerHTML = `
+            <div class="sstorytime-report">
+                <div class="report-header">
+                    <span class="material-icons">analytics</span>
+                    <span>Rapport SSTorytime - ${caseName}</span>
+                    <span class="report-date">${new Date().toLocaleDateString('fr-FR', { dateStyle: 'full' })}</span>
+                </div>
+
+                <!-- Résumé général -->
+                <div class="report-section">
+                    <h4><span class="material-icons">summarize</span> Résumé général</h4>
+                    <div class="report-stats-grid">
+                        <div class="report-stat"><span class="stat-value">${summary.total_nodes || 0}</span><span class="stat-label">Nœuds</span></div>
+                        <div class="report-stat"><span class="stat-value">${summary.total_edges || 0}</span><span class="stat-label">Relations</span></div>
+                        <div class="report-stat"><span class="stat-value">${sstData.summary?.bridge_nodes || 0}</span><span class="stat-label">Nœuds ponts</span></div>
+                        <div class="report-stat"><span class="stat-value">${sstData.summary?.super_node_groups || 0}</span><span class="stat-label">Super-nœuds</span></div>
+                        <div class="report-stat"><span class="stat-value">${sstData.summary?.top_influencer || '-'}</span><span class="stat-label">Top influenceur</span></div>
+                        <div class="report-stat ${sstData.summary?.convergence ? 'success' : 'warning'}"><span class="stat-value">${sstData.summary?.convergence ? 'Oui' : 'Non'}</span><span class="stat-label">Convergence</span></div>
+                    </div>
+                </div>
+
+                <!-- 1. Recherche Contrawave -->
+                <div class="report-section">
+                    <h4><span class="material-icons">waves</span> Recherche Contrawave</h4>
+                    <p class="section-desc">Collision de fronts d'onde bidirectionnels pour trouver les points de passage critiques entre deux ensembles de nœuds.</p>
+                    ${contrawaveData ? `
+                        <div class="analysis-result">
+                            <div class="result-meta">
+                                <span><strong>Sources:</strong> ${contrawaveData.start_nodes?.join(', ') || 'N/A'}</span>
+                                <span><strong>Cibles:</strong> ${contrawaveData.end_nodes?.join(', ') || 'N/A'}</span>
+                            </div>
+                            <div class="collision-points">
+                                <strong>Points de collision (${contrawaveData.collision_points?.length || 0}):</strong>
+                                ${contrawaveData.collision_points?.slice(0, 5).map(cp => {
+                                    const nodeName = typeof cp === 'string' ? cp : (cp.node_label || cp.label || cp.name || cp.node_id || cp.id || 'N/A');
+                                    return `<span class="collision-point">${nodeName}</span>`;
+                                }).join('') || '<em>Aucun</em>'}
+                            </div>
+                        </div>
+                    ` : `<p class="no-data"><span class="material-icons">info</span> Analyse interactive - sélectionnez des nœuds source et cible dans l'onglet SSTorytime</p>`}
+                </div>
+
+                <!-- 2. Détection de Super-Nœuds -->
+                <div class="report-section">
+                    <h4><span class="material-icons">group_work</span> Détection de Super-Nœuds</h4>
+                    <p class="section-desc">Groupes d'entités fonctionnellement équivalentes (mêmes connexions, interchangeables).</p>
+                    ${sstData.super_nodes?.groups?.length > 0 ?
+                        sstData.super_nodes.groups.slice(0, 5).map(g => {
+                            // La similarité est dans chaque nœud, prendre la moyenne du groupe
+                            let avgSimilarity = 'N/A';
+                            if (g.nodes && g.nodes.length > 0) {
+                                const sims = g.nodes.map(n => n.similarity).filter(s => typeof s === 'number' && !isNaN(s));
+                                if (sims.length > 0) {
+                                    avgSimilarity = ((sims.reduce((a, b) => a + b, 0) / sims.length) * 100).toFixed(0);
+                                }
+                            }
+                            const nodeNames = g.nodes?.map(n => typeof n === 'string' ? n : (n.node_label || n.node_id || n.name || 'N/A')).join(', ') || 'N/A';
+                            return `<div class="super-node-group"><strong>Groupe (similarité: ${avgSimilarity}%)</strong>: ${nodeNames}</div>`;
+                        }).join('') : '<em>Aucun super-nœud détecté</em>'}
+                </div>
+
+                <!-- 3. Centralité Betweenness -->
+                <div class="report-section">
+                    <h4><span class="material-icons">alt_route</span> Centralité d'Intermédiarité (Betweenness)</h4>
+                    <p class="section-desc">Identifie les nœuds "ponts" qui contrôlent le flux d'information entre différentes parties du graphe.</p>
+                    ${formatList(sstData.betweenness_centrality)}
+                </div>
+
+                <!-- 4. Chemins Contraints -->
+                <div class="report-section">
+                    <h4><span class="material-icons">route</span> Chemins Contraints</h4>
+                    <p class="section-desc">Recherche de chemins avec filtrage par type de relation (ex: uniquement relations financières ou familiales).</p>
+                    ${this.lastConstrainedPathsResult ? `
+                        <div class="analysis-result">
+                            <div class="result-meta">
+                                <span><strong>Types filtrés:</strong> ${this.lastConstrainedPathsResult.relation_types?.join(', ') || 'Tous'}</span>
+                                <span><strong>Chemins trouvés:</strong> ${this.lastConstrainedPathsResult.paths?.length || 0}</span>
+                            </div>
+                            ${formatPaths(this.lastConstrainedPathsResult.paths)}
+                        </div>
+                    ` : `<p class="no-data"><span class="material-icons">info</span> Analyse interactive - définissez les contraintes dans l'onglet SSTorytime</p>`}
+                </div>
+
+                <!-- 5. Notation Dirac <cible|source> -->
+                <div class="report-section">
+                    <h4><span class="material-icons">science</span> Notation Dirac &lt;cible|source&gt;</h4>
+                    <p class="section-desc">Recherche de chemins quantiques entre deux entités avec la notation bra-ket de Dirac.</p>
+                    ${diracData ? `
+                        <div class="analysis-result">
+                            <div class="dirac-query-display">
+                                <span class="dirac-notation">&lt;${diracData.target || '?'}|${diracData.source || '?'}&gt;</span>
+                            </div>
+                            <div class="result-meta">
+                                <span><strong>Chemins trouvés:</strong> ${diracData.paths?.length || 0}</span>
+                                <span><strong>Profondeur max:</strong> ${diracData.max_depth || 'N/A'}</span>
+                            </div>
+                            ${formatPaths(diracData.paths)}
+                        </div>
+                    ` : `<p class="no-data"><span class="material-icons">info</span> Analyse interactive - utilisez la notation Dirac dans l'onglet SSTorytime</p>`}
+                </div>
+
+                <!-- 6. Analyse des Orbites -->
+                <div class="report-section">
+                    <h4><span class="material-icons">radar</span> Analyse des Orbites</h4>
+                    <p class="section-desc">Exploration concentrique du voisinage structuré autour d'un nœud central (niveau 1 = voisins directs, niveau 2 = voisins des voisins, etc.).</p>
+                    ${orbitsData ? `
+                        <div class="analysis-result">
+                            <div class="result-meta">
+                                <span><strong>Centre:</strong> ${orbitsData.center_node || 'N/A'}</span>
+                                <span><strong>Niveaux:</strong> ${orbitsData.levels?.length || 0}</span>
+                                <span><strong>Total nœuds:</strong> ${orbitsData.total_nodes || 0}</span>
+                            </div>
+                            <div class="orbit-summary">
+                                ${orbitsData.levels?.slice(0, 4).map((level, i) =>
+                                    `<div class="orbit-level-item"><span class="level-badge">N${i + 1}</span> ${level.nodes?.length || 0} nœuds</div>`
+                                ).join('') || ''}
+                            </div>
+                        </div>
+                    ` : `<p class="no-data"><span class="material-icons">info</span> Analyse interactive - sélectionnez un nœud central dans l'onglet SSTorytime</p>`}
+                </div>
+
+                <!-- 7. Centralité Eigenvector -->
+                <div class="report-section">
+                    <h4><span class="material-icons">trending_up</span> Centralité Eigenvector</h4>
+                    <p class="section-desc">Mesure l'influence d'un nœud basée sur la qualité de ses connexions (connecté à des nœuds influents).</p>
+                    ${formatList(sstData.eigenvector_centrality)}
+                </div>
+
+                <!-- 8. Nœuds Appointés -->
+                <div class="report-section">
+                    <h4><span class="material-icons">compare_arrows</span> Nœuds Appointés (Corrélés)</h4>
+                    <p class="section-desc">Nœuds pointés par plusieurs autres, créant des corrélations importantes dans le graphe.</p>
+                    ${(() => {
+                        // Filtrer les faux nœuds (propriétés N4L converties en nœuds par erreur)
+                        const excludedLabels = ['evenement', 'true', 'false', 'high', 'medium', 'low', 'autre', 'personne', 'lieu', 'objet', 'document', 'organisation'];
+                        const validNodes = sstData.appointed_nodes?.nodes?.filter(n =>
+                            n.node_label &&
+                            !excludedLabels.includes(n.node_label.toLowerCase()) &&
+                            !excludedLabels.includes(n.node_id?.toLowerCase())
+                        ) || [];
+                        if (validNodes.length === 0) return '<em>Aucun nœud appointé significatif détecté</em>';
+                        // Résoudre les labels via pointed_by si disponible
+                        return '<ul>' + validNodes.slice(0, 5).map(n => {
+                            // Si c'est une paire (ex: "ent-moreau-001, ent-moreau-002"), extraire les labels depuis pointed_by
+                            let displayLabel = n.node_label || n.node_id;
+                            if (n.pointed_by && n.pointed_by.length > 0) {
+                                // Prendre les 2 premiers pointeurs comme labels représentatifs
+                                const pointerLabels = n.pointed_by.slice(0, 2).map(p => p.node_label || p.node_id).join(' ↔ ');
+                                if (pointerLabels) displayLabel = pointerLabels;
+                            }
+                            return `<li><strong>${displayLabel}</strong> - ${n.pointer_count || 0} pointeurs (${n.significance || 'N/A'})</li>`;
+                        }).join('') + '</ul>';
+                    })()}
+                </div>
+
+                <!-- 9. Analyse STTypes -->
+                <div class="report-section">
+                    <h4><span class="material-icons">category</span> Analyse par Types (STTypes)</h4>
+                    <p class="section-desc">Classification des entités par leur rôle structurel dans le graphe (hubs, conteneurs, chaînes causales).</p>
+                    ${sstData.st_type_analysis ? `
+                        <div class="sttype-stats">
+                            <span><strong>Chaînes causales:</strong> ${sstData.st_type_analysis.causal_chains?.length || 0}</span>
+                            <span><strong>Conteneurs:</strong> ${sstData.st_type_analysis.containers?.length || 0}</span>
+                            <span><strong>Hubs:</strong> ${sstData.st_type_analysis.hubs?.length || 0}</span>
+                        </div>
+                        ${sstData.st_type_analysis.hubs?.length > 0 ? `
+                            <div class="sttype-detail">
+                                <strong>Principaux hubs:</strong> ${sstData.st_type_analysis.hubs.slice(0, 3).map(h => h.name || h.id || h).join(', ')}
+                            </div>
+                        ` : ''}
+                    ` : '<em>Aucune analyse disponible</em>'}
+                </div>
+
+                <!-- Synthèse IA -->
+                <div class="report-section report-ai-section">
+                    <h4><span class="material-icons">psychology</span> Synthèse IA</h4>
+                    <div class="report-body markdown-content" id="sstorytime-report-stream">
+                        <span class="streaming-cursor">▊</span>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Générer la synthèse IA
+        try {
+            const prompt = `Synthèse d'analyse SSTorytime pour "${caseName}".
+
+Données clés:
+- ${summary.total_nodes || 0} entités, ${summary.total_edges || 0} relations
+- Top influenceur: ${sstData.summary?.top_influencer || 'N/A'}
+- ${sstData.summary?.bridge_nodes || 0} nœuds ponts critiques
+- ${sstData.summary?.super_node_groups || 0} groupes équivalents
+- Convergence: ${sstData.summary?.convergence ? 'Oui' : 'Non'}
+
+En 5-6 phrases, donne une synthèse des implications pour l'enquête: qui sont les acteurs clés, quels sont les points de passage obligés, et quelles pistes privilégier.`;
+
+            const streamTarget = document.getElementById('sstorytime-report-stream');
+
+            await this.streamAIResponse(
+                '/api/chat/stream',
+                {
+                    message: prompt,
+                    case_id: this.currentCase.id,
+                    context: 'sstorytime_report'
+                },
+                streamTarget,
+                {
+                    onComplete: () => {
+                        this.showToast('Rapport généré avec succès', 'success');
+                    }
+                }
+            );
+        } catch (error) {
+            console.error('Erreur génération rapport:', error);
+            // Afficher l'erreur uniquement dans la zone de streaming, pas tout le rapport
+            const streamDiv = document.getElementById('sstorytime-report-stream');
+            if (streamDiv) {
+                streamDiv.innerHTML = `
+                    <div class="error-message" style="color: var(--danger); display: flex; align-items: center; gap: 0.5rem;">
+                        <span class="material-icons">error</span>
+                        Erreur: ${error.message}
+                    </div>
+                `;
+            }
+        }
+    },
+
+    formatMarkdown(text) {
+        // Conversion basique du markdown
+        return text
+            .replace(/^### (.*$)/gm, '<h4>$1</h4>')
+            .replace(/^## (.*$)/gm, '<h3>$1</h3>')
+            .replace(/^# (.*$)/gm, '<h2>$1</h2>')
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.*?)\*/g, '<em>$1</em>')
+            .replace(/^- (.*$)/gm, '<li>$1</li>')
+            .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
+            .replace(/\n\n/g, '</p><p>')
+            .replace(/^(.+)$/gm, '<p>$1</p>')
+            .replace(/<p><h/g, '<h')
+            .replace(/<\/h(\d)><\/p>/g, '</h$1>')
+            .replace(/<p><ul>/g, '<ul>')
+            .replace(/<\/ul><\/p>/g, '</ul>')
+            .replace(/<p><li>/g, '<li>')
+            .replace(/<\/li><\/p>/g, '</li>');
+    },
+
+    async saveSStorytimeReportToNotebook() {
+        const contentDiv = document.getElementById('sstorytime-report-content');
+        if (!contentDiv || !this.currentCase) {
+            this.showToast('Aucun rapport à sauvegarder', 'warning');
+            return;
+        }
+
+        const reportText = contentDiv.innerText;
+        if (!reportText || reportText.includes('Génération du rapport')) {
+            this.showToast('Le rapport n\'est pas encore prêt', 'warning');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/notes?case_id=${this.currentCase.id}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: `Rapport SSTorytime - ${new Date().toLocaleDateString('fr-FR')}`,
+                    content: reportText,
+                    type: 'ai_analysis',
+                    tags: ['sstorytime', 'rapport', 'analyse']
+                })
+            });
+
+            if (!response.ok) throw new Error('Erreur sauvegarde');
+
+            this.showToast('Rapport sauvegardé dans le Notebook', 'success');
+        } catch (error) {
+            console.error('Erreur sauvegarde:', error);
+            this.showToast('Erreur: ' + error.message, 'error');
         }
     },
 
@@ -1989,6 +2356,13 @@ const GraphAnalysisModule = {
             if (!response.ok) throw new Error('Erreur de recherche');
 
             const data = await response.json();
+            // Stocker les résultats pour le rapport
+            this.lastConstrainedPathsResult = {
+                from_node: fromNode,
+                to_node: toNode,
+                relation_types: allowedTypes.length > 0 ? allowedTypes : excludedTypes.length > 0 ? ['Exclus: ' + excludedTypes.join(', ')] : ['Tous'],
+                paths: data.paths || []
+            };
             this.renderConstrainedPathsResults(data);
             this.showToast(`${data.paths_found || 0} chemins trouvés`, 'success');
         } catch (error) {
@@ -2127,6 +2501,14 @@ const GraphAnalysisModule = {
             }
 
             const data = await response.json();
+            // Stocker les résultats pour le rapport (avec labels)
+            this.lastDiracResult = {
+                target: data.target_label || data.target,
+                source: data.source_label || data.source,
+                paths: data.forward_paths || data.paths || [],
+                max_depth: maxDepth,
+                query: query
+            };
             this.renderDiracResults(data);
             this.showToast('Recherche Dirac terminée', 'success');
         } catch (error) {
@@ -2274,6 +2656,12 @@ const GraphAnalysisModule = {
             if (!response.ok) throw new Error('Erreur d\'analyse');
 
             const data = await response.json();
+            // Stocker les résultats pour le rapport
+            this.lastOrbitsResult = {
+                center_node: nodeId,
+                levels: data.levels || data.orbits || [],
+                total_nodes: data.total_nodes || 0
+            };
             this.renderOrbitsResults(data);
             this.showToast('Analyse des orbites terminée', 'success');
         } catch (error) {

@@ -142,7 +142,17 @@ const EntitiesModule = {
             if (!entity.name) return;
 
             try {
-                await this.apiCall(`/api/entities?case_id=${this.currentCase.id}`, 'POST', entity);
+                // Utiliser le DataProvider si disponible pour générer le N4L
+                if (typeof DataProvider !== 'undefined' && DataProvider.currentCaseId) {
+                    try {
+                        await DataProvider.addEntity(entity);
+                    } catch (dpError) {
+                        console.warn('DataProvider.addEntity failed, falling back to API:', dpError);
+                        await this.apiCall(`/api/entities?case_id=${this.currentCase.id}`, 'POST', entity);
+                    }
+                } else {
+                    await this.apiCall(`/api/entities?case_id=${this.currentCase.id}`, 'POST', entity);
+                }
                 await this.selectCase(this.currentCase.id);
             } catch (error) {
                 console.error('Error adding entity:', error);
@@ -278,26 +288,13 @@ const EntitiesModule = {
     // ============================================
     // Entity Graph Visualization
     // ============================================
-    showEntityGraph(entityId) {
+    async showEntityGraph(entityId) {
         if (!this.currentCase) return;
 
         const entity = this.currentCase.entities.find(e => e.id === entityId);
         if (!entity) return;
 
-        const relatedIds = new Set([entityId]);
-        const relations = entity.relations || [];
-        relations.forEach(r => relatedIds.add(r.to_id));
-
-        this.currentCase.entities.forEach(e => {
-            if (e.relations) {
-                e.relations.forEach(r => {
-                    if (r.to_id === entityId) {
-                        relatedIds.add(e.id);
-                    }
-                });
-            }
-        });
-
+        // Naviguer vers le dashboard
         document.querySelectorAll('.nav-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.view === 'dashboard');
         });
@@ -305,63 +302,115 @@ const EntitiesModule = {
             content.classList.toggle('hidden', content.id !== 'view-dashboard');
         });
 
-        if (this.graph) {
-            setTimeout(() => {
-                const nodeIds = Array.from(relatedIds);
+        // Attendre que le graphe soit rendu si nécessaire
+        const waitForGraph = async () => {
+            if (!this.graph || !this.graphNodes) {
+                await this.renderGraph();
+            }
+            return this.graph && this.graphNodes;
+        };
 
-                // Update nodes
-                const allNodes = this.graph.body.data.nodes.getIds();
-                const nodeUpdates = allNodes.map(id => {
-                    if (id === entityId) {
-                        return {
-                            id,
-                            borderWidth: 5,
-                            color: { border: '#dc2626', background: '#fee2e2' },
-                            opacity: 1,
-                            font: { color: '#1a1a2e' }
-                        };
-                    } else if (relatedIds.has(id)) {
-                        return {
-                            id,
-                            borderWidth: 3,
-                            color: { border: '#f59e0b', background: '#fef3c7' },
-                            opacity: 1,
-                            font: { color: '#1a1a2e' }
-                        };
-                    }
-                    return {
-                        id,
-                        opacity: 0.15,
-                        font: { color: 'rgba(26, 26, 46, 0.2)' }
-                    };
-                });
-                this.graph.body.data.nodes.update(nodeUpdates);
+        // Attendre un court délai pour que la navigation soit effective
+        await new Promise(resolve => setTimeout(resolve, 100));
 
-                // Update edges (including labels)
-                const allEdges = this.graph.body.data.edges.get();
-                const edgeUpdates = allEdges.map(edge => {
-                    const isConnected = (edge.from === entityId || edge.to === entityId) ||
-                                       (relatedIds.has(edge.from) && relatedIds.has(edge.to));
-                    return {
-                        id: edge.id,
-                        color: isConnected
-                            ? { color: '#1e3a5f', opacity: 1 }
-                            : { color: '#e2e8f0', opacity: 0.1 },
-                        font: {
-                            color: isConnected ? '#4a5568' : 'rgba(74, 85, 104, 0.1)'
-                        }
-                    };
-                });
-                this.graph.body.data.edges.update(edgeUpdates);
-
-                this.graph.fit({
-                    nodes: nodeIds,
-                    animation: true
-                });
-
-                this.showToast(`${entity.name}: ${relatedIds.size - 1} relation(s) directe(s)`);
-            }, 200);
+        const graphReady = await waitForGraph();
+        if (!graphReady) {
+            console.warn('showEntityGraph: Graphe non disponible');
+            return;
         }
+
+        // Chercher l'entité dans les nœuds du graphe (par ID ou par label)
+        const allNodeIds = this.graphNodes.getIds();
+        const entityName = entity.name;
+
+        // Trouver le nœud correspondant (par ID direct ou par label)
+        let targetNodeId = null;
+
+        for (const nodeId of allNodeIds) {
+            const node = this.graphNodes.get(nodeId);
+            if (nodeId === entityId || node.label === entityName) {
+                targetNodeId = nodeId;
+                break;
+            }
+        }
+
+        if (!targetNodeId) {
+            console.warn('showEntityGraph: Nœud non trouvé pour', entityId, entityName);
+            this.showToast(`Entité "${entityName}" non trouvée dans le graphe`, 'warning');
+            return;
+        }
+
+        // Trouver les nœuds liés via les ARÊTES du graphe (pas les relations des entités)
+        const connectedNodeIds = new Set([targetNodeId]);
+        const allEdges = this.graphEdges.get();
+
+        // Parcourir toutes les arêtes pour trouver celles connectées au nœud cible
+        allEdges.forEach(edge => {
+            if (edge.from === targetNodeId) {
+                connectedNodeIds.add(edge.to);
+            }
+            if (edge.to === targetNodeId) {
+                connectedNodeIds.add(edge.from);
+            }
+        });
+
+        console.log('showEntityGraph:', {
+            entityId,
+            entityName,
+            targetNodeId,
+            connectedNodeIds: Array.from(connectedNodeIds),
+            totalEdges: allEdges.length
+        });
+
+        // Mettre à jour les nœuds
+        const nodeUpdates = allNodeIds.map(id => {
+            if (id === targetNodeId) {
+                return {
+                    id,
+                    borderWidth: 5,
+                    color: { border: '#dc2626', background: '#fee2e2' },
+                    opacity: 1,
+                    font: { color: '#1a1a2e' }
+                };
+            } else if (connectedNodeIds.has(id)) {
+                return {
+                    id,
+                    borderWidth: 3,
+                    color: { border: '#f59e0b', background: '#fef3c7' },
+                    opacity: 1,
+                    font: { color: '#1a1a2e' }
+                };
+            }
+            return {
+                id,
+                opacity: 0.15,
+                font: { color: 'rgba(26, 26, 46, 0.2)' }
+            };
+        });
+        this.graphNodes.update(nodeUpdates);
+
+        // Mettre à jour les arêtes
+        const edgeUpdates = allEdges.map(edge => {
+            const isConnected = edge.from === targetNodeId || edge.to === targetNodeId;
+            return {
+                id: edge.id,
+                color: isConnected
+                    ? { color: '#1e3a5f', opacity: 1 }
+                    : { color: '#e2e8f0', opacity: 0.1 },
+                font: {
+                    color: isConnected ? '#4a5568' : 'rgba(74, 85, 104, 0.1)'
+                }
+            };
+        });
+        this.graphEdges.update(edgeUpdates);
+
+        // Centrer sur les nœuds connectés
+        this.graph.fit({
+            nodes: Array.from(connectedNodeIds),
+            animation: true
+        });
+
+        this.showToast(`${entity.name}: ${connectedNodeIds.size - 1} relation(s) directe(s)`);
     },
 
     // ============================================
@@ -485,7 +534,17 @@ const EntitiesModule = {
             if (!updatedEntity.name) return;
 
             try {
-                await this.apiCall(`/api/entities/update?case_id=${this.currentCase.id}`, 'PUT', updatedEntity);
+                // Utiliser le DataProvider si disponible pour mettre à jour le N4L
+                if (typeof DataProvider !== 'undefined' && DataProvider.currentCaseId) {
+                    try {
+                        await DataProvider.updateEntity(updatedEntity);
+                    } catch (dpError) {
+                        console.warn('DataProvider.updateEntity failed, falling back to API:', dpError);
+                        await this.apiCall(`/api/entities/update?case_id=${this.currentCase.id}`, 'PUT', updatedEntity);
+                    }
+                } else {
+                    await this.apiCall(`/api/entities/update?case_id=${this.currentCase.id}`, 'PUT', updatedEntity);
+                }
                 await this.selectCase(this.currentCase.id);
                 this.showToast('Entité mise à jour');
             } catch (error) {
@@ -502,7 +561,17 @@ const EntitiesModule = {
         if (!confirm('Supprimer cette entité ?')) return;
 
         try {
-            await this.apiCall(`/api/entities/${entityId}?case_id=${this.currentCase.id}`, 'DELETE');
+            // Utiliser le DataProvider si disponible pour mettre à jour le N4L
+            if (typeof DataProvider !== 'undefined' && DataProvider.currentCaseId) {
+                try {
+                    await DataProvider.deleteEntity(entityId);
+                } catch (dpError) {
+                    console.warn('DataProvider.deleteEntity failed, falling back to API:', dpError);
+                    await this.apiCall(`/api/entities/${entityId}?case_id=${this.currentCase.id}`, 'DELETE');
+                }
+            } else {
+                await this.apiCall(`/api/entities/${entityId}?case_id=${this.currentCase.id}`, 'DELETE');
+            }
             await this.selectCase(this.currentCase.id);
             this.showToast('Entité supprimée');
         } catch (error) {
