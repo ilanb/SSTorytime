@@ -775,13 +775,38 @@ const CrossCaseModule = {
     },
 
     // ============================================
-    // Analyze Match With AI
+    // Analyze Match With AI (Streaming)
     // ============================================
     async analyzeMatchWithAI(match) {
-        this.showToast('Analyse IA en cours...', 'info');
+        const modalTitle = `Analyse: ${this.getMatchTypeLabel(match.match_type)}`;
+        const modalContext = `${match.current_case_name} ↔ ${match.other_case_name}`;
+
+        // Show modal immediately with initial state
+        const initialContent = `
+<div class="analysis-streaming">
+<div class="streaming-header">
+<span class="material-icons spinning">psychology</span>
+<span>Analyse IA en cours...</span>
+</div>
+<div class="streaming-meta">
+<span class="material-icons">compare_arrows</span>
+<span>${match.current_case_name} ↔ ${match.other_case_name}</span>
+</div>
+</div>
+<div class="streaming-content"></div>
+        `;
+        this.showAnalysisModal(initialContent, modalTitle, 'match_analysis', modalContext);
+
+        const analysisContent = document.getElementById('analysis-content');
+        const streamingContent = analysisContent?.querySelector('.streaming-content');
+
+        if (!streamingContent) {
+            console.error('Streaming content element not found');
+            return;
+        }
 
         try {
-            const response = await fetch('/api/cross-case/analyze', {
+            const response = await fetch('/api/cross-case/analyze/stream', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -791,18 +816,69 @@ const CrossCaseModule = {
                 })
             });
 
-            if (!response.ok) throw new Error('Erreur lors de l\'analyse');
+            let fullResponse = '';
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
 
-            const result = await response.json();
-            this.showAnalysisModal(
-                result.analysis,
-                `Analyse: ${this.getMatchTypeLabel(match.match_type)}`,
-                'match_analysis',
-                `${match.current_case_name} ↔ ${match.other_case_name}`
-            );
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n');
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const data = JSON.parse(line.slice(6));
+                            if (data.error) {
+                                streamingContent.innerHTML = `
+<div class="analysis-error">
+<span class="material-icons">error</span>
+<p><strong>Erreur</strong></p>
+<p>${data.error}</p>
+</div>
+                                `;
+                                // Remove streaming header
+                                const header = analysisContent?.querySelector('.analysis-streaming');
+                                if (header) header.remove();
+                                return;
+                            }
+                            if (data.chunk) {
+                                fullResponse += data.chunk;
+                                streamingContent.innerHTML = marked.parse(fullResponse) + '<span class="streaming-cursor">▊</span>';
+                            }
+                            if (data.done) {
+                                // Remove streaming header and cursor
+                                const header = analysisContent?.querySelector('.analysis-streaming');
+                                if (header) header.remove();
+                                streamingContent.innerHTML = marked.parse(fullResponse);
+                            }
+                        } catch (e) {
+                            // Ignore parsing errors for incomplete chunks
+                        }
+                    }
+                }
+            }
+
+            // Final render without cursor
+            if (fullResponse) {
+                const header = analysisContent?.querySelector('.analysis-streaming');
+                if (header) header.remove();
+                streamingContent.innerHTML = marked.parse(fullResponse);
+            }
+
         } catch (error) {
             console.error('Error analyzing match:', error);
-            this.showToast('Erreur lors de l\'analyse IA');
+            const header = analysisContent?.querySelector('.analysis-streaming');
+            if (header) header.remove();
+            streamingContent.innerHTML = `
+<div class="analysis-error">
+<span class="material-icons">error</span>
+<p><strong>Erreur lors de l'analyse</strong></p>
+<p>Impossible de contacter le service d'analyse IA. Veuillez réessayer.</p>
+</div>
+            `;
         }
     },
 

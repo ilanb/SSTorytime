@@ -22,11 +22,13 @@ type Handler struct {
 	search        *services.SearchService
 	graphAnalyzer *services.GraphAnalyzerService // Service d'analyse de graphe
 	notebook      *services.NotebookService      // Service de gestion des notebooks
+	scenario      *services.ScenarioService      // Service de simulation What-If
+	anomaly       *services.AnomalyService       // Service de détection d'anomalies
 }
 
 // NewHandler crée un nouveau handler
 func NewHandler(ollama *services.OllamaService, cases *services.CaseService, n4l *services.N4LService) *Handler {
-	return &Handler{
+	h := &Handler{
 		ollama:        ollama,
 		cases:         cases,
 		n4l:           n4l,
@@ -36,6 +38,10 @@ func NewHandler(ollama *services.OllamaService, cases *services.CaseService, n4l
 		graphAnalyzer: services.NewGraphAnalyzerService(),
 		notebook:      services.NewNotebookService(),
 	}
+	// Initialiser les nouveaux services
+	h.scenario = services.NewScenarioService(cases, ollama)
+	h.anomaly = services.NewAnomalyService(cases, ollama)
+	return h
 }
 
 // HandleCases gère les opérations sur les affaires
@@ -1261,20 +1267,46 @@ func (h *Handler) HandleDeleteEvent(w http.ResponseWriter, r *http.Request) {
 
 // HandleUpdateHypothesis met à jour une hypothèse existante
 func (h *Handler) HandleUpdateHypothesis(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPut {
+	if r.Method != http.MethodPut && r.Method != http.MethodPost {
 		http.Error(w, "Méthode non autorisée", http.StatusMethodNotAllowed)
 		return
 	}
 
+	// Support deux formats:
+	// 1. case_id en query param + hypothesis directement dans le body
+	// 2. { case_id, hypothesis } dans le body (format frontend HRM)
 	caseID := r.URL.Query().Get("case_id")
-	if caseID == "" {
-		http.Error(w, "case_id requis", http.StatusBadRequest)
+
+	var hypothesis models.Hypothesis
+
+	// Essayer d'abord le format avec wrapper { case_id, hypothesis }
+	var wrapper struct {
+		CaseID     string           `json:"case_id"`
+		Hypothesis models.Hypothesis `json:"hypothesis"`
+	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Erreur lecture body", http.StatusBadRequest)
 		return
 	}
 
-	var hypothesis models.Hypothesis
-	if err := json.NewDecoder(r.Body).Decode(&hypothesis); err != nil {
-		http.Error(w, "JSON invalide", http.StatusBadRequest)
+	if err := json.Unmarshal(body, &wrapper); err == nil && wrapper.Hypothesis.ID != "" {
+		// Format wrapper détecté
+		hypothesis = wrapper.Hypothesis
+		if caseID == "" {
+			caseID = wrapper.CaseID
+		}
+	} else {
+		// Format direct: hypothesis dans le body
+		if err := json.Unmarshal(body, &hypothesis); err != nil {
+			http.Error(w, "JSON invalide", http.StatusBadRequest)
+			return
+		}
+	}
+
+	if caseID == "" {
+		http.Error(w, "case_id requis", http.StatusBadRequest)
 		return
 	}
 
@@ -1636,6 +1668,77 @@ func (h *Handler) HandleCrossCaseAnalyze(w http.ResponseWriter, r *http.Request)
 	json.NewEncoder(w).Encode(map[string]string{
 		"analysis": analysis,
 	})
+}
+
+// HandleCrossCaseAnalyzeStream effectue une analyse IA des patterns inter-affaires en streaming
+func (h *Handler) HandleCrossCaseAnalyzeStream(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Méthode non autorisée", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Configurer les headers SSE
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming non supporté", http.StatusInternalServerError)
+		return
+	}
+
+	var req struct {
+		CaseID  string                   `json:"case_id"`
+		Matches []models.CrossCaseMatch  `json:"matches"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		fmt.Fprintf(w, "data: {\"error\": \"%s\"}\n\n", err.Error())
+		flusher.Flush()
+		return
+	}
+
+	if req.CaseID == "" {
+		fmt.Fprintf(w, "data: {\"error\": \"case_id requis\"}\n\n")
+		flusher.Flush()
+		return
+	}
+
+	// Récupérer l'affaire courante
+	currentCase, err := h.cases.GetCase(req.CaseID)
+	if err != nil {
+		fmt.Fprintf(w, "data: {\"error\": \"Affaire non trouvée\"}\n\n")
+		flusher.Flush()
+		return
+	}
+
+	// Récupérer toutes les affaires liées
+	relatedCases := make(map[string]*models.Case)
+	for _, match := range req.Matches {
+		if _, exists := relatedCases[match.OtherCaseID]; !exists {
+			if c, err := h.cases.GetCase(match.OtherCaseID); err == nil {
+				relatedCases[match.OtherCaseID] = c
+			}
+		}
+	}
+
+	// Streamer l'analyse IA
+	err = h.ollama.AnalyzeCrossCaseStream(currentCase, relatedCases, req.Matches, func(chunk string, done bool) error {
+		chunkJSON, _ := json.Marshal(map[string]interface{}{
+			"chunk": chunk,
+			"done":  done,
+		})
+		fmt.Fprintf(w, "data: %s\n\n", chunkJSON)
+		flusher.Flush()
+		return nil
+	})
+
+	if err != nil {
+		errorJSON, _ := json.Marshal(map[string]string{"error": err.Error()})
+		fmt.Fprintf(w, "data: %s\n\n", errorJSON)
+		flusher.Flush()
+	}
 }
 
 // HandleCrossCaseGraph construit le graphe multi-affaires
@@ -3955,4 +4058,481 @@ func (h *Handler) HandleGetCaseWithN4L(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(c)
+}
+
+// ============================================
+// Simulation de Scénarios "What-If"
+// ============================================
+
+// HandleScenarios gère les opérations CRUD sur les scénarios
+func (h *Handler) HandleScenarios(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	caseID := r.URL.Query().Get("case_id")
+	if caseID == "" {
+		http.Error(w, "case_id requis", http.StatusBadRequest)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		// Lister tous les scénarios d'un cas
+		scenarios := h.scenario.GetScenarios(caseID)
+		json.NewEncoder(w).Encode(scenarios)
+
+	case http.MethodPost:
+		// Créer un nouveau scénario
+		var req models.ScenarioSimulationRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Erreur de parsing: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		req.CaseID = caseID
+
+		scenario, err := h.scenario.CreateScenario(caseID, req)
+		if err != nil {
+			http.Error(w, "Erreur création scénario: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		json.NewEncoder(w).Encode(scenario)
+
+	default:
+		http.Error(w, "Méthode non autorisée", http.StatusMethodNotAllowed)
+	}
+}
+
+// HandleScenario gère les opérations sur un scénario spécifique
+func (h *Handler) HandleScenario(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	caseID := r.URL.Query().Get("case_id")
+	scenarioID := r.URL.Query().Get("scenario_id")
+
+	if caseID == "" || scenarioID == "" {
+		http.Error(w, "case_id et scenario_id requis", http.StatusBadRequest)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		scenario, err := h.scenario.GetScenario(caseID, scenarioID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		json.NewEncoder(w).Encode(scenario)
+
+	case http.MethodDelete:
+		if err := h.scenario.DeleteScenario(caseID, scenarioID); err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"message": "Scénario supprimé",
+		})
+
+	default:
+		http.Error(w, "Méthode non autorisée", http.StatusMethodNotAllowed)
+	}
+}
+
+// HandleScenarioSimulate lance une simulation IA pour un scénario
+func (h *Handler) HandleScenarioSimulate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Méthode non autorisée", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	var req struct {
+		CaseID     string `json:"case_id"`
+		ScenarioID string `json:"scenario_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if req.CaseID == "" || req.ScenarioID == "" {
+		http.Error(w, "case_id et scenario_id requis", http.StatusBadRequest)
+		return
+	}
+
+	analysis, err := h.scenario.SimulateWithAI(req.CaseID, req.ScenarioID)
+	if err != nil {
+		http.Error(w, "Erreur simulation: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Récupérer le scénario mis à jour
+	scenario, _ := h.scenario.GetScenario(req.CaseID, req.ScenarioID)
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"analysis": analysis,
+		"scenario": scenario,
+	})
+}
+
+// HandleScenarioCompare compare deux scénarios
+func (h *Handler) HandleScenarioCompare(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Méthode non autorisée", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	var req struct {
+		CaseID      string `json:"case_id"`
+		ScenarioID1 string `json:"scenario1_id"`
+		ScenarioID2 string `json:"scenario2_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if req.CaseID == "" || req.ScenarioID1 == "" || req.ScenarioID2 == "" {
+		http.Error(w, "case_id, scenario1_id et scenario2_id requis", http.StatusBadRequest)
+		return
+	}
+
+	comparison, err := h.scenario.CompareScenarios(req.CaseID, req.ScenarioID1, req.ScenarioID2)
+	if err != nil {
+		http.Error(w, "Erreur comparaison: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(comparison)
+}
+
+// HandleScenarioPropagate propage les implications d'un scénario sur le graphe
+func (h *Handler) HandleScenarioPropagate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Méthode non autorisée", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	var req struct {
+		CaseID     string `json:"case_id"`
+		ScenarioID string `json:"scenario_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if req.CaseID == "" || req.ScenarioID == "" {
+		http.Error(w, "case_id et scenario_id requis", http.StatusBadRequest)
+		return
+	}
+
+	graph, err := h.scenario.PropagateImplications(req.CaseID, req.ScenarioID)
+	if err != nil {
+		http.Error(w, "Erreur propagation: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Récupérer le scénario mis à jour
+	scenario, _ := h.scenario.GetScenario(req.CaseID, req.ScenarioID)
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"graph":    graph,
+		"scenario": scenario,
+	})
+}
+
+// HandleScenarioGenerate génère automatiquement des scénarios avec l'IA
+func (h *Handler) HandleScenarioGenerate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Méthode non autorisée", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	caseID := r.URL.Query().Get("case_id")
+	if caseID == "" {
+		http.Error(w, "case_id requis", http.StatusBadRequest)
+		return
+	}
+
+	scenarios, err := h.scenario.GenerateScenariosWithAI(caseID)
+	if err != nil {
+		http.Error(w, "Erreur génération: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"scenarios": scenarios,
+		"count":     len(scenarios),
+	})
+}
+
+// ============================================
+// Détection d'Anomalies
+// ============================================
+
+// HandleAnomalies gère les opérations sur les anomalies
+func (h *Handler) HandleAnomalies(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	caseID := r.URL.Query().Get("case_id")
+	if caseID == "" {
+		http.Error(w, "case_id requis", http.StatusBadRequest)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		// Lister toutes les anomalies d'un cas
+		anomalies := h.anomaly.GetAnomalies(caseID)
+		json.NewEncoder(w).Encode(anomalies)
+
+	default:
+		http.Error(w, "Méthode non autorisée", http.StatusMethodNotAllowed)
+	}
+}
+
+// HandleAnomalyDetect lance une détection d'anomalies
+func (h *Handler) HandleAnomalyDetect(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Méthode non autorisée", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	var req struct {
+		CaseID string `json:"case_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if req.CaseID == "" {
+		http.Error(w, "case_id requis", http.StatusBadRequest)
+		return
+	}
+
+	result, err := h.anomaly.DetectAnomalies(req.CaseID)
+	if err != nil {
+		http.Error(w, "Erreur détection: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(result)
+}
+
+// HandleAnomaly gère les opérations sur une anomalie spécifique
+func (h *Handler) HandleAnomaly(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	caseID := r.URL.Query().Get("case_id")
+	anomalyID := r.URL.Query().Get("anomaly_id")
+
+	if caseID == "" || anomalyID == "" {
+		http.Error(w, "case_id et anomaly_id requis", http.StatusBadRequest)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		anomaly, err := h.anomaly.GetAnomaly(caseID, anomalyID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		json.NewEncoder(w).Encode(anomaly)
+
+	default:
+		http.Error(w, "Méthode non autorisée", http.StatusMethodNotAllowed)
+	}
+}
+
+// HandleAnomalyAcknowledge marque une anomalie comme acquittée
+func (h *Handler) HandleAnomalyAcknowledge(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Méthode non autorisée", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	var req struct {
+		CaseID    string `json:"case_id"`
+		AnomalyID string `json:"anomaly_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if req.CaseID == "" || req.AnomalyID == "" {
+		http.Error(w, "case_id et anomaly_id requis", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.anomaly.AcknowledgeAnomaly(req.CaseID, req.AnomalyID); err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "Anomalie acquittée",
+	})
+}
+
+// HandleAnomalyExplain génère une explication IA pour une anomalie
+func (h *Handler) HandleAnomalyExplain(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Méthode non autorisée", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	var req struct {
+		CaseID    string `json:"case_id"`
+		AnomalyID string `json:"anomaly_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if req.CaseID == "" || req.AnomalyID == "" {
+		http.Error(w, "case_id et anomaly_id requis", http.StatusBadRequest)
+		return
+	}
+
+	explanation, err := h.anomaly.ExplainAnomaly(req.CaseID, req.AnomalyID)
+	if err != nil {
+		http.Error(w, "Erreur explication: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"explanation": explanation,
+	})
+}
+
+// HandleAnomalyStatistics retourne les statistiques d'anomalies
+func (h *Handler) HandleAnomalyStatistics(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Méthode non autorisée", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	caseID := r.URL.Query().Get("case_id")
+	if caseID == "" {
+		http.Error(w, "case_id requis", http.StatusBadRequest)
+		return
+	}
+
+	stats := h.anomaly.GetStatistics(caseID)
+	json.NewEncoder(w).Encode(stats)
+}
+
+// HandleAnomalyAlerts gère les alertes d'anomalies
+func (h *Handler) HandleAnomalyAlerts(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	caseID := r.URL.Query().Get("case_id")
+	if caseID == "" {
+		http.Error(w, "case_id requis", http.StatusBadRequest)
+		return
+	}
+
+	unreadOnly := r.URL.Query().Get("unread_only") == "true"
+
+	switch r.Method {
+	case http.MethodGet:
+		alerts := h.anomaly.GetAlerts(caseID, unreadOnly)
+		json.NewEncoder(w).Encode(alerts)
+
+	default:
+		http.Error(w, "Méthode non autorisée", http.StatusMethodNotAllowed)
+	}
+}
+
+// HandleAnomalyAlertRead marque une alerte comme lue
+func (h *Handler) HandleAnomalyAlertRead(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Méthode non autorisée", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	var req struct {
+		CaseID  string `json:"case_id"`
+		AlertID string `json:"alert_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if req.CaseID == "" || req.AlertID == "" {
+		http.Error(w, "case_id et alert_id requis", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.anomaly.MarkAlertRead(req.CaseID, req.AlertID); err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "Alerte marquée comme lue",
+	})
+}
+
+// HandleAnomalyConfig gère la configuration de détection d'anomalies
+func (h *Handler) HandleAnomalyConfig(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	caseID := r.URL.Query().Get("case_id")
+	if caseID == "" {
+		http.Error(w, "case_id requis", http.StatusBadRequest)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		config := h.anomaly.GetConfig(caseID)
+		json.NewEncoder(w).Encode(config)
+
+	case http.MethodPut:
+		var config models.AnomalyDetectionConfig
+		if err := json.NewDecoder(r.Body).Decode(&config); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		config.CaseID = caseID
+
+		if err := h.anomaly.UpdateConfig(&config); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"message": "Configuration mise à jour",
+		})
+
+	default:
+		http.Error(w, "Méthode non autorisée", http.StatusMethodNotAllowed)
+	}
 }

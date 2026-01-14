@@ -67,7 +67,12 @@ sleep 2
 echo -e "\n${GREEN}[3/3] Démarrage de l'application Go...${NC}"
 kill_port 8082
 cd "$SCRIPT_DIR"
-go run main.go > "$LOG_DIR/go.log" 2>&1 &
+# Compiler si nécessaire
+if [ ! -f "./forensicinvestigator" ] || [ "main.go" -nt "./forensicinvestigator" ]; then
+    echo -e "  → Compilation en cours..."
+    go build -o forensicinvestigator .
+fi
+./forensicinvestigator > "$LOG_DIR/go.log" 2>&1 &
 GO_PID=$!
 echo $GO_PID > "$PID_DIR/go.pid"
 echo -e "  → PID: $GO_PID"

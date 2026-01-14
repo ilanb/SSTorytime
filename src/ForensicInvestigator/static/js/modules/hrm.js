@@ -215,6 +215,10 @@ const HRMModule = {
     async verifyHypothesisWithHRM(hypothesisId) {
         if (!this.currentCase) return;
 
+        // Normaliser l'ID: convertir les underscores en tirets pour l'API backend
+        // (le N4L utilise des underscores, mais l'API attend des tirets)
+        const normalizedHypothesisId = hypothesisId ? hypothesisId.replace(/_/g, '-') : hypothesisId;
+
         const resultsContainer = document.getElementById('hrm-results');
         resultsContainer.innerHTML = `
             <div class="analysis-loading">
@@ -229,7 +233,7 @@ const HRMModule = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     case_id: this.currentCase.id,
-                    hypothesis_id: hypothesisId,
+                    hypothesis_id: normalizedHypothesisId,
                     strict_mode: false
                 })
             });
@@ -245,9 +249,11 @@ const HRMModule = {
                 hypothesis.confidence_level = newConfidence;
 
                 try {
+                    // Créer une copie avec l'ID normalisé pour l'API
+                    const hypothesisForApi = { ...hypothesis, id: normalizedHypothesisId };
                     await this.apiCall('/api/hypotheses/update', 'POST', {
                         case_id: this.currentCase.id,
-                        hypothesis: hypothesis
+                        hypothesis: hypothesisForApi
                     });
                 } catch (e) {
                     console.error('Erreur sauvegarde hypothèse:', e);
@@ -276,7 +282,10 @@ const HRMModule = {
 
     renderHRMVerificationResult(result) {
         const container = document.getElementById('hrm-results');
-        const hypothesis = this.currentCase.hypotheses?.find(h => h.id === result.hypothesis_id);
+        // Normaliser les IDs pour la comparaison (tirets <-> underscores)
+        const normalizeId = (id) => id ? id.replace(/-/g, '_') : '';
+        const normalizedResultId = normalizeId(result.hypothesis_id);
+        const hypothesis = this.currentCase.hypotheses?.find(h => normalizeId(h.id) === normalizedResultId);
         const supportedClass = result.is_supported ? 'supported' : 'not-supported';
         const iconClass = result.is_supported ? 'check_circle' : 'cancel';
         const newConfidence = Math.round(result.confidence * 100);
@@ -381,13 +390,15 @@ const HRMModule = {
         let updatedCount = 0;
 
         for (const hypothesis of this.currentCase.hypotheses) {
+            // Normaliser l'ID: convertir les underscores en tirets pour l'API backend
+            const normalizedId = hypothesis.id ? hypothesis.id.replace(/_/g, '-') : hypothesis.id;
             try {
                 const response = await fetch('/api/hrm/verify-hypothesis', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         case_id: this.currentCase.id,
-                        hypothesis_id: hypothesis.id,
+                        hypothesis_id: normalizedId,
                         strict_mode: false
                     })
                 });
@@ -402,9 +413,11 @@ const HRMModule = {
 
                     hypothesis.confidence_level = newConfidence;
                     try {
+                        // Créer une copie avec l'ID normalisé pour l'API
+                        const hypothesisForApi = { ...hypothesis, id: normalizedId };
                         await this.apiCall('/api/hypotheses/update', 'POST', {
                             case_id: this.currentCase.id,
-                            hypothesis: hypothesis
+                            hypothesis: hypothesisForApi
                         });
                         updatedCount++;
                     } catch (e) {
@@ -492,23 +505,27 @@ const HRMModule = {
     resolveStatementId(id) {
         if (!this.currentCase) return id;
 
-        const hypothesis = this.currentCase.hypotheses?.find(h => h.id === id);
+        // Normaliser les IDs pour la comparaison (tirets <-> underscores)
+        const normalizeId = (idStr) => idStr ? idStr.replace(/-/g, '_') : '';
+        const normalizedId = normalizeId(id);
+
+        const hypothesis = this.currentCase.hypotheses?.find(h => normalizeId(h.id) === normalizedId);
         if (hypothesis) {
-            const shortDesc = hypothesis.description.length > 60
+            const shortDesc = hypothesis.description && hypothesis.description.length > 60
                 ? hypothesis.description.substring(0, 60) + '...'
-                : hypothesis.description;
-            return `<strong>Hypothèse:</strong> "${shortDesc}"`;
+                : (hypothesis.description || '');
+            return `<strong>Hypothèse:</strong> "${hypothesis.title}"${shortDesc ? ' - ' + shortDesc : ''}`;
         }
 
-        const evidence = this.currentCase.evidence?.find(e => e.id === id);
+        const evidence = this.currentCase.evidence?.find(e => normalizeId(e.id) === normalizedId);
         if (evidence) {
-            const shortDesc = evidence.description.length > 60
+            const shortDesc = evidence.description && evidence.description.length > 60
                 ? evidence.description.substring(0, 60) + '...'
-                : evidence.description;
-            return `<strong>Preuve:</strong> "${shortDesc}"`;
+                : (evidence.description || '');
+            return `<strong>Preuve:</strong> "${evidence.name}"${shortDesc ? ' - ' + shortDesc : ''}`;
         }
 
-        const entity = this.currentCase.entities?.find(e => e.id === id);
+        const entity = this.currentCase.entities?.find(e => normalizeId(e.id) === normalizedId);
         if (entity) {
             return `<strong>Entité:</strong> ${entity.name}`;
         }

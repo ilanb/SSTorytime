@@ -68,6 +68,7 @@ func main() {
 	http.HandleFunc("/api/graph", handler.HandleGraph)
 	http.HandleFunc("/api/cross-case/scan", handler.HandleCrossCase)
 	http.HandleFunc("/api/cross-case/analyze", handler.HandleCrossCaseAnalyze)
+	http.HandleFunc("/api/cross-case/analyze/stream", handler.HandleCrossCaseAnalyzeStream)
 	http.HandleFunc("/api/cross-case/graph", handler.HandleCrossCaseGraph)
 
 	// Routes HRM (Hypothetical Reasoning Model)
@@ -126,6 +127,25 @@ func main() {
 	http.HandleFunc("/api/graph/constrained-paths", handler.HandleConstrainedPaths)
 	http.HandleFunc("/api/graph/dirac-search", handler.HandleDiracSearch)
 	http.HandleFunc("/api/graph/orbits", handler.HandleOrbits)
+
+	// Routes Simulation de Scénarios "What-If"
+	http.HandleFunc("/api/scenarios", handler.HandleScenarios)
+	http.HandleFunc("/api/scenarios/generate", handler.HandleScenarioGenerate)
+	http.HandleFunc("/api/scenario", handler.HandleScenario)
+	http.HandleFunc("/api/scenario/simulate", handler.HandleScenarioSimulate)
+	http.HandleFunc("/api/scenario/compare", handler.HandleScenarioCompare)
+	http.HandleFunc("/api/scenario/propagate", handler.HandleScenarioPropagate)
+
+	// Routes Détection d'Anomalies
+	http.HandleFunc("/api/anomalies", handler.HandleAnomalies)
+	http.HandleFunc("/api/anomaly", handler.HandleAnomaly)
+	http.HandleFunc("/api/anomaly/detect", handler.HandleAnomalyDetect)
+	http.HandleFunc("/api/anomaly/acknowledge", handler.HandleAnomalyAcknowledge)
+	http.HandleFunc("/api/anomaly/explain", handler.HandleAnomalyExplain)
+	http.HandleFunc("/api/anomaly/statistics", handler.HandleAnomalyStatistics)
+	http.HandleFunc("/api/anomaly/alerts", handler.HandleAnomalyAlerts)
+	http.HandleFunc("/api/anomaly/alert/read", handler.HandleAnomalyAlertRead)
+	http.HandleFunc("/api/anomaly/config", handler.HandleAnomalyConfig)
 
 	// Déterminer le répertoire de travail
 	execPath, err := os.Executable()

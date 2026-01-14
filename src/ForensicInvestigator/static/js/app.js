@@ -86,7 +86,9 @@ class ForensicApp {
             typeof CrossCaseModule !== 'undefined' ? CrossCaseModule : null,
             typeof SearchModule !== 'undefined' ? SearchModule : null,
             typeof SocialNetworkModule !== 'undefined' ? SocialNetworkModule : null,
-            typeof GeoMapModule !== 'undefined' ? GeoMapModule : null
+            typeof GeoMapModule !== 'undefined' ? GeoMapModule : null,
+            typeof ScenariosModule !== 'undefined' ? ScenariosModule : null,
+            typeof AnomaliesModule !== 'undefined' ? AnomaliesModule : null
         ];
 
         modules.forEach(module => {
@@ -280,8 +282,17 @@ class ForensicApp {
         if (confirmBtn) {
             confirmBtn.style.display = showConfirmBtn ? '' : 'none';
             confirmBtn.textContent = 'Confirmer';
-            confirmBtn.onclick = () => {
-                if (onConfirm) onConfirm();
+            confirmBtn.onclick = async () => {
+                if (onConfirm) {
+                    try {
+                        const result = await onConfirm();
+                        // Si le callback retourne false, ne pas fermer la modal
+                        if (result === false) return;
+                    } catch (error) {
+                        console.error('Modal confirm error:', error);
+                        return; // Ne pas fermer en cas d'erreur
+                    }
+                }
                 this.closeModal();
             };
         }

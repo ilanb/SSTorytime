@@ -624,6 +624,9 @@ const HypothesesModule = {
     async deleteHypothesis(hypothesisId) {
         if (!confirm('Supprimer cette hypothèse ?')) return;
 
+        // Normaliser l'ID: convertir les underscores en tirets pour l'API backend
+        const normalizedId = hypothesisId ? hypothesisId.replace(/_/g, '-') : hypothesisId;
+
         try {
             // Utiliser le DataProvider si disponible
             if (typeof DataProvider !== 'undefined' && DataProvider.currentCaseId) {
@@ -631,10 +634,10 @@ const HypothesesModule = {
                     await DataProvider.deleteHypothesis(hypothesisId);
                 } catch (dpError) {
                     console.warn('DataProvider.deleteHypothesis failed, falling back to API:', dpError);
-                    await this.apiCall(`/api/hypotheses/delete?case_id=${this.currentCase.id}&hypothesis_id=${hypothesisId}`, 'DELETE');
+                    await this.apiCall(`/api/hypotheses/delete?case_id=${this.currentCase.id}&hypothesis_id=${normalizedId}`, 'DELETE');
                 }
             } else {
-                await this.apiCall(`/api/hypotheses/delete?case_id=${this.currentCase.id}&hypothesis_id=${hypothesisId}`, 'DELETE');
+                await this.apiCall(`/api/hypotheses/delete?case_id=${this.currentCase.id}&hypothesis_id=${normalizedId}`, 'DELETE');
             }
             await this.selectCase(this.currentCase.id);
             this.showToast('Hypothèse supprimée');
@@ -724,6 +727,9 @@ const HypothesesModule = {
         const hypothesis = this.currentCase.hypotheses.find(h => h.id === hypothesisId);
         if (!hypothesis) return;
 
+        // Normaliser l'ID: convertir les underscores en tirets pour l'API backend
+        const normalizedHypothesisId = hypothesisId ? hypothesisId.replace(/_/g, '-') : hypothesisId;
+
         const container = document.getElementById('hypotheses-list');
         const card = container.querySelector(`[data-hypothesis-id="${hypothesisId}"]`);
         if (card) {
@@ -769,7 +775,7 @@ const HypothesesModule = {
                 '/api/hypotheses/analyze/stream',
                 {
                     case_id: this.currentCase.id,
-                    hypothesis_id: hypothesisId,
+                    hypothesis_id: normalizedHypothesisId,
                     hypothesis_title: hypothesis.title,
                     hypothesis_description: hypothesis.description,
                     confidence: hypothesis.confidence_level,

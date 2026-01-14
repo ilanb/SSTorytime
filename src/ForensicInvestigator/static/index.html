@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Forensic Investigator - PEACE & PROGREAI - Aide à l'Enquête</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=21">
+    <link rel="stylesheet" href="/static/css/styles.css?v=30">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
@@ -545,47 +545,46 @@
             </button>
     <button class="nav-btn" data-view="n4l" data-tooltip="Éditer le code N4L source de l'affaire (format texte)" data-tooltip-pos="bottom">
                 <span class="material-icons">code</span>
-                N4L
+               
             </button>
             <button class="nav-btn" data-view="entities" data-tooltip="Gérer les personnes, organisations et lieux de l'affaire" data-tooltip-pos="bottom">
                 <span class="material-icons">people</span>
-                Entités
+               
             </button>
             <button class="nav-btn" data-view="evidence" data-tooltip="Cataloguer et analyser les preuves matérielles et numériques" data-tooltip-pos="bottom">
                 <span class="material-icons">find_in_page</span>
-                Preuves
+                
             </button>
             <button class="nav-btn" data-view="timeline" data-tooltip="Visualiser la chronologie des événements avec superpositions" data-tooltip-pos="bottom">
                 <span class="material-icons">timeline</span>
-                Chronologie
             </button>
             <button class="nav-btn" data-view="hypotheses" data-tooltip="Générer et évaluer des hypothèses d'enquête avec l'IA" data-tooltip-pos="bottom">
                 <span class="material-icons">psychology</span>
-                Hypothèses
             </button>
             <button class="nav-btn" data-view="cross-case" data-tooltip="Rechercher des connexions entre plusieurs affaires" data-tooltip-pos="bottom">
                 <span class="material-icons">hub</span>
-                Connexions
             </button>
             <button class="nav-btn" data-view="hrm" data-tooltip="Human Reasoning Model : raisonnement humain augmenté" data-tooltip-pos="bottom">
                 <span class="material-icons">psychology_alt</span>
-                HRM
+            </button>
+            <button class="nav-btn" data-view="scenarios" data-tooltip="Simulation What-If : explorez des hypothèses alternatives" data-tooltip-pos="bottom">
+                <span class="material-icons">fork_right</span>
+            </button>
+            <button class="nav-btn" data-view="anomalies" data-tooltip="Détection d'anomalies : comportements et patterns suspects" data-tooltip-pos="bottom">
+                <span class="material-icons">warning</span>
+                <span class="nav-badge" id="anomaly-nav-badge" style="display: none;">0</span>
             </button>
             <button class="nav-btn" data-view="investigation" data-tooltip="Recherche sémantique dans les données de l'affaire" data-tooltip-pos="bottom">
                 <span class="material-icons">search</span>
-                Investigation
             </button>
             <button class="nav-btn" data-view="geo-map" data-tooltip="Carte géographique : lieux, trajets et zones de présence" data-tooltip-pos="bottom">
                 <span class="material-icons">map</span>
-                Carte
             </button>
             <button class="nav-btn" data-view="notebook" data-tooltip="Carnet d'investigation : notes, annotations et conclusions" data-tooltip-pos="bottom">
-                <span class="material-icons">menu_book</span>
-                Notebook
+                <span class="material-icons">menu_book</span>  
             </button>
             <button class="nav-btn" data-view="graph-analysis" data-tooltip="Analyse avancée du graphe : centralité, clusters, patterns" data-tooltip-pos="bottom">
                 <span class="material-icons">analytics</span>
-                Analyse Graphe
             </button>
             <button class="nav-btn" data-view="config" data-tooltip="Paramètres de l'application et clés API" data-tooltip-pos="bottom">
                 <span class="material-icons">settings</span>
@@ -2106,6 +2105,163 @@
                     </div>
                 </div>
 
+                <!-- Scenarios What-If View -->
+                <div class="workspace-content hidden" id="view-scenarios">
+                    <div class="scenarios-two-columns">
+                        <!-- Colonne gauche: Scénarios What-If + Détails -->
+                        <div class="scenarios-left-column">
+                            <div class="panel">
+                                <div class="panel-header">
+                                    <span class="panel-title">Scénarios What-If</span>
+                                    <div class="panel-header-actions">
+                                        <button class="btn btn-sm btn-secondary" id="btn-auto-scenarios" onclick="app.generateScenariosAI()" data-tooltip="Générer automatiquement des scénarios basés sur l'affaire">
+                                            <span class="material-icons">auto_awesome</span>
+                                            Auto
+                                        </button>
+                                        <button class="btn btn-sm btn-primary" id="btn-create-scenario" onclick="app.showCreateScenarioModal()">
+                                            <span class="material-icons">add</span>
+                                            Nouveau
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="panel-description">
+                                    <span class="material-icons">info</span>
+                                    <div class="description-text">
+                                        <strong>Simulation What-If</strong> - Explorez des hypothèses alternatives en créant des scénarios. Le système analyse automatiquement les implications et calcule un score de plausibilité pour chaque scénario. Comparez les scénarios côte à côte pour identifier la piste la plus probable.
+                                    </div>
+                                </div>
+                                <div class="panel-content" id="scenarios-list">
+                                    <div class="empty-state">
+                                        <span class="material-icons empty-state-icon">psychology_alt</span>
+                                        <p class="empty-state-title">Aucun scénario</p>
+                                        <p class="empty-state-description">Créez un scénario "What-If" pour explorer différentes hypothèses</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="panel">
+                                <div class="panel-header">
+                                    <span class="panel-title">Détails du Scénario</span>
+                                </div>
+                                <div class="panel-content" id="scenario-detail">
+                                    <div class="empty-state">
+                                        <span class="material-icons empty-state-icon">touch_app</span>
+                                        <p class="empty-state-description">Sélectionnez un scénario pour voir les détails</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Colonne droite: Graphe du Scénario -->
+                        <div class="scenarios-right-column">
+                            <div class="panel">
+                                <div class="panel-header">
+                                    <span class="panel-title">Graphe du Scénario</span>
+                                    <div class="panel-header-actions">
+                                        <button class="btn btn-sm btn-ghost" id="btn-fullscreen-scenario-graph" onclick="app.toggleScenarioGraphFullscreen()" data-tooltip="Plein écran">
+                                            <span class="material-icons">fullscreen</span>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="panel-description">
+                                    <span class="material-icons">info</span>
+                                    <div class="description-text">
+                                        Visualisation du graphe modifié selon les implications du scénario sélectionné.
+                                        Les nœuds en <strong style="color: #f97316;">orange</strong> sont modifiés par le scénario.
+                                    </div>
+                                </div>
+                                <div class="panel-content scenario-graph-panel" style="min-height: 500px;">
+                                    <div id="scenario-graph-container" style="width: 100%; height: 500px;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Anomaly Detection View -->
+                <div class="workspace-content hidden" id="view-anomalies">
+                    <div class="anomalies-two-columns">
+                        <!-- Colonne gauche: Détection + Détails -->
+                        <div class="anomalies-left-column">
+                            <div class="panel">
+                                <div class="panel-header">
+                                    <span class="panel-title">Détection d'Anomalies</span>
+                                    <div>
+                                        <button class="btn btn-sm btn-secondary" id="btn-anomaly-config" onclick="app.showAnomalyConfig()">
+                                            <span class="material-icons">settings</span>
+                                            Configuration
+                                        </button>
+                                        <button class="btn btn-sm btn-primary" id="btn-detect-anomalies" onclick="app.detectAnomalies()">
+                                            <span class="material-icons">radar</span>
+                                            Détecter
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="panel-description">
+                                    <span class="material-icons">info</span>
+                                    <div class="description-text">
+                                        <strong>Détection automatique d'anomalies</strong> - Identifie les comportements inhabituels, transactions suspectes, patterns de communication anormaux et conflits temporels. Cliquez sur <strong>Détecter</strong> pour lancer une analyse complète.
+                                    </div>
+                                </div>
+                                <div id="anomaly-alerts-banner"></div>
+                                <div class="panel-content" id="anomalies-stats">
+                                    <div class="empty-state">
+                                        <span class="material-icons empty-state-icon">insights</span>
+                                        <p class="empty-state-description">Lancez une détection pour voir les statistiques</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="panel">
+                                <div class="panel-header">
+                                    <span class="panel-title">Détails de l'Anomalie</span>
+                                </div>
+                                <div class="panel-content" id="anomaly-detail">
+                                    <div class="empty-state">
+                                        <span class="material-icons empty-state-icon">touch_app</span>
+                                        <p class="empty-state-description">Sélectionnez une anomalie pour voir les détails</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Colonne droite: Liste des anomalies -->
+                        <div class="anomalies-right-column">
+                            <div class="panel panel-full-height">
+                                <div class="panel-header">
+                                    <span class="panel-title">Anomalies Détectées</span>
+                                    <div class="anomaly-filters">
+                                        <select class="form-select form-select-sm" id="anomaly-type-filter" onchange="app.setAnomalyTypeFilter(this.value)">
+                                            <option value="all">Tous les types</option>
+                                            <option value="timeline">Timeline</option>
+                                            <option value="financial">Financier</option>
+                                            <option value="communication">Communication</option>
+                                            <option value="behavior">Comportement</option>
+                                            <option value="location">Localisation</option>
+                                            <option value="relation">Relation</option>
+                                            <option value="pattern">Pattern</option>
+                                        </select>
+                                        <select class="form-select form-select-sm" id="anomaly-severity-filter" onchange="app.setAnomalySeverityFilter(this.value)">
+                                            <option value="all">Toutes sévérités</option>
+                                            <option value="critical">Critique</option>
+                                            <option value="high">Élevé</option>
+                                            <option value="medium">Moyen</option>
+                                            <option value="low">Faible</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="panel-content panel-content-scroll" id="anomalies-list">
+                                    <div class="empty-state">
+                                        <span class="material-icons empty-state-icon">check_circle</span>
+                                        <p class="empty-state-title">Aucune anomalie</p>
+                                        <p class="empty-state-description">Lancez une détection pour identifier des comportements suspects</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
             </main>
         </div>
     </div>
@@ -2491,7 +2647,9 @@
     <script src="/static/js/modules/search.js" defer></script>
     <script src="/static/js/modules/social-network.js?v=5" defer></script>
     <script src="/static/js/modules/geo-map.js?v=8" defer></script>
-    <script src="/static/js/app.js?v=12" defer></script>
+    <script src="/static/js/modules/scenarios.js?v=1" defer></script>
+    <script src="/static/js/modules/anomalies.js?v=1" defer></script>
+    <script src="/static/js/app.js?v=13" defer></script>
 
     <!-- Version monolithique (backup)
     <script src="/static/js/app.js" defer></script>
