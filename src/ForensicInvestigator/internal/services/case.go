@@ -431,9 +431,13 @@ func (s *CaseService) LoadDemoCases(demoCases []*models.Case) int {
 
 	count := 0
 	for _, c := range demoCases {
-		if _, exists := s.cases[c.ID]; !exists {
+		if existing, exists := s.cases[c.ID]; !exists {
+			// Nouveau cas - ajouter
 			s.cases[c.ID] = c
 			count++
+		} else if c.N4LContent != "" && existing.N4LContent != c.N4LContent {
+			// Cas existant mais N4LContent différent - mettre à jour le contenu N4L
+			existing.N4LContent = c.N4LContent
 		}
 	}
 	return count

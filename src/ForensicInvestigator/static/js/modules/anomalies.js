@@ -41,6 +41,7 @@ const AnomaliesModule = {
 
     renderAnomaliesView() {
         this.renderAnomaliesStats();
+        this.renderCausalChainAnomalies();
         this.renderAnomaliesList();
         this.renderAlertsBanner();
     },
@@ -1100,6 +1101,222 @@ const AnomaliesModule = {
             'heuristic': 'Règles heuristiques basées sur l\'expertise métier'
         };
         return tooltips[method] || `Méthode de détection: ${method}`;
+    },
+
+    // ============================================
+    // Causal Chain Anomalies Detection (N4L Advanced Feature)
+    // ============================================
+    renderCausalChainAnomalies() {
+        const container = document.getElementById('anomalies-causal-chains');
+        if (!container) {
+            // Create container if it doesn't exist
+            const statsContainer = document.getElementById('anomalies-stats');
+            if (statsContainer) {
+                const chainContainer = document.createElement('div');
+                chainContainer.id = 'anomalies-causal-chains';
+                statsContainer.parentNode.insertBefore(chainContainer, statsContainer.nextSibling);
+            }
+        }
+
+        const targetContainer = document.getElementById('anomalies-causal-chains');
+        if (!targetContainer) return;
+
+        // Get causal chains from N4L parsed data
+        const causalChains = this.lastN4LParse?.causal_chains || [];
+        if (causalChains.length === 0) {
+            targetContainer.innerHTML = '';
+            return;
+        }
+
+        // Analyze chains for anomalies
+        const chainAnomalies = this.detectCausalChainAnomalies(causalChains);
+
+        if (chainAnomalies.length === 0) {
+            targetContainer.innerHTML = `
+                <div class="causal-chain-anomalies-panel success">
+                    <div class="panel-header">
+                        <span class="material-icons">check_circle</span>
+                        <strong>Chaînes Causales</strong>
+                        <span class="status-badge success">Aucune anomalie</span>
+                    </div>
+                    <p class="panel-message">${causalChains.length} chaîne(s) analysée(s), aucune incohérence détectée.</p>
+                </div>
+            `;
+            return;
+        }
+
+        const criticalCount = chainAnomalies.filter(a => a.severity === 'critical').length;
+        const highCount = chainAnomalies.filter(a => a.severity === 'high').length;
+
+        targetContainer.innerHTML = `
+            <div class="causal-chain-anomalies-panel ${criticalCount > 0 ? 'critical' : highCount > 0 ? 'warning' : 'info'}">
+                <div class="panel-header" onclick="app.toggleCausalChainAnomalies()">
+                    <span class="material-icons">route</span>
+                    <strong>Anomalies dans les Chaînes Causales</strong>
+                    <span class="status-badge ${criticalCount > 0 ? 'critical' : 'warning'}">${chainAnomalies.length} détectée(s)</span>
+                    <span class="material-icons expand-icon">expand_more</span>
+                </div>
+                <div class="panel-content" id="causal-chain-anomalies-content" style="display: none;">
+                    ${chainAnomalies.map(anomaly => `
+                        <div class="chain-anomaly-item ${anomaly.severity}">
+                            <div class="anomaly-header">
+                                <span class="anomaly-type-icon">${this.getChainAnomalyIcon(anomaly.type)}</span>
+                                <span class="anomaly-title">${anomaly.title}</span>
+                                <span class="severity-badge ${anomaly.severity}">${this.getSeverityLabel(anomaly.severity)}</span>
+                            </div>
+                            <p class="anomaly-description">${anomaly.description}</p>
+                            ${anomaly.chain ? `
+                                <div class="anomaly-chain-preview" onclick="app.showView('n4l'); app.highlightCausalChain(${anomaly.chainIndex});">
+                                    <span class="material-icons">visibility</span>
+                                    <span>Voir la chaîne: ${anomaly.chain.context || 'Chaîne ' + (anomaly.chainIndex + 1)}</span>
+                                </div>
+                            ` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    },
+
+    toggleCausalChainAnomalies() {
+        const content = document.getElementById('causal-chain-anomalies-content');
+        const icon = document.querySelector('.causal-chain-anomalies-panel .expand-icon');
+        if (content) {
+            const isHidden = content.style.display === 'none';
+            content.style.display = isHidden ? 'block' : 'none';
+            if (icon) icon.textContent = isHidden ? 'expand_less' : 'expand_more';
+        }
+    },
+
+    detectCausalChainAnomalies(causalChains) {
+        const anomalies = [];
+        const entities = this.currentCase?.entities || [];
+        const entityNames = entities.map(e => (e.name || '').toLowerCase());
+
+        causalChains.forEach((chain, index) => {
+            const steps = chain.steps || [];
+
+            // 1. Detect incomplete chains (single step)
+            if (steps.length === 1) {
+                anomalies.push({
+                    type: 'incomplete_chain',
+                    severity: 'medium',
+                    title: 'Chaîne incomplète',
+                    description: `La chaîne "${chain.context || 'Chaîne ' + (index + 1)}" n'a qu'une seule étape. Une chaîne causale nécessite au moins deux éléments liés.`,
+                    chain,
+                    chainIndex: index
+                });
+            }
+
+            // 2. Detect circular references
+            const stepEntities = steps.map(s => (s.entity || s.label || '').toLowerCase());
+            const uniqueEntities = new Set(stepEntities);
+            if (uniqueEntities.size < stepEntities.length) {
+                anomalies.push({
+                    type: 'circular_reference',
+                    severity: 'high',
+                    title: 'Référence circulaire',
+                    description: `La chaîne "${chain.context || 'Chaîne ' + (index + 1)}" contient des entités en double, suggérant une logique circulaire.`,
+                    chain,
+                    chainIndex: index
+                });
+            }
+
+            // 3. Detect unknown entities in chain
+            const unknownEntities = stepEntities.filter(e =>
+                e && !entityNames.some(name => name.includes(e) || e.includes(name))
+            );
+            if (unknownEntities.length > 0 && unknownEntities.length < stepEntities.length) {
+                anomalies.push({
+                    type: 'unknown_entity',
+                    severity: 'low',
+                    title: 'Entités non résolues',
+                    description: `La chaîne "${chain.context || 'Chaîne ' + (index + 1)}" référence des entités non trouvées dans le dossier: ${unknownEntities.slice(0, 3).join(', ')}${unknownEntities.length > 3 ? '...' : ''}`,
+                    chain,
+                    chainIndex: index
+                });
+            }
+
+            // 4. Detect very long chains (might indicate over-complexity)
+            if (steps.length > 7) {
+                anomalies.push({
+                    type: 'complex_chain',
+                    severity: 'low',
+                    title: 'Chaîne très longue',
+                    description: `La chaîne "${chain.context || 'Chaîne ' + (index + 1)}" a ${steps.length} étapes. Les chaînes très longues peuvent être difficiles à vérifier.`,
+                    chain,
+                    chainIndex: index
+                });
+            }
+
+            // 5. Detect missing relations
+            const missingRelations = steps.filter(s => !s.relation && steps.indexOf(s) < steps.length - 1);
+            if (missingRelations.length > 0) {
+                anomalies.push({
+                    type: 'missing_relation',
+                    severity: 'medium',
+                    title: 'Relations manquantes',
+                    description: `La chaîne "${chain.context || 'Chaîne ' + (index + 1)}" a ${missingRelations.length} relation(s) non spécifiée(s) entre les étapes.`,
+                    chain,
+                    chainIndex: index
+                });
+            }
+        });
+
+        // 6. Check for contradictory chains (same start, different ends)
+        const chainsByStart = {};
+        causalChains.forEach((chain, index) => {
+            const steps = chain.steps || [];
+            if (steps.length > 0) {
+                const start = (steps[0].entity || steps[0].label || '').toLowerCase();
+                if (!chainsByStart[start]) chainsByStart[start] = [];
+                chainsByStart[start].push({ chain, index, end: steps[steps.length - 1] });
+            }
+        });
+
+        Object.entries(chainsByStart).forEach(([start, chains]) => {
+            if (chains.length > 1) {
+                const ends = chains.map(c => (c.end.entity || c.end.label || '').toLowerCase());
+                const uniqueEnds = new Set(ends);
+                if (uniqueEnds.size > 1) {
+                    anomalies.push({
+                        type: 'contradictory_chains',
+                        severity: 'high',
+                        title: 'Chaînes potentiellement contradictoires',
+                        description: `${chains.length} chaînes commencent par "${start}" mais aboutissent à des conclusions différentes. Cela peut indiquer des hypothèses contradictoires.`,
+                        chain: chains[0].chain,
+                        chainIndex: chains[0].index
+                    });
+                }
+            }
+        });
+
+        return anomalies.sort((a, b) => {
+            const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+            return severityOrder[a.severity] - severityOrder[b.severity];
+        });
+    },
+
+    getChainAnomalyIcon(type) {
+        const icons = {
+            'incomplete_chain': '<span class="material-icons">short_text</span>',
+            'circular_reference': '<span class="material-icons">loop</span>',
+            'unknown_entity': '<span class="material-icons">help_outline</span>',
+            'complex_chain': '<span class="material-icons">account_tree</span>',
+            'missing_relation': '<span class="material-icons">link_off</span>',
+            'contradictory_chains': '<span class="material-icons">compare_arrows</span>'
+        };
+        return icons[type] || '<span class="material-icons">warning</span>';
+    },
+
+    getSeverityLabel(severity) {
+        const labels = {
+            'critical': 'Critique',
+            'high': 'Élevée',
+            'medium': 'Moyenne',
+            'low': 'Faible'
+        };
+        return labels[severity] || severity;
     }
 };
 

@@ -182,16 +182,16 @@ const EvidenceModule = {
         // 1. Entités liées - depuis linked_entities OU depuis les arêtes du graphe
         const linkedEntityIds = new Set(evidence.linked_entities || []);
 
-        // Chercher aussi dans les arêtes du graphe (pour les données N4L)
-        if (this.graphEdges && this.graphNodes) {
+        // Chercher aussi dans les arêtes du graphe N4L (pour les données N4L)
+        if (this.n4lGraphEdges && this.n4lGraphNodes) {
             const evidenceName = evidence.name;
-            const allEdges = this.graphEdges.get();
-            const allNodeIds = this.graphNodes.getIds();
+            const allEdges = this.n4lGraphEdges.get();
+            const allNodeIds = this.n4lGraphNodes.getIds();
 
             // Trouver le nœud de la preuve dans le graphe (par ID ou par label)
             let evidenceNodeId = null;
             for (const nodeId of allNodeIds) {
-                const node = this.graphNodes.get(nodeId);
+                const node = this.n4lGraphNodes.get(nodeId);
                 if (nodeId === evidenceId || node.label === evidenceName) {
                     evidenceNodeId = nodeId;
                     break;
@@ -209,7 +209,7 @@ const EvidenceModule = {
                     }
 
                     if (connectedNodeId) {
-                        const connectedNode = this.graphNodes.get(connectedNodeId);
+                        const connectedNode = this.n4lGraphNodes.get(connectedNodeId);
                         if (connectedNode) {
                             // Chercher l'entité correspondante
                             const entity = entityMap[connectedNodeId] || entityMap[connectedNode.label];

@@ -302,7 +302,12 @@ const DashboardModule = {
             document.getElementById('case-title').textContent = this.currentCase.name;
             this.renderCasesList();
             this.renderCaseSummary();
-            this.renderGraph();
+            // Use N4L-based dashboard graph with full functionality
+            if (typeof this.loadDashboardGraph === 'function') {
+                this.loadDashboardGraph();
+            } else {
+                this.renderGraph();
+            }
             this.loadEntities();
             this.loadEvidence();
             this.loadTimeline();

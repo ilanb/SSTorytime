@@ -471,6 +471,7 @@ const GraphModule = {
         const container = document.getElementById('graph-container');
         const panel = container?.closest('.panel');
         const btn = document.getElementById('btn-fullscreen-graph');
+        const sidebar = document.getElementById('graph-fullscreen-sidebar');
 
         if (!panel) {
             console.error('[Graph] Could not find parent panel for fullscreen');
@@ -484,12 +485,20 @@ const GraphModule = {
             if (btn) {
                 btn.innerHTML = '<span class="material-icons">fullscreen</span> Plein écran';
             }
+            // Hide sidebar
+            if (sidebar) {
+                sidebar.style.display = 'none';
+            }
         } else {
             // Enter fullscreen
             panel.classList.add('fullscreen-panel');
             document.body.classList.add('has-fullscreen-panel');
             if (btn) {
                 btn.innerHTML = '<span class="material-icons">fullscreen_exit</span> Quitter';
+            }
+            // Load and show N4L metadata in sidebar
+            if (sidebar) {
+                this.loadGraphFullscreenSidebar(sidebar);
             }
         }
 
@@ -499,6 +508,586 @@ const GraphModule = {
                 this.graph.fit({ animation: true });
             }
         }, 100);
+    },
+
+    // Load N4L metadata into the fullscreen sidebar
+    async loadGraphFullscreenSidebar(sidebar) {
+        if (!this.currentCase?.id) {
+            sidebar.innerHTML = '<div class="empty-state"><p>Sélectionnez une affaire</p></div>';
+            return;
+        }
+
+        try {
+            // Parse N4L to get metadata
+            const response = await fetch('/api/n4l/parse', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ case_id: this.currentCase.id })
+            });
+            const result = await response.json();
+
+            // Store the parsed data for use by filter functions
+            this.dashboardN4LParse = result;
+
+            // Build sidebar HTML (similar to N4L metadata)
+            let html = '';
+
+            // Contexts filter
+            if (result.contexts && result.contexts.length > 0) {
+                html += `
+                    <div class="n4l-section">
+                        <div class="n4l-section-header">
+                            <span class="material-icons">filter_list</span>
+                            <span>Filtrer par contexte</span>
+                            <button class="n4l-reset-btn ${this.dashboardActiveFilter ? '' : 'hidden'}" onclick="app.resetDashboardFilter()" title="Réinitialiser">
+                                <span class="material-icons">refresh</span> Reset
+                            </button>
+                        </div>
+                        <div class="n4l-context-grid">
+                            ${result.contexts.map(ctx => {
+                                const icon = this.getContextIcon ? this.getContextIcon(ctx) : 'label';
+                                return `
+                                    <button class="n4l-context-btn" onclick="app.filterDashboardByContext('${ctx}')">
+                                        <span class="material-icons">${icon}</span>
+                                        <span>${ctx}</span>
+                                    </button>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Causal Chains
+            if (result.causal_chains && result.causal_chains.length > 0) {
+                html += `
+                    <div class="n4l-section n4l-causal-section">
+                        <div class="n4l-section-header n4l-collapsible" onclick="app.toggleN4LSection(this)">
+                            <span class="material-icons">route</span>
+                            <span>Chaînes Causales (${result.causal_chains.length})</span>
+                            <span class="material-icons n4l-expand-icon">expand_more</span>
+                        </div>
+                        <div class="n4l-section-content n4l-collapsed">
+                            <button class="n4l-restore-btn" onclick="event.stopPropagation(); app.resetDashboardFilter();" style="display:none;" id="dashboard-restore-graph-btn">
+                                <span class="material-icons">restore</span> Restaurer le graphe complet
+                            </button>
+                            <div class="n4l-chains-list">
+                                ${result.causal_chains.map((chain, i) => `
+                                    <div class="n4l-chain-item" onclick="app.showDashboardCausalChain(${i})" title="Cliquer pour visualiser">
+                                        <div class="n4l-chain-header">
+                                            <span class="n4l-chain-number">${i + 1}</span>
+                                            <span class="n4l-chain-id">${chain.id || ''}</span>
+                                        </div>
+                                        <div class="n4l-chain-steps">
+                                            ${chain.steps.map((step, j) => `
+                                                <span class="n4l-chain-step">${step.item}</span>
+                                                ${j < chain.steps.length - 1 ? '<span class="n4l-chain-arrow">→</span>' : ''}
+                                            `).join('')}
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Sequences (Chronologie)
+            if (result.sequences && result.sequences.length > 0) {
+                html += `
+                    <div class="n4l-section">
+                        <div class="n4l-section-header n4l-collapsible" onclick="app.toggleN4LSection(this)">
+                            <span class="material-icons">timeline</span>
+                            <span>Chronologie (${result.sequences.length} séquence${result.sequences.length > 1 ? 's' : ''})</span>
+                            <span class="material-icons n4l-expand-icon">expand_more</span>
+                        </div>
+                        <div class="n4l-section-content n4l-collapsed">
+                            ${result.sequences.map((seq, i) => `
+                                <div class="n4l-sequence-item" onclick="app.showDashboardSequence(${i})" title="Cliquer pour visualiser">
+                                    <div class="n4l-sequence-header">
+                                        <span class="n4l-sequence-number">${i + 1}</span>
+                                        <span class="n4l-sequence-count">${seq.length} étapes</span>
+                                    </div>
+                                    <div class="n4l-sequence-preview">
+                                        ${seq.slice(0, 4).join(' → ')}${seq.length > 4 ? ' → ...' : ''}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Hypotheses info
+            const hypAliases = Object.keys(result.aliases || {}).filter(k => k.startsWith('hyp'));
+            if (hypAliases.length > 0) {
+                html += `
+                    <div class="n4l-section">
+                        <div class="n4l-section-header n4l-collapsible" onclick="app.toggleN4LSection(this)">
+                            <span class="material-icons">lightbulb</span>
+                            <span>Hypothèses (${hypAliases.length})</span>
+                            <span class="material-icons n4l-expand-icon">expand_more</span>
+                        </div>
+                        <div class="n4l-section-content n4l-collapsed">
+                            <button class="n4l-context-btn" onclick="app.showDashboardHypotheses()" style="width: 100%;">
+                                <span class="material-icons">visibility</span>
+                                <span>Afficher les hypothèses</span>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Cross References
+            if (result.cross_refs && result.cross_refs.length > 0) {
+                const groupedRefs = {};
+                result.cross_refs.forEach(ref => {
+                    if (!groupedRefs[ref.alias]) groupedRefs[ref.alias] = [];
+                    groupedRefs[ref.alias].push(ref);
+                });
+
+                html += `
+                    <div class="n4l-section">
+                        <div class="n4l-section-header n4l-collapsible" onclick="app.toggleN4LSection(this)">
+                            <span class="material-icons">link</span>
+                            <span>Références Croisées (${result.cross_refs.length})</span>
+                            <span class="material-icons n4l-expand-icon">expand_more</span>
+                        </div>
+                        <div class="n4l-section-content n4l-collapsed">
+                            ${Object.entries(groupedRefs).slice(0, 10).map(([alias, refs]) => `
+                                <div class="n4l-crossref-group">
+                                    <span class="n4l-crossref-alias">$${alias}</span>
+                                    <span class="n4l-crossref-count">(${refs.length})</span>
+                                </div>
+                            `).join('')}
+                            ${Object.keys(groupedRefs).length > 10 ? `<div class="n4l-more">+${Object.keys(groupedRefs).length - 10} autres...</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+
+            sidebar.innerHTML = html || '<div class="empty-state"><p>Aucune métadonnée N4L disponible</p></div>';
+            sidebar.style.display = 'block';
+
+        } catch (error) {
+            console.error('[Graph] Error loading sidebar:', error);
+            sidebar.innerHTML = '<div class="empty-state"><p>Erreur de chargement</p></div>';
+        }
+    },
+
+    // ============================================
+    // Dashboard Graph Filtering (fullscreen sidebar)
+    // ============================================
+    filterDashboardByContext(context) {
+        if (!this.dashboardN4LParse || !this.graph) return;
+
+        // Special cases
+        if (context === 'chaînes causales') {
+            this.showAllDashboardCausalChains();
+            return;
+        }
+        if (context.includes('hypothèse') || context.includes('piste')) {
+            this.showDashboardHypotheses();
+            return;
+        }
+        if (context.toLowerCase().includes('todo') || context.toLowerCase().includes('note')) {
+            this.showToast('Aucune note/TODO dans le graphe', 'info');
+            return;
+        }
+
+        // Filter nodes by context
+        const result = this.dashboardN4LParse;
+        const involvedNodes = new Set();
+
+        // Find nodes with matching context
+        result.graph.nodes.forEach(n => {
+            if (n.context && (n.context === context || n.context.includes(context) || context.includes(n.context))) {
+                involvedNodes.add(n.id);
+            }
+        });
+
+        // Find edges with matching context
+        result.graph.edges.forEach(e => {
+            if (e.context && (e.context === context || e.context.includes(context) || context.includes(e.context))) {
+                involvedNodes.add(e.from);
+                involvedNodes.add(e.to);
+            }
+        });
+
+        if (involvedNodes.size === 0) {
+            this.showToast(`Aucune entité pour "${context}"`, 'info');
+            return;
+        }
+
+        // Update graph visibility
+        const allNodes = this.graphNodes.getIds();
+        const nodeUpdates = allNodes.map(id => ({
+            id,
+            hidden: false,
+            color: involvedNodes.has(id) ? undefined : { background: 'rgba(200,200,200,0.1)', border: 'rgba(200,200,200,0.1)' },
+            font: { color: involvedNodes.has(id) ? '#1a1a2e' : 'rgba(0,0,0,0.05)' },
+            opacity: involvedNodes.has(id) ? 1 : 0.05
+        }));
+        this.graphNodes.update(nodeUpdates);
+
+        // Fit to visible nodes
+        setTimeout(() => {
+            this.graph.fit({
+                nodes: Array.from(involvedNodes),
+                animation: { duration: 400 }
+            });
+        }, 100);
+
+        this.dashboardActiveFilter = context;
+        this.showToast(`Filtré: ${context} (${involvedNodes.size} entités)`);
+    },
+
+    resetDashboardFilter() {
+        if (!this.graph || !this.graphNodes) return;
+
+        // Reset all nodes to original state
+        const allNodes = this.graphNodes.getIds();
+        const nodeUpdates = allNodes.map(id => {
+            const node = this.graphNodes.get(id);
+            return {
+                id,
+                hidden: false,
+                color: node.originalColor || undefined,
+                font: { color: '#1a1a2e' },
+                opacity: 1
+            };
+        });
+        this.graphNodes.update(nodeUpdates);
+
+        // If we replaced the graph with causal chains, reload original
+        if (this.dashboardShowingSpecialView) {
+            this.loadGraph();
+            this.dashboardShowingSpecialView = false;
+        }
+
+        // Hide restore button
+        const restoreBtn = document.getElementById('dashboard-restore-graph-btn');
+        if (restoreBtn) restoreBtn.style.display = 'none';
+
+        this.dashboardActiveFilter = null;
+
+        setTimeout(() => {
+            if (this.graph) this.graph.fit({ animation: true });
+        }, 100);
+
+        this.showToast('Graphe réinitialisé');
+    },
+
+    showDashboardCausalChain(chainIndex) {
+        if (!this.dashboardN4LParse?.causal_chains) return;
+
+        const chain = this.dashboardN4LParse.causal_chains[chainIndex];
+        if (!chain || !chain.steps) return;
+
+        // Create chain nodes
+        const chainNodes = chain.steps.map((step, i) => {
+            const hue = 30 + (i / chain.steps.length) * 30;
+            return {
+                id: `chain_step_${i}`,
+                label: step.item,
+                color: { background: `hsl(${hue}, 90%, 55%)`, border: `hsl(${hue}, 90%, 40%)` },
+                borderWidth: 3,
+                font: { size: 14, color: '#1a1a2e' },
+                shape: 'box',
+                margin: 10
+            };
+        });
+
+        // Create chain edges
+        const chainEdges = [];
+        for (let i = 0; i < chain.steps.length - 1; i++) {
+            chainEdges.push({
+                id: `chain_edge_${i}`,
+                from: `chain_step_${i}`,
+                to: `chain_step_${i + 1}`,
+                label: chain.steps[i].relation || '',
+                arrows: 'to',
+                color: { color: '#f59e0b' },
+                width: 3,
+                font: { size: 12, color: '#666' }
+            });
+        }
+
+        // Replace graph content
+        this.graphNodes.clear();
+        this.graphEdges.clear();
+        this.graphNodes.add(chainNodes);
+        this.graphEdges.add(chainEdges);
+
+        this.dashboardShowingSpecialView = true;
+
+        // Show restore button
+        const restoreBtn = document.getElementById('dashboard-restore-graph-btn');
+        if (restoreBtn) restoreBtn.style.display = 'flex';
+
+        setTimeout(() => {
+            if (this.graph) this.graph.fit({ animation: true });
+        }, 100);
+
+        this.showToast(`Chaîne: ${chain.id || chainIndex + 1} (${chain.steps.length} étapes)`);
+    },
+
+    showAllDashboardCausalChains() {
+        if (!this.dashboardN4LParse?.causal_chains || this.dashboardN4LParse.causal_chains.length === 0) {
+            this.showToast('Aucune chaîne causale', 'warning');
+            return;
+        }
+
+        const chains = this.dashboardN4LParse.causal_chains;
+        const allNodes = [];
+        const allEdges = [];
+
+        const chainColors = [
+            { bg: '#f97316', border: '#ea580c' },
+            { bg: '#3b82f6', border: '#2563eb' },
+            { bg: '#10b981', border: '#059669' },
+            { bg: '#8b5cf6', border: '#7c3aed' },
+            { bg: '#ec4899', border: '#db2777' },
+            { bg: '#06b6d4', border: '#0891b2' }
+        ];
+
+        chains.forEach((chain, chainIndex) => {
+            const color = chainColors[chainIndex % chainColors.length];
+            const yOffset = chainIndex * 150;
+
+            chain.steps.forEach((step, stepIndex) => {
+                allNodes.push({
+                    id: `chain_${chainIndex}_step_${stepIndex}`,
+                    label: step.item,
+                    color: { background: color.bg, border: color.border },
+                    borderWidth: 3,
+                    font: { size: 13, color: '#fff' },
+                    shape: 'box',
+                    margin: 8,
+                    x: stepIndex * 200,
+                    y: yOffset
+                });
+
+                if (stepIndex < chain.steps.length - 1) {
+                    allEdges.push({
+                        id: `chain_${chainIndex}_edge_${stepIndex}`,
+                        from: `chain_${chainIndex}_step_${stepIndex}`,
+                        to: `chain_${chainIndex}_step_${stepIndex + 1}`,
+                        label: step.relation || '',
+                        arrows: 'to',
+                        color: { color: color.bg },
+                        width: 3,
+                        font: { size: 11, color: '#666' }
+                    });
+                }
+            });
+
+            // Chain label
+            allNodes.push({
+                id: `chain_${chainIndex}_label`,
+                label: chain.id || `Chaîne ${chainIndex + 1}`,
+                color: { background: '#1e3a5f', border: '#0f1f33' },
+                font: { size: 12, color: '#fff', bold: true },
+                shape: 'box',
+                margin: 6,
+                x: -150,
+                y: yOffset
+            });
+
+            allEdges.push({
+                id: `chain_${chainIndex}_label_edge`,
+                from: `chain_${chainIndex}_label`,
+                to: `chain_${chainIndex}_step_0`,
+                arrows: 'to',
+                color: { color: '#1e3a5f', opacity: 0.5 },
+                width: 1,
+                dashes: true
+            });
+        });
+
+        this.graphNodes.clear();
+        this.graphEdges.clear();
+        this.graphNodes.add(allNodes);
+        this.graphEdges.add(allEdges);
+
+        this.dashboardShowingSpecialView = true;
+        this.dashboardActiveFilter = 'chaînes causales';
+
+        const restoreBtn = document.getElementById('dashboard-restore-graph-btn');
+        if (restoreBtn) restoreBtn.style.display = 'flex';
+
+        setTimeout(() => {
+            if (this.graph) this.graph.fit({ animation: true });
+        }, 100);
+
+        this.showToast(`${chains.length} chaînes causales`);
+    },
+
+    showDashboardHypotheses() {
+        if (!this.dashboardN4LParse?.aliases) {
+            this.showToast('Aucune hypothèse', 'warning');
+            return;
+        }
+
+        const hypAliases = Object.entries(this.dashboardN4LParse.aliases)
+            .filter(([key]) => key.startsWith('hyp'));
+
+        if (hypAliases.length === 0) {
+            this.showToast('Aucune hypothèse trouvée', 'warning');
+            return;
+        }
+
+        const allNodes = [];
+        const allEdges = [];
+
+        const getConfidenceColor = (content) => {
+            const match = content.match(/(\d+)%/);
+            if (match) {
+                const conf = parseInt(match[1]);
+                if (conf >= 70) return { bg: '#10b981', border: '#059669' };
+                if (conf >= 40) return { bg: '#f59e0b', border: '#d97706' };
+                return { bg: '#ef4444', border: '#dc2626' };
+            }
+            return { bg: '#6b7280', border: '#4b5563' };
+        };
+
+        const getHypName = (content) => {
+            const parenIdx = content.indexOf('(');
+            return parenIdx > 0 ? content.substring(0, parenIdx).trim() : content.trim();
+        };
+
+        allNodes.push({
+            id: 'hyp_center',
+            label: 'HYPOTHÈSES',
+            color: { background: '#1e3a5f', border: '#0f1f33' },
+            font: { size: 16, color: '#fff', bold: true },
+            shape: 'box',
+            margin: 12,
+            x: 0,
+            y: 0
+        });
+
+        hypAliases.forEach(([aliasKey, values], i) => {
+            const content = values[0] || aliasKey;
+            const color = getConfidenceColor(content);
+            const name = getHypName(content);
+            const angle = (2 * Math.PI * i) / hypAliases.length;
+            const radius = 200;
+
+            allNodes.push({
+                id: `hyp_${i}`,
+                label: name,
+                color: { background: color.bg, border: color.border },
+                borderWidth: 3,
+                font: { size: 12, color: '#fff' },
+                shape: 'box',
+                margin: 10,
+                x: Math.cos(angle) * radius,
+                y: Math.sin(angle) * radius
+            });
+
+            allEdges.push({
+                id: `hyp_edge_${i}`,
+                from: 'hyp_center',
+                to: `hyp_${i}`,
+                color: { color: color.bg, opacity: 0.7 },
+                width: 2,
+                dashes: true
+            });
+        });
+
+        this.graphNodes.clear();
+        this.graphEdges.clear();
+        this.graphNodes.add(allNodes);
+        this.graphEdges.add(allEdges);
+
+        this.dashboardShowingSpecialView = true;
+        this.dashboardActiveFilter = 'hypothèses';
+
+        const restoreBtn = document.getElementById('dashboard-restore-graph-btn');
+        if (restoreBtn) restoreBtn.style.display = 'flex';
+
+        setTimeout(() => {
+            if (this.graph) this.graph.fit({ animation: true });
+        }, 100);
+
+        this.showToast(`${hypAliases.length} hypothèses`);
+    },
+
+    showDashboardSequence(seqIndex) {
+        if (!this.dashboardN4LParse?.sequences) return;
+
+        const seq = this.dashboardN4LParse.sequences[seqIndex];
+        if (!seq || seq.length === 0) return;
+
+        // Create sequence nodes
+        const seqNodes = seq.map((item, i) => ({
+            id: `seq_step_${i}`,
+            label: item,
+            color: { background: '#3b82f6', border: '#2563eb' },
+            borderWidth: 3,
+            font: { size: 13, color: '#fff' },
+            shape: 'box',
+            margin: 10,
+            x: i * 180,
+            y: 0
+        }));
+
+        // Create sequence edges
+        const seqEdges = [];
+        for (let i = 0; i < seq.length - 1; i++) {
+            seqEdges.push({
+                id: `seq_edge_${i}`,
+                from: `seq_step_${i}`,
+                to: `seq_step_${i + 1}`,
+                arrows: 'to',
+                color: { color: '#3b82f6' },
+                width: 3
+            });
+        }
+
+        this.graphNodes.clear();
+        this.graphEdges.clear();
+        this.graphNodes.add(seqNodes);
+        this.graphEdges.add(seqEdges);
+
+        this.dashboardShowingSpecialView = true;
+
+        const restoreBtn = document.getElementById('dashboard-restore-graph-btn');
+        if (restoreBtn) restoreBtn.style.display = 'flex';
+
+        setTimeout(() => {
+            if (this.graph) this.graph.fit({ animation: true });
+        }, 100);
+
+        this.showToast(`Séquence ${seqIndex + 1}: ${seq.length} étapes`);
+    },
+
+    // Get icon for context (same as N4LModule)
+    getContextIcon(context) {
+        const icons = {
+            'victimes': 'person_off',
+            'suspects': 'person_search',
+            'témoins': 'record_voice_over',
+            'lieux': 'place',
+            'objets': 'category',
+            'preuves': 'verified',
+            'indices': 'search',
+            'chronologie': 'schedule',
+            'hypothèses': 'lightbulb',
+            'pistes': 'explore',
+            'réseau': 'share',
+            'relations': 'people',
+            'chaînes': 'route',
+            'todo': 'checklist',
+            'notes': 'note'
+        };
+
+        const lowerCtx = context.toLowerCase();
+        for (const [key, icon] of Object.entries(icons)) {
+            if (lowerCtx.includes(key)) return icon;
+        }
+        return 'label';
     },
 
     // ============================================

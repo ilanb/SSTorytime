@@ -33,6 +33,9 @@ const HypothesesModule = {
             evidenceMap[ev.id] = ev;
         });
 
+        // Get causal chains from N4L parsed data
+        const causalChains = this.lastN4LParse?.causal_chains || [];
+
         container.innerHTML = hypotheses.map(h => {
             const statusClass = this.getHypothesisStatusClass(h.status);
             const statusLabel = this.getHypothesisStatusLabel(h.status);
@@ -43,6 +46,9 @@ const HypothesesModule = {
 
             const supportingEvidence = (h.supporting_evidence || []).map(id => evidenceMap[id]).filter(Boolean);
             const contradictingEvidence = (h.contradicting_evidence || []).map(id => evidenceMap[id]).filter(Boolean);
+
+            // Find related causal chains based on hypothesis content
+            const relatedChains = this.findRelatedCausalChains(h, causalChains);
 
             return `
             <div class="hypothesis-card ${statusClass} ${confidenceClass}" data-hypothesis-id="${h.id}" data-status="${h.status}" data-confidence="${h.confidence_level}" data-origin="${h.generated_by || 'user'}">
@@ -90,6 +96,23 @@ const HypothesesModule = {
                     <div class="hypothesis-questions" onclick="app.showHypothesisQuestions('${h.id}')" style="cursor: pointer;" data-tooltip="Cliquer pour voir les questions">
                         <span class="material-icons">help_outline</span>
                         <span>${h.questions.length} question(s) à explorer</span>
+                    </div>
+                ` : ''}
+
+                ${relatedChains.length > 0 ? `
+                    <div class="hypothesis-causal-chains">
+                        <span class="causal-chains-label">
+                            <span class="material-icons">route</span>
+                            Chaînes causales liées (${relatedChains.length}):
+                        </span>
+                        <div class="causal-chains-list">
+                            ${relatedChains.map(chain => `
+                                <div class="hypothesis-chain-item" onclick="app.showHypothesisCausalChain(${chain.index})" data-tooltip="Cliquer pour visualiser">
+                                    <span class="chain-relevance ${chain.relevance > 50 ? 'high' : 'medium'}">${chain.relevance}%</span>
+                                    <span class="chain-preview">${chain.preview}</span>
+                                </div>
+                            `).join('')}
+                        </div>
                     </div>
                 ` : ''}
 
@@ -341,9 +364,34 @@ const HypothesesModule = {
             evidenceMap[e.name] = e;
         });
 
+        // Créer une map des entités par ID et nom
+        const entityMap = {};
+        (this.currentCase.entities || []).forEach(e => {
+            entityMap[e.id] = e;
+            entityMap[normalizeId(e.id)] = e;
+            entityMap[e.name] = e;
+        });
+
+        // Fonction pour résoudre les références N4L ($alias.n)
+        const resolveN4LRef = (ref) => {
+            if (!ref) return null;
+            // Si c'est une référence N4L ($alias.n), essayer de la résoudre
+            if (ref.startsWith('$') && this.lastN4LParse?.cross_refs) {
+                const crossRef = this.lastN4LParse.cross_refs.find(cr =>
+                    `$${cr.alias}.${cr.index}` === ref
+                );
+                if (crossRef?.resolved) {
+                    return crossRef.resolved;
+                }
+            }
+            return ref;
+        };
+
         const nodes = [];
         const edges = [];
+        const addedNodeIds = new Set();
 
+        // Noeud central: l'hypothèse
         nodes.push({
             id: hypothesis.id,
             label: hypothesis.title,
@@ -351,43 +399,66 @@ const HypothesesModule = {
             shape: 'box',
             font: { color: 'white' }
         });
+        addedNodeIds.add(hypothesis.id);
 
-        (hypothesis.supporting_evidence || []).forEach(evId => {
-            // Chercher par ID, ID normalisé, ou par nom
-            const ev = evidenceMap[evId] || evidenceMap[normalizeId(evId)];
-            if (ev) {
+        // Ajouter les preuves à l'appui
+        (hypothesis.supporting_evidence || []).forEach(evRef => {
+            // Résoudre la référence N4L si nécessaire
+            const resolvedRef = resolveN4LRef(evRef);
+
+            // Chercher par référence originale, résolue, ID, ID normalisé, ou par nom
+            const ev = evidenceMap[evRef] || evidenceMap[resolvedRef] ||
+                       evidenceMap[normalizeId(evRef)] || entityMap[evRef] ||
+                       entityMap[resolvedRef] || entityMap[normalizeId(evRef)];
+
+            const nodeId = ev?.id || evRef;
+            const nodeLabel = ev?.name || resolvedRef || evRef;
+
+            if (!addedNodeIds.has(nodeId)) {
                 nodes.push({
-                    id: ev.id,
-                    label: ev.name,
+                    id: nodeId,
+                    label: nodeLabel,
                     color: '#22c55e',
                     shape: 'ellipse'
                 });
-                edges.push({
-                    from: ev.id,
-                    to: hypothesis.id,
-                    label: 'soutient',
-                    color: '#22c55e'
-                });
+                addedNodeIds.add(nodeId);
             }
+            edges.push({
+                from: nodeId,
+                to: hypothesis.id,
+                label: 'soutient',
+                color: '#22c55e'
+            });
         });
 
-        (hypothesis.contradicting_evidence || []).forEach(evId => {
-            // Chercher par ID, ID normalisé, ou par nom
-            const ev = evidenceMap[evId] || evidenceMap[normalizeId(evId)];
-            if (ev) {
+        // Ajouter les preuves contradictoires
+        (hypothesis.contradicting_evidence || []).forEach(evRef => {
+            // Résoudre la référence N4L si nécessaire
+            const resolvedRef = resolveN4LRef(evRef);
+
+            // Chercher par référence originale, résolue, ID, ID normalisé, ou par nom
+            const ev = evidenceMap[evRef] || evidenceMap[resolvedRef] ||
+                       evidenceMap[normalizeId(evRef)] || entityMap[evRef] ||
+                       entityMap[resolvedRef] || entityMap[normalizeId(evRef)];
+
+            const nodeId = ev?.id || evRef;
+            const nodeLabel = ev?.name || resolvedRef || evRef;
+
+            if (!addedNodeIds.has(nodeId)) {
                 nodes.push({
-                    id: ev.id,
-                    label: ev.name,
+                    id: nodeId,
+                    label: nodeLabel,
                     color: '#ef4444',
                     shape: 'ellipse'
                 });
-                edges.push({
-                    from: ev.id,
-                    to: hypothesis.id,
-                    label: 'contredit',
-                    color: '#ef4444'
-                });
+                addedNodeIds.add(nodeId);
             }
+            edges.push({
+                from: nodeId,
+                to: hypothesis.id,
+                label: 'contredit',
+                color: '#ef4444'
+            });
         });
 
         const content = `
@@ -425,21 +496,71 @@ const HypothesesModule = {
         if (!hypothesis) return;
 
         const allEvidence = this.currentCase.evidence || [];
+        const allEntities = this.currentCase.entities || [];
         const supportingIds = hypothesis.supporting_evidence || [];
         const contradictingIds = hypothesis.contradicting_evidence || [];
 
         // Normalize ID function to handle dash vs underscore differences
         const normalizeId = (id) => id ? id.replace(/-/g, '_') : '';
 
-        // Create normalized sets for comparison
-        const normalizedSupportingIds = supportingIds.map(normalizeId);
-        const normalizedContradictingIds = contradictingIds.map(normalizeId);
+        // Resolve N4L references like $brouillon.1 to their actual names
+        const resolveN4LRef = (ref) => {
+            if (!ref) return null;
+            if (ref.startsWith('$') && this.lastN4LParse?.cross_refs) {
+                const crossRef = this.lastN4LParse.cross_refs.find(cr =>
+                    `$${cr.alias}.${cr.index}` === ref
+                );
+                if (crossRef?.resolved) {
+                    return crossRef.resolved;
+                }
+            }
+            return ref;
+        };
 
-        // Helper to check if evidence is in a list (checks both original and normalized)
-        const isInList = (evId, normalizedList, originalList) => {
-            return originalList.includes(evId) ||
-                   normalizedList.includes(normalizeId(evId)) ||
-                   originalList.some(id => normalizeId(id) === normalizeId(evId));
+        // Create evidence and entity maps for lookup
+        const evidenceMap = new Map();
+        allEvidence.forEach(ev => {
+            evidenceMap.set(ev.id, ev);
+            evidenceMap.set(normalizeId(ev.id), ev);
+            if (ev.name) {
+                evidenceMap.set(ev.name, ev);
+                evidenceMap.set(normalizeId(ev.name), ev);
+            }
+        });
+
+        const entityMap = new Map();
+        allEntities.forEach(ent => {
+            entityMap.set(ent.id, ent);
+            entityMap.set(normalizeId(ent.id), ent);
+            if (ent.name) {
+                entityMap.set(ent.name, ent);
+                entityMap.set(normalizeId(ent.name), ent);
+            }
+        });
+
+        // Helper to check if evidence matches a reference (handles N4L refs)
+        const matchesRef = (ev, ref) => {
+            if (!ref) return false;
+
+            // Direct ID match
+            if (ref === ev.id || normalizeId(ref) === normalizeId(ev.id)) return true;
+
+            // Name match
+            if (ev.name && (ref === ev.name || normalizeId(ref) === normalizeId(ev.name))) return true;
+
+            // Resolve N4L reference and check
+            const resolved = resolveN4LRef(ref);
+            if (resolved && resolved !== ref) {
+                if (resolved === ev.id || normalizeId(resolved) === normalizeId(ev.id)) return true;
+                if (ev.name && (resolved === ev.name || normalizeId(resolved) === normalizeId(ev.name))) return true;
+            }
+
+            return false;
+        };
+
+        // Helper to check if evidence is in a list (checks original, normalized, and N4L refs)
+        const isInList = (ev, refList) => {
+            return refList.some(ref => matchesRef(ev, ref));
         };
 
         const content = `
@@ -454,7 +575,7 @@ const HypothesesModule = {
                     <h4><span class="material-icons" style="color: #22c55e;">check_circle</span> Preuves à l'appui</h4>
                     <div class="evidence-checkboxes">
                         ${allEvidence.map(ev => {
-                            const isSupporting = isInList(ev.id, normalizedSupportingIds, supportingIds);
+                            const isSupporting = isInList(ev, supportingIds);
                             return `
                             <label class="evidence-checkbox ${isSupporting ? 'selected' : ''}">
                                 <input type="checkbox" name="supporting" value="${ev.id}" ${isSupporting ? 'checked' : ''}>
@@ -467,7 +588,7 @@ const HypothesesModule = {
                     <h4><span class="material-icons" style="color: #ef4444;">cancel</span> Preuves contradictoires</h4>
                     <div class="evidence-checkboxes">
                         ${allEvidence.map(ev => {
-                            const isContradicting = isInList(ev.id, normalizedContradictingIds, contradictingIds);
+                            const isContradicting = isInList(ev, contradictingIds);
                             return `
                             <label class="evidence-checkbox ${isContradicting ? 'selected' : ''}">
                                 <input type="checkbox" name="contradicting" value="${ev.id}" ${isContradicting ? 'checked' : ''}>
@@ -789,6 +910,98 @@ const HypothesesModule = {
         } finally {
             if (card) card.classList.remove('analyzing');
         }
+    },
+
+    // ============================================
+    // Causal Chains Integration (N4L Advanced Feature)
+    // ============================================
+    findRelatedCausalChains(hypothesis, causalChains) {
+        if (!hypothesis || !causalChains || causalChains.length === 0) return [];
+
+        const hypothesisText = `${hypothesis.title || ''} ${hypothesis.description || ''}`.toLowerCase();
+        const relatedChains = [];
+
+        causalChains.forEach((chain, index) => {
+            let relevanceScore = 0;
+            const steps = chain.steps || [];
+            const matchedSteps = [];
+
+            // Check each step in the chain for relevance to hypothesis
+            steps.forEach(step => {
+                const stepText = (step.entity || step.label || '').toLowerCase();
+                if (stepText && hypothesisText.includes(stepText)) {
+                    relevanceScore += 30;
+                    matchedSteps.push(stepText);
+                }
+            });
+
+            // Check chain context relevance
+            const context = (chain.context || '').toLowerCase();
+            if (context && hypothesisText.includes(context)) {
+                relevanceScore += 20;
+            }
+
+            // Bonus for chains with mobile/motive keywords
+            const mobileKeywords = ['mobile', 'motive', 'héritage', 'argent', 'vengeance', 'jalousie'];
+            if (mobileKeywords.some(kw => hypothesisText.includes(kw) && steps.some(s => (s.entity || '').toLowerCase().includes(kw)))) {
+                relevanceScore += 25;
+            }
+
+            if (relevanceScore > 0) {
+                // Create preview of chain
+                const preview = steps.slice(0, 3).map(s => s.entity || s.label || '?').join(' → ') +
+                    (steps.length > 3 ? ' → ...' : '');
+
+                relatedChains.push({
+                    index,
+                    chain,
+                    relevance: Math.min(relevanceScore, 100),
+                    matchedSteps,
+                    preview,
+                    context: chain.context || 'Général'
+                });
+            }
+        });
+
+        // Sort by relevance and return top 3
+        return relatedChains.sort((a, b) => b.relevance - a.relevance).slice(0, 3);
+    },
+
+    showHypothesisCausalChain(chainIndex) {
+        const causalChains = this.lastN4LParse?.causal_chains || [];
+        const chain = causalChains[chainIndex];
+        if (!chain) return;
+
+        // Create modal to display causal chain
+        const steps = chain.steps || [];
+        const modalHtml = `
+            <div class="hypothesis-chain-modal">
+                <div class="chain-modal-header">
+                    <span class="material-icons">route</span>
+                    <h3>Chaîne Causale: ${chain.context || 'Chaîne ' + (chainIndex + 1)}</h3>
+                </div>
+                <div class="chain-modal-content">
+                    <div class="chain-visualization">
+                        ${steps.map((step, i) => `
+                            <div class="chain-step-card">
+                                <span class="step-number">${i + 1}</span>
+                                <span class="step-entity">${step.entity || step.label || '?'}</span>
+                                ${step.relation ? `<span class="step-relation">${step.relation}</span>` : ''}
+                            </div>
+                            ${i < steps.length - 1 ? '<div class="chain-connector"><span class="material-icons">arrow_downward</span></div>' : ''}
+                        `).join('')}
+                    </div>
+                    <div class="chain-actions">
+                        <button class="btn btn-primary" onclick="app.showView('n4l'); app.highlightCausalChain(${chainIndex}); app.closeModal();">
+                            <span class="material-icons">visibility</span>
+                            Voir sur le graphe N4L
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        this.showModal('Chaîne Causale', modalHtml, { width: '500px' });
     }
 };
 

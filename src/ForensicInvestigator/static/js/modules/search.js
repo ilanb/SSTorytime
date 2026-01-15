@@ -360,9 +360,11 @@ const SearchModule = {
     },
 
     focusOnEntity(entityId) {
-        if (!this.graph) return;
-        this.graph.focus(entityId, { scale: 1.5, animation: true });
-        this.graph.selectNodes([entityId]);
+        // Use N4L graph if available, fallback to old graph
+        const activeGraph = this.n4lGraph || this.graph;
+        if (!activeGraph) return;
+        activeGraph.focus(entityId, { scale: 1.5, animation: true });
+        activeGraph.selectNodes([entityId]);
     },
 
     // ============================================
@@ -498,21 +500,24 @@ const SearchModule = {
 
             // Attendre un court instant que le graphe soit rendu
             setTimeout(() => {
-                if (this.graph) {
+                // Utiliser le graphe N4L s'il est disponible, sinon fallback sur l'ancien graphe
+                const activeGraph = this.n4lGraph || this.graph;
+                if (activeGraph) {
                     try {
                         // Vérifier si le noeud existe dans le graphe
-                        const nodeIds = this.graph.body.data.nodes.getIds();
+                        const nodeIds = activeGraph.body.data.nodes.getIds();
                         if (nodeIds.includes(id)) {
-                            this.graph.focus(id, { scale: 1.5, animation: { duration: 500, easingFunction: 'easeInOutQuad' } });
-                            this.graph.selectNodes([id]);
+                            activeGraph.focus(id, { scale: 1.5, animation: { duration: 500, easingFunction: 'easeInOutQuad' } });
+                            activeGraph.selectNodes([id]);
                             this.showToast('Entité sélectionnée dans le graphe');
                         } else {
                             // Le noeud n'est pas dans la vue actuelle, recharger le graphe complet
-                            if (typeof this.renderGraph === 'function') this.renderGraph();
+                            if (typeof this.loadDashboardGraph === 'function') this.loadDashboardGraph();
                             setTimeout(() => {
-                                if (this.graph) {
-                                    this.graph.focus(id, { scale: 1.5, animation: { duration: 500 } });
-                                    this.graph.selectNodes([id]);
+                                const g = this.n4lGraph || this.graph;
+                                if (g) {
+                                    g.focus(id, { scale: 1.5, animation: { duration: 500 } });
+                                    g.selectNodes([id]);
                                 }
                             }, 500);
                             this.showToast('Graphe rechargé - Entité sélectionnée');
@@ -854,24 +859,27 @@ const SearchModule = {
     previewInference(index) {
         if (!this.inferredRelations) return;
         const inf = this.inferredRelations[index];
-        if (!inf || !this.graph) return;
+        // Use N4L graph if available, fallback to old graph
+        const activeGraph = this.n4lGraph || this.graph;
+        if (!inf || !activeGraph) return;
 
         // Highlight the two nodes
-        const allNodes = this.graph.body.data.nodes.get();
+        const allNodes = activeGraph.body.data.nodes.get();
         const updatedNodes = allNodes.map(node => {
             if (node.id === inf.fromId || node.id === inf.toId) {
                 return { ...node, color: { background: '#8b5cf6', border: '#6d28d9' } };
             }
             return node;
         });
-        this.graph.body.data.nodes.update(updatedNodes);
+        activeGraph.body.data.nodes.update(updatedNodes);
 
         // Focus on the nodes
-        this.graph.fit({ nodes: [inf.fromId, inf.toId], animation: true });
+        activeGraph.fit({ nodes: [inf.fromId, inf.toId], animation: true });
 
         // Reset after delay (8 seconds for better visualization)
         setTimeout(() => {
-            if (typeof this.renderGraph === 'function') this.renderGraph();
+            if (typeof this.loadDashboardGraph === 'function') this.loadDashboardGraph();
+            else if (typeof this.renderGraph === 'function') this.renderGraph();
         }, 8000);
     },
 

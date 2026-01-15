@@ -35,12 +35,19 @@ type N4LService struct {
 	neverRegex *regexp.Regexp // \never
 	newRegex   *regexp.Regexp // \new
 
+	// Marqueurs implicites N4L
+	implicitMarkerRegex *regexp.Regexp // =motcle, *motcle, .motcle
+	quotedStringRegex   *regexp.Regexp // "texte multi-ligne" ou 'texte'
+
 	// Séquences et sections
 	sectionRegex  *regexp.Regexp // -section/chapter
 	sequenceMode  bool
 	currentAlias  string
 	aliases       map[string][]string
 	previousItems []string
+
+	// Cache des références pour résolution $alias.n
+	aliasItemsCache map[string][]string // Cache alias -> liste d'items extraits
 }
 
 // NewN4LService crée une nouvelle instance du service N4L avec support complet
@@ -69,26 +76,61 @@ func NewN4LService() *N4LService {
 		neverRegex: regexp.MustCompile(`^\\never\s+(.+)$`),
 		newRegex:   regexp.MustCompile(`^\\new\s+(.+)$`),
 
+		// Marqueurs implicites N4L: =motcle (définition), *motcle (important), .motcle (référence)
+		// Note: on évite de matcher .N qui fait partie de $alias.N
+		// Utilise \p{L} pour matcher les lettres Unicode (accents français)
+		implicitMarkerRegex: regexp.MustCompile(`(?:^|[^$\p{L}\d_])([=*])([\p{L}_][\p{L}\d_]*)|(?:^|\s)(\.([\p{L}_][\p{L}\d_]*))`),
+		quotedStringRegex:   regexp.MustCompile(`^["'](.+?)["']$`),
+
 		// Sections
 		sectionRegex: regexp.MustCompile(`^-(\w+(?:/\w+)*)$`),
 
 		// État
-		sequenceMode:  false,
-		aliases:       make(map[string][]string),
-		previousItems: []string{},
+		sequenceMode:    false,
+		aliases:         make(map[string][]string),
+		previousItems:   []string{},
+		aliasItemsCache: make(map[string][]string),
 	}
 }
 
 // ParsedN4L représente les données parsées d'un fichier N4L
 type ParsedN4L struct {
-	Notes      map[string][]string `json:"notes"`
-	Subjects   []string            `json:"subjects"`
-	Graph      models.GraphData    `json:"graph"`
-	Sections   []string            `json:"sections"`
-	Aliases    map[string][]string `json:"aliases"`
-	Contexts   []string            `json:"contexts"`
-	Sequences  [][]string          `json:"sequences"`
-	TodoItems  []string            `json:"todo_items"`
+	Notes           map[string][]string   `json:"notes"`
+	Subjects        []string              `json:"subjects"`
+	Graph           models.GraphData      `json:"graph"`
+	Sections        []string              `json:"sections"`
+	Aliases         map[string][]string   `json:"aliases"`
+	Contexts        []string              `json:"contexts"`
+	Sequences       [][]string            `json:"sequences"`
+	TodoItems       []string              `json:"todo_items"`
+	// Nouvelles structures N4L avancées
+	CausalChains    []CausalChain         `json:"causal_chains"`    // Chaînes A (rel) B (rel) C
+	ImplicitMarkers map[string][]string   `json:"implicit_markers"` // =def, *important, .ref
+	CrossRefs       []CrossReference      `json:"cross_refs"`       // $alias.n références
+}
+
+// CausalChain représente une chaîne de relations causales N4L
+// Exemple: Crime (mène à) Enquête (mène à) Arrestation (mène à) Procès
+type CausalChain struct {
+	ID       string          `json:"id"`
+	Context  string          `json:"context"`
+	Steps    []ChainStep     `json:"steps"`
+	STType   STType          `json:"st_type"` // Type sémantique dominant
+}
+
+// ChainStep représente une étape dans une chaîne causale
+type ChainStep struct {
+	Item     string `json:"item"`     // L'élément (noeud)
+	Relation string `json:"relation"` // Relation vers le prochain élément
+	Index    int    `json:"index"`    // Position dans la chaîne
+}
+
+// CrossReference représente une référence croisée $alias.n
+type CrossReference struct {
+	Alias    string `json:"alias"`
+	Index    int    `json:"index"`     // Le .n dans $alias.n
+	Resolved string `json:"resolved"`  // Valeur résolue
+	Line     int    `json:"line"`      // Ligne source
 }
 
 // ForensicParsedN4L étend ParsedN4L avec les structures forensiques complètes
@@ -154,13 +196,16 @@ type HypothesisAttributes struct {
 // ParseN4L parse le contenu d'un fichier N4L avec support complet SSTorytime
 func (s *N4LService) ParseN4L(content string) ParsedN4L {
 	result := ParsedN4L{
-		Notes:     make(map[string][]string),
-		Subjects:  []string{},
-		Sections:  []string{},
-		Aliases:   make(map[string][]string),
-		Contexts:  []string{},
-		Sequences: [][]string{},
-		TodoItems: []string{},
+		Notes:           make(map[string][]string),
+		Subjects:        []string{},
+		Sections:        []string{},
+		Aliases:         make(map[string][]string),
+		Contexts:        []string{},
+		Sequences:       [][]string{},
+		TodoItems:       []string{},
+		CausalChains:    []CausalChain{},
+		ImplicitMarkers: make(map[string][]string),
+		CrossRefs:       []CrossReference{},
 		Graph: models.GraphData{
 			Nodes: []models.GraphNode{},
 			Edges: []models.GraphEdge{},
@@ -169,6 +214,7 @@ func (s *N4LService) ParseN4L(content string) ParsedN4L {
 
 	// Reset l'état du parser
 	s.aliases = make(map[string][]string)
+	s.aliasItemsCache = make(map[string][]string)
 	s.previousItems = []string{}
 	s.sequenceMode = false
 	s.currentAlias = ""
@@ -182,7 +228,8 @@ func (s *N4LService) ParseN4L(content string) ParsedN4L {
 
 	lines := strings.Split(content, "\n")
 
-	for _, line := range lines {
+	for lineNum, line := range lines {
+		lineNum++ // 1-indexed pour les messages d'erreur
 		line = strings.TrimSpace(line)
 
 		// Ignorer lignes vides et commentaires
@@ -277,31 +324,51 @@ func (s *N4LService) ParseN4L(content string) ParsedN4L {
 			aliasName := matches[1]
 			aliasContent := matches[2]
 			s.currentAlias = aliasName
-			s.aliases[aliasName] = []string{aliasContent}
-			result.Aliases[aliasName] = []string{aliasContent}
-			line = aliasContent // Continuer à parser le contenu
+
+			// Résoudre les références $alias.n dans le contenu de l'alias AVANT de le stocker
+			// Ceci permet de résoudre des lignes comme "@evt_09 29/08/2025 19:15 $victime.1 boit son thé"
+			resolvedContent := s.aliasRefRegex.ReplaceAllStringFunc(aliasContent, func(ref string) string {
+				refMatches := s.aliasRefRegex.FindStringSubmatch(ref)
+				if len(refMatches) == 3 {
+					refAlias := refMatches[1]
+					refIndex, _ := strconv.Atoi(refMatches[2])
+					if items, ok := s.aliases[refAlias]; ok && refIndex > 0 && refIndex <= len(items) {
+						return extractEntityName(items[refIndex-1])
+					}
+				}
+				return ref // Garder la référence non résolue pour le second passage
+			})
+
+			s.aliases[aliasName] = []string{resolvedContent}
+			result.Aliases[aliasName] = []string{resolvedContent}
+
+			// Détecter les chaînes causales dans les définitions d'alias (ex: @chain_mobile A (rel) B (rel) C)
+			if chain := s.parseCausalChain(resolvedContent, currentContext); chain != nil {
+				chain.ID = aliasName // Utiliser le nom de l'alias comme ID de la chaîne
+				result.CausalChains = append(result.CausalChains, *chain)
+			}
+
+			// Extraire juste le nom de l'entité (sans les attributs comme "(type) personne")
+			entityName := extractEntityName(resolvedContent)
+			if entityName != "" && !subjectsMap[entityName] {
+				subjectsMap[entityName] = true
+				result.Subjects = append(result.Subjects, entityName)
+			}
+			previousItem = entityName
+			// Ne PAS continuer à parser le contenu car les attributs ne sont pas des relations
+			continue
 		}
 
 		// Continuation: " (relation) B
+		// Les lignes qui commencent par " sont des attributs ou des relations
+		// On ne crée des edges QUE pour les vraies relations, pas pour les attributs
 		if strings.HasPrefix(line, "\"") {
-			if previousItem != "" {
-				if matches := s.continuationRegex.FindStringSubmatch(line); len(matches) == 3 {
-					label := matches[1]
-					target := matches[2]
-					edge := &models.GraphEdge{
-						From:    previousItem,
-						To:      target,
-						Label:   label,
-						Type:    "relation",
-						Context: currentContext,
-					}
-					result.Graph.Edges = append(result.Graph.Edges, *edge)
-					if !subjectsMap[target] {
-						subjectsMap[target] = true
-						result.Subjects = append(result.Subjects, target)
-					}
-				}
-			}
+			// Extraire les marqueurs implicites même dans les lignes de continuation
+			// (ex: " (annotations) *Important)
+			s.extractImplicitMarkers(line, currentContext, &result)
+			// Les lignes de continuation sont des ATTRIBUTS, pas des relations du graphe
+			// Elles sont gérées par ParseForensicN4L pour les entités/preuves/etc.
+			// On ne les ajoute PAS au graphe ici.
 			continue
 		}
 
@@ -310,6 +377,15 @@ func (s *N4LService) ParseN4L(content string) ParsedN4L {
 			result.Notes[currentContext] = []string{}
 		}
 		result.Notes[currentContext] = append(result.Notes[currentContext], line)
+
+		// Résoudre les références $alias.n et $n avant le parsing
+		resolvedLine := s.resolveReferences(line, &result, lineNum)
+		if resolvedLine != line {
+			line = resolvedLine
+		}
+
+		// Extraire les marqueurs implicites =def, *important, .ref
+		s.extractImplicitMarkers(line, currentContext, &result)
 
 		// Parser la ligne pour extraire les arêtes et sujets
 		edges, subjects := s.parseNoteToEdges(line, currentContext)
@@ -321,6 +397,11 @@ func (s *N4LService) ParseN4L(content string) ParsedN4L {
 				subjectsMap[subj] = true
 				result.Subjects = append(result.Subjects, subj)
 			}
+		}
+
+		// Détecter et stocker les chaînes causales A (rel) B (rel) C
+		if chain := s.parseCausalChain(line, currentContext); chain != nil {
+			result.CausalChains = append(result.CausalChains, *chain)
 		}
 
 		// Mode séquence: lier les éléments consécutifs
@@ -348,7 +429,93 @@ func (s *N4LService) ParseN4L(content string) ParsedN4L {
 		result.Sequences = append(result.Sequences, currentSequence)
 	}
 
-	// Construire les nœuds à partir des sujets
+	// SECOND PASSAGE: Résoudre toutes les références $alias.n et $alias non résolues
+	// maintenant que tous les alias sont connus
+	// Pattern pour $alias.N (ex: $victime.1)
+	aliasRefPattern := regexp.MustCompile(`\$(\w+)\.(\d+)`)
+	// Pattern pour $alias sans suffixe numérique (ex: $evt_09)
+	aliasRefSimplePattern := regexp.MustCompile(`\$(\w+)`)
+
+	// Fonction pour résoudre une référence $alias.n ou $alias
+	resolveRef := func(ref string) string {
+		// D'abord essayer le format $alias.N
+		matches := aliasRefPattern.FindStringSubmatch(ref)
+		if len(matches) == 3 {
+			aliasName := matches[1]
+			index, _ := strconv.Atoi(matches[2])
+			if items, ok := s.aliases[aliasName]; ok && index > 0 && index <= len(items) {
+				return extractEntityName(items[index-1])
+			}
+		}
+		// Ensuite essayer le format $alias (sans .N, équivalent à .1)
+		simpleMatches := aliasRefSimplePattern.FindStringSubmatch(ref)
+		if len(simpleMatches) == 2 {
+			aliasName := simpleMatches[1]
+			if items, ok := s.aliases[aliasName]; ok && len(items) > 0 {
+				return extractEntityName(items[0])
+			}
+		}
+		return ref
+	}
+
+	// Pattern combiné pour détecter les deux formats
+	combinedPattern := regexp.MustCompile(`\$\w+(?:\.\d+)?`)
+
+	// Résoudre les références dans les edges
+	for i := range result.Graph.Edges {
+		if combinedPattern.MatchString(result.Graph.Edges[i].From) {
+			result.Graph.Edges[i].From = resolveRef(result.Graph.Edges[i].From)
+		}
+		if combinedPattern.MatchString(result.Graph.Edges[i].To) {
+			result.Graph.Edges[i].To = resolveRef(result.Graph.Edges[i].To)
+		}
+	}
+
+	// Résoudre les références dans les subjects et filtrer les sujets invalides
+	resolvedSubjects := make([]string, 0, len(result.Subjects))
+	seenSubjects := make(map[string]bool)
+	for _, subj := range result.Subjects {
+		resolved := subj
+		if combinedPattern.MatchString(subj) {
+			resolved = resolveRef(subj)
+		}
+		// Filtrer les sujets qui sont des valeurs d'attributs (descriptions longues, coordonnées, etc.)
+		// ou qui contiennent encore des références non résolues
+		if !combinedPattern.MatchString(resolved) &&
+		   len(resolved) < 100 &&
+		   !strings.Contains(resolved, ",") &&
+		   resolved != "personne" && resolved != "suspect" && resolved != "temoin" &&
+		   !seenSubjects[resolved] {
+			resolvedSubjects = append(resolvedSubjects, resolved)
+			seenSubjects[resolved] = true
+		}
+	}
+	result.Subjects = resolvedSubjects
+
+	// Résoudre les CrossRefs (Références Croisées) pour afficher les noms au lieu des alias
+	for i := range result.CrossRefs {
+		if combinedPattern.MatchString(result.CrossRefs[i].Resolved) {
+			result.CrossRefs[i].Resolved = resolveRef(result.CrossRefs[i].Resolved)
+		}
+		// Si la valeur résolue est encore un alias, utiliser le nom de l'alias
+		if result.CrossRefs[i].Resolved == "" || strings.HasPrefix(result.CrossRefs[i].Resolved, "$") {
+			// Essayer de résoudre via l'alias
+			if items, ok := s.aliases[result.CrossRefs[i].Alias]; ok && len(items) > 0 {
+				result.CrossRefs[i].Resolved = extractEntityName(items[0])
+			}
+		}
+	}
+
+	// Résoudre les références dans les séquences (Chronologie)
+	for i := range result.Sequences {
+		for j := range result.Sequences[i] {
+			if combinedPattern.MatchString(result.Sequences[i][j]) {
+				result.Sequences[i][j] = resolveRef(result.Sequences[i][j])
+			}
+		}
+	}
+
+	// Construire les nœuds à partir des sujets résolus
 	for _, subj := range result.Subjects {
 		node := models.GraphNode{
 			ID:    subj,
@@ -388,6 +555,17 @@ func (s *N4LService) ParseForensicN4L(content string, caseID string) ForensicPar
 	timestampRegex := regexp.MustCompile(`^(\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2})?)\s+(.+)$`)
 	// Regex pour les dates au format français
 	frenchDateRegex := regexp.MustCompile(`^(\d{2}/\d{2}/\d{4}(?:\s+\d{2}:\d{2})?)\s+(.+)$`)
+	// Regex pour les heures au format français (18h00, 9h30, etc.)
+	frenchTimeRegex := regexp.MustCompile(`^(\d{1,2}h\d{2})\s+(.+)$`)
+	// Regex pour détecter les commentaires de date contextuelle (// Événements du 29 août 2025)
+	contextDateRegex := regexp.MustCompile(`(?i)(?:événements?\s+du|date[:\s]+)\s*(\d{1,2})\s*(janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre)\s*(\d{4})`)
+	// Map des mois français
+	frenchMonths := map[string]int{
+		"janvier": 1, "février": 2, "mars": 3, "avril": 4, "mai": 5, "juin": 6,
+		"juillet": 7, "août": 8, "septembre": 9, "octobre": 10, "novembre": 11, "décembre": 12,
+	}
+	// Date contextuelle courante pour les événements avec heure seule
+	var contextDate time.Time
 
 	// Contexte actuel pour déterminer le type d'élément
 	currentContext := "general"
@@ -396,8 +574,24 @@ func (s *N4LService) ParseForensicN4L(content string, caseID string) ForensicPar
 
 	lines := strings.Split(content, "\n")
 	for _, line := range lines {
+		origLine := line
 		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "//") {
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		// Détecter les commentaires de date contextuelle (// Événements du 29 août 2025)
+		if strings.HasPrefix(line, "//") {
+			if matches := contextDateRegex.FindStringSubmatch(origLine); len(matches) == 4 {
+				day := 0
+				fmt.Sscanf(matches[1], "%d", &day)
+				monthStr := strings.ToLower(matches[2])
+				year := 0
+				fmt.Sscanf(matches[3], "%d", &year)
+				if month, ok := frenchMonths[monthStr]; ok && day > 0 && year > 0 {
+					contextDate = time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.Local)
+				}
+			}
 			continue
 		}
 
@@ -449,13 +643,19 @@ func (s *N4LService) ParseForensicN4L(content string, caseID string) ForensicPar
 		if matches := s.aliasDefRegex.FindStringSubmatch(line); len(matches) == 3 {
 			aliasName := matches[1]
 			itemName := strings.TrimSpace(matches[2])
+			fullItemName := itemName // Garder la version complète pour timeline
 
-			// Extraire le nom réel (avant toute relation)
-			if parenIdx := strings.Index(itemName, "("); parenIdx > 0 {
-				itemName = strings.TrimSpace(itemName[:parenIdx])
-			}
-			if arrowIdx := strings.Index(itemName, "->"); arrowIdx > 0 {
-				itemName = strings.TrimSpace(itemName[:arrowIdx])
+			// Extraire le nom réel (avant toute relation) - sauf pour timeline qui a besoin de (lieu)
+			if itemType != "timeline" {
+				if parenIdx := strings.Index(itemName, "("); parenIdx > 0 {
+					itemName = strings.TrimSpace(itemName[:parenIdx])
+				}
+				if arrowIdx := strings.Index(itemName, "->"); arrowIdx > 0 {
+					itemName = strings.TrimSpace(itemName[:arrowIdx])
+				}
+			} else {
+				// Pour timeline, garder tout sauf les relations qui ne sont pas (lieu)
+				itemName = fullItemName
 			}
 
 			currentItem = aliasName
@@ -472,16 +672,24 @@ func (s *N4LService) ParseForensicN4L(content string, caseID string) ForensicPar
 					Context:    currentContext,
 				}
 			case "evidence":
+				// Extraire le type de preuve de la ligne complète: "Nom (type) preuve numérique"
+				evidenceType := models.EvidencePhysical
+				typeRegex := regexp.MustCompile(`\(type\)\s*(.+)$`)
+				if typeMatch := typeRegex.FindStringSubmatch(fullItemName); len(typeMatch) == 2 {
+					evidenceType = s.parseEvidenceType(strings.TrimSpace(typeMatch[1]))
+				}
 				evidenceAttrs[aliasName] = &EvidenceAttributes{
 					ID:          aliasName,
 					Name:        itemName,
-					Type:        models.EvidencePhysical,
+					Type:        evidenceType,
 					Reliability: 5,
 				}
 			case "timeline":
 				// Parser le timestamp si présent
 				var timestamp time.Time
 				title := itemName
+				location := ""
+
 				if tsMatches := timestampRegex.FindStringSubmatch(itemName); len(tsMatches) == 3 {
 					if t, err := time.Parse("2006-01-02T15:04:05", tsMatches[1]); err == nil {
 						timestamp = t
@@ -496,11 +704,35 @@ func (s *N4LService) ParseForensicN4L(content string, caseID string) ForensicPar
 						timestamp = t
 					}
 					title = tsMatches[2]
+				} else if tsMatches := frenchTimeRegex.FindStringSubmatch(itemName); len(tsMatches) == 3 {
+					// Format: 18h00 ou 9h30 - utiliser la date contextuelle
+					timeStr := tsMatches[1]
+					var hour, minute int
+					fmt.Sscanf(timeStr, "%dh%d", &hour, &minute)
+					if !contextDate.IsZero() {
+						timestamp = time.Date(
+							contextDate.Year(), contextDate.Month(), contextDate.Day(),
+							hour, minute, 0, 0, time.Local,
+						)
+					} else {
+						// Fallback: utiliser une date par défaut (29 août 2025 pour l'affaire Moreau)
+						timestamp = time.Date(2025, 8, 29, hour, minute, 0, 0, time.Local)
+					}
+					title = tsMatches[2]
 				}
+
+				// Extraire le lieu si présent dans le titre: "Titre (lieu) Location"
+				locationRegex := regexp.MustCompile(`^(.+?)\s*\(lieu\)\s*(.+)$`)
+				if locMatches := locationRegex.FindStringSubmatch(title); len(locMatches) == 3 {
+					title = strings.TrimSpace(locMatches[1])
+					location = strings.TrimSpace(locMatches[2])
+				}
+
 				timelineAttrs[aliasName] = &TimelineEventAttributes{
 					ID:         aliasName,
 					Title:      title,
 					Timestamp:  timestamp,
+					Location:   location,
 					Importance: "medium",
 				}
 			case "hypothesis":
@@ -517,7 +749,8 @@ func (s *N4LService) ParseForensicN4L(content string, caseID string) ForensicPar
 
 		// Traiter les lignes sans alias (entités directes)
 		// Format: Nom (relation) Cible ou Nom -> relation -> Cible
-		if itemType == "entity" && !strings.HasPrefix(line, "\"") {
+		// IGNORER les lignes qui commencent par $ car ce sont des références à des alias existants
+		if itemType == "entity" && !strings.HasPrefix(line, "\"") && !strings.HasPrefix(line, "$") {
 			entityName := line
 			// Extraire le nom avant la relation
 			if parenIdx := strings.Index(line, "("); parenIdx > 0 {
@@ -544,36 +777,91 @@ func (s *N4LService) ParseForensicN4L(content string, caseID string) ForensicPar
 		}
 	}
 
+	// Construire une map des alias vers les noms pour la résolution AVANT de créer les entités
+	aliasToName := make(map[string]string)
+	for alias, attrs := range entityAttrs {
+		aliasToName[alias] = attrs.Name
+		// Aussi mapper avec le préfixe $ et suffixe .1
+		aliasToName["$"+alias+".1"] = attrs.Name
+	}
+	// Ajouter aussi les alias des preuves
+	for alias, attrs := range evidenceAttrs {
+		aliasToName[alias] = attrs.Name
+		aliasToName["$"+alias+".1"] = attrs.Name
+	}
+
+	// Fonction pour résoudre les alias dans un texte
+	resolveAliases := func(text string) string {
+		result := text
+		// Pattern pour les alias: $alias.N
+		aliasPattern := regexp.MustCompile(`\$([a-zA-Z_][a-zA-Z0-9_]*)\.\d+`)
+		result = aliasPattern.ReplaceAllStringFunc(result, func(match string) string {
+			if name, ok := aliasToName[match]; ok {
+				return name
+			}
+			// Essayer sans le suffixe numérique
+			parts := strings.Split(match, ".")
+			if len(parts) > 0 {
+				baseAlias := strings.TrimPrefix(parts[0], "$")
+				if attrs, ok := entityAttrs[baseAlias]; ok {
+					return attrs.Name
+				}
+				if attrs, ok := evidenceAttrs[baseAlias]; ok {
+					return attrs.Name
+				}
+			}
+			return match
+		})
+		return result
+	}
+
 	// Convertir les attributs en modèles
 	now := time.Now()
 
-	// Entités
+	// Entités - avec résolution des alias dans les noms et attributs
 	for _, attrs := range entityAttrs {
+		// Résoudre les alias dans le nom si c'est un alias
+		resolvedName := resolveAliases(attrs.Name)
+
+		// Résoudre les alias dans la description
+		resolvedDesc := resolveAliases(attrs.Description)
+
+		// Résoudre les alias dans les attributs
+		resolvedAttributes := make(map[string]string)
+		for k, v := range attrs.Attributes {
+			resolvedAttributes[k] = resolveAliases(v)
+		}
+
 		entity := models.Entity{
 			ID:          attrs.ID,
 			CaseID:      caseID,
-			Name:        attrs.Name,
+			Name:        resolvedName,
 			Type:        attrs.Type,
 			Role:        attrs.Role,
-			Description: attrs.Description,
-			Attributes:  attrs.Attributes,
+			Description: resolvedDesc,
+			Attributes:  resolvedAttributes,
 			Relations:   []models.Relation{},
 			CreatedAt:   now,
 		}
 		result.Entities = append(result.Entities, entity)
 	}
 
-	// Preuves
+	// Preuves - avec résolution des alias
 	for _, attrs := range evidenceAttrs {
+		resolvedLinkedEntities := make([]string, 0, len(attrs.LinkedEntities))
+		for _, e := range attrs.LinkedEntities {
+			resolvedLinkedEntities = append(resolvedLinkedEntities, resolveAliases(e))
+		}
+
 		evidence := models.Evidence{
 			ID:             attrs.ID,
 			CaseID:         caseID,
-			Name:           attrs.Name,
+			Name:           resolveAliases(attrs.Name),
 			Type:           attrs.Type,
-			Location:       attrs.Location,
+			Location:       resolveAliases(attrs.Location),
 			Reliability:    attrs.Reliability,
-			Description:    attrs.Description,
-			LinkedEntities: attrs.LinkedEntities,
+			Description:    resolveAliases(attrs.Description),
+			LinkedEntities: resolvedLinkedEntities,
 			CollectedBy:    attrs.CollectedBy,
 		}
 		result.Evidence = append(result.Evidence, evidence)
@@ -581,17 +869,34 @@ func (s *N4LService) ParseForensicN4L(content string, caseID string) ForensicPar
 
 	// Timeline
 	for _, attrs := range timelineAttrs {
+		// Résoudre les alias dans le titre et description
+		resolvedTitle := resolveAliases(attrs.Title)
+
+		// Résoudre les alias dans les entités impliquées
+		resolvedEntities := make([]string, 0, len(attrs.Entities))
+		for _, e := range attrs.Entities {
+			resolved := resolveAliases(e)
+			resolvedEntities = append(resolvedEntities, resolved)
+		}
+
+		// Résoudre les alias dans les preuves
+		resolvedEvidence := make([]string, 0, len(attrs.Evidence))
+		for _, e := range attrs.Evidence {
+			resolved := resolveAliases(e)
+			resolvedEvidence = append(resolvedEvidence, resolved)
+		}
+
 		event := models.Event{
 			ID:          attrs.ID,
 			CaseID:      caseID,
-			Title:       attrs.Title,
+			Title:       resolvedTitle,
 			Timestamp:   attrs.Timestamp,
 			Location:    attrs.Location,
-			Description: attrs.Description,
+			Description: resolveAliases(attrs.Description),
 			Importance:  attrs.Importance,
 			Verified:    attrs.Verified,
-			Entities:    attrs.Entities,
-			Evidence:    attrs.Evidence,
+			Entities:    resolvedEntities,
+			Evidence:    resolvedEvidence,
 		}
 		result.Timeline = append(result.Timeline, event)
 	}
@@ -713,11 +1018,12 @@ func (s *N4LService) inferEntityType(context string) models.EntityType {
 	context = strings.ToLower(context)
 
 	if strings.Contains(context, "lieu") || strings.Contains(context, "location") ||
-		strings.Contains(context, "adresse") {
+		strings.Contains(context, "adresse") || strings.Contains(context, "scène") {
 		return models.EntityPlace
 	}
 	if strings.Contains(context, "objet") || strings.Contains(context, "object") ||
-		strings.Contains(context, "arme") {
+		strings.Contains(context, "arme") || strings.Contains(context, "preuve") ||
+		strings.Contains(context, "indice") {
 		return models.EntityObject
 	}
 	if strings.Contains(context, "organisation") || strings.Contains(context, "org") ||
@@ -728,12 +1034,25 @@ func (s *N4LService) inferEntityType(context string) models.EntityType {
 		return models.EntityDocument
 	}
 	if strings.Contains(context, "événement") || strings.Contains(context, "evenement") ||
-		strings.Contains(context, "event") {
+		strings.Contains(context, "event") || strings.Contains(context, "chronologie") {
 		return models.EntityEvent
 	}
+	// Chaînes causales, hypothèses, concepts abstraits -> concept/event
+	if strings.Contains(context, "chaîne") || strings.Contains(context, "causal") ||
+		strings.Contains(context, "hypothèse") || strings.Contains(context, "piste") ||
+		strings.Contains(context, "référence") || strings.Contains(context, "note") ||
+		strings.Contains(context, "todo") {
+		return models.EntityEvent // Utiliser Event pour les concepts abstraits
+	}
+	// Victimes, suspects, témoins -> personne
+	if strings.Contains(context, "victime") || strings.Contains(context, "suspect") ||
+		strings.Contains(context, "témoin") || strings.Contains(context, "temoin") ||
+		strings.Contains(context, "réseau") || strings.Contains(context, "relation") {
+		return models.EntityPerson
+	}
 
-	// Par défaut: personne
-	return models.EntityPerson
+	// Par défaut: entity générique (pas personne)
+	return "entity"
 }
 
 // inferEntityRole infère le rôle d'entité depuis le contexte
@@ -780,7 +1099,18 @@ func (s *N4LService) applyEvidenceAttribute(attrs *EvidenceAttributes, key, valu
 	case "localisation", "location", "lieu":
 		attrs.Location = value
 	case "fiabilite", "fiabilité", "reliability":
-		if r, err := strconv.Atoi(value); err == nil {
+		// Parser les formats "9/10" ou "9" ou "9 sur 10"
+		value = strings.TrimSpace(value)
+		// Extraire le premier nombre
+		numStr := ""
+		for _, c := range value {
+			if c >= '0' && c <= '9' {
+				numStr += string(c)
+			} else if numStr != "" {
+				break // Arrêter après le premier nombre
+			}
+		}
+		if r, err := strconv.Atoi(numStr); err == nil {
 			attrs.Reliability = r
 		}
 	case "description":
@@ -917,20 +1247,31 @@ func (s *N4LService) parseEntityRole(value string) models.EntityRole {
 // parseEvidenceType parse le type de preuve depuis une chaîne
 func (s *N4LService) parseEvidenceType(value string) models.EvidenceType {
 	value = strings.ToLower(value)
-	switch value {
-	case "physique", "physical":
-		return models.EvidencePhysical
-	case "testimoniale", "testimonial":
-		return models.EvidenceTestimonial
-	case "documentaire", "documentary":
-		return models.EvidenceDocumentary
-	case "numerique", "numérique", "digital":
-		return models.EvidenceDigital
-	case "forensique", "forensic":
-		return models.EvidenceForensic
-	default:
+
+	// Supporter les formats composés: "preuve physique", "preuve numérique", etc.
+	if strings.Contains(value, "physique") || strings.Contains(value, "physical") {
 		return models.EvidencePhysical
 	}
+	if strings.Contains(value, "testimonial") {
+		return models.EvidenceTestimonial
+	}
+	if strings.Contains(value, "documentaire") || strings.Contains(value, "documentary") {
+		return models.EvidenceDocumentary
+	}
+	if strings.Contains(value, "numérique") || strings.Contains(value, "numerique") || strings.Contains(value, "digital") {
+		return models.EvidenceDigital
+	}
+	if strings.Contains(value, "forensique") || strings.Contains(value, "forensic") {
+		return models.EvidenceForensic
+	}
+	if strings.Contains(value, "technique") || strings.Contains(value, "technical") {
+		return models.EvidenceForensic // technique = forensique
+	}
+	if strings.Contains(value, "médicale") || strings.Contains(value, "medicale") || strings.Contains(value, "medical") {
+		return models.EvidenceForensic // médicale = forensique
+	}
+
+	return models.EvidencePhysical
 }
 
 // parseHypothesisStatus parse le statut d'hypothèse depuis une chaîne
@@ -1016,6 +1357,23 @@ func resolveEntityName(entityNames map[string]string, id string) string {
 		return name
 	}
 	return id
+}
+
+// extractEntityName extrait le nom d'une entité depuis une définition d'alias N4L
+// Par exemple: "Claire Fontaine (type) personne" -> "Claire Fontaine"
+// Ceci est nécessaire pour résoudre correctement les références $alias.n dans les relations
+func extractEntityName(aliasContent string) string {
+	// Chercher le premier attribut (xxx) et prendre tout ce qui précède
+	parenIdx := strings.Index(aliasContent, "(")
+	if parenIdx > 0 {
+		return strings.TrimSpace(aliasContent[:parenIdx])
+	}
+	// Chercher aussi le format flèche ->
+	arrowIdx := strings.Index(aliasContent, "->")
+	if arrowIdx > 0 {
+		return strings.TrimSpace(aliasContent[:arrowIdx])
+	}
+	return strings.TrimSpace(aliasContent)
 }
 
 // parseNoteToEdge convertit une note en arête - Support complet N4L
@@ -1273,18 +1631,87 @@ func (s *N4LService) ExportToN4L(caseData *models.Case) string {
 		}
 	}
 
-	// Section relations (réseau global)
+	// Section relations (réseau global) avec STTypes
 	sb.WriteString(":: réseau de relations ::\n\n")
+	sb.WriteString("# Légende STTypes: N=proximité, +L=causalité, +C=containment, +E=expression\n\n")
 	for _, e := range caseData.Entities {
 		for _, r := range e.Relations {
 			targetName := resolveEntityName(entityNames, r.ToID)
+			stType := InferSTTypeFromRelation(r.Label)
+			stInfo := GetSTTypeInfo(stType)
 			if r.Verified {
-				sb.WriteString(fmt.Sprintf("%s (%s) %s\n", e.Name, r.Label, targetName))
+				sb.WriteString(fmt.Sprintf("%s (%s:%s) %s\n", e.Name, r.Label, stInfo.Code, targetName))
 			} else {
-				sb.WriteString(fmt.Sprintf("\\new %s (%s) %s\n", e.Name, r.Label, targetName))
+				sb.WriteString(fmt.Sprintf("\\new %s (%s:%s) %s\n", e.Name, r.Label, stInfo.Code, targetName))
 			}
 		}
 	}
+
+	// Section chaînes causales (analyse automatique)
+	chains := s.BuildForensicCausalChains(caseData)
+	if len(chains) > 0 {
+		sb.WriteString("\n:: chaînes causales ::\n\n")
+		sb.WriteString("# Chaînes de causalité détectées automatiquement\n")
+		sb.WriteString("+:: _sequence_ ::\n\n")
+
+		for i, chain := range chains {
+			sb.WriteString(fmt.Sprintf("# Chaîne %d: %s\n", i+1, chain.Context))
+			if len(chain.Steps) > 0 {
+				// Écrire la chaîne complète en une ligne N4L
+				sb.WriteString(fmt.Sprintf("@chain_%d ", i+1))
+				for j, step := range chain.Steps {
+					if j == 0 {
+						sb.WriteString(step.Item)
+					} else {
+						rel := chain.Steps[j-1].Relation
+						if rel == "" {
+							rel = "puis"
+						}
+						sb.WriteString(fmt.Sprintf(" (%s) %s", rel, step.Item))
+					}
+				}
+				sb.WriteString("\n\n")
+			}
+		}
+		sb.WriteString("-:: _sequence_ ::\n")
+	}
+
+	// Section groupes de référence croisée (pour $alias.n)
+	sb.WriteString("\n:: références croisées ::\n\n")
+	sb.WriteString("# Alias pour références $alias.n\n")
+
+	// Grouper les entités par rôle pour créer des alias
+	roleGroups := map[string][]string{
+		"victimes": {},
+		"suspects": {},
+		"temoins":  {},
+		"lieux":    {},
+		"preuves":  {},
+	}
+	for _, e := range caseData.Entities {
+		switch e.Role {
+		case models.RoleVictim:
+			roleGroups["victimes"] = append(roleGroups["victimes"], e.Name)
+		case models.RoleSuspect:
+			roleGroups["suspects"] = append(roleGroups["suspects"], e.Name)
+		case models.RoleWitness:
+			roleGroups["temoins"] = append(roleGroups["temoins"], e.Name)
+		default:
+			if e.Type == models.EntityPlace {
+				roleGroups["lieux"] = append(roleGroups["lieux"], e.Name)
+			}
+		}
+	}
+	for _, ev := range caseData.Evidence {
+		roleGroups["preuves"] = append(roleGroups["preuves"], ev.Name)
+	}
+
+	for role, items := range roleGroups {
+		if len(items) > 0 {
+			sb.WriteString(fmt.Sprintf("%s => {%s}\n", role, strings.Join(items, ", ")))
+		}
+	}
+	sb.WriteString("# Usage: $victimes.1 référence la première victime, $suspects.2 le 2e suspect\n")
 
 	return sb.String()
 }
@@ -1722,4 +2149,317 @@ func (s *N4LService) generateSTTypeInsights(analysis STTypeAnalysis) []string {
 	}
 
 	return insights
+}
+
+// ============================================
+// Nouvelles méthodes N4L avancées
+// ============================================
+
+// resolveReferences résout les références $alias.n et $n dans une ligne
+func (s *N4LService) resolveReferences(line string, result *ParsedN4L, lineNum int) string {
+	resolved := line
+
+	// Résoudre $alias.n (ex: $victim.1 -> première entité de l'alias victim)
+	aliasMatches := s.aliasRefRegex.FindAllStringSubmatchIndex(resolved, -1)
+	for i := len(aliasMatches) - 1; i >= 0; i-- {
+		match := aliasMatches[i]
+		fullMatch := resolved[match[0]:match[1]]
+		aliasName := resolved[match[2]:match[3]]
+		indexStr := resolved[match[4]:match[5]]
+		index, _ := strconv.Atoi(indexStr)
+
+		// Chercher dans les alias
+		if items, ok := s.aliases[aliasName]; ok && index > 0 && index <= len(items) {
+			resolvedValue := items[index-1]
+			// Extraire uniquement le nom de l'entité (avant tout attribut comme "(type)")
+			// Ceci est nécessaire pour que les relations comme $alias.1 (relation) $alias2.1
+			// soient correctement parsées
+			resolvedValue = extractEntityName(resolvedValue)
+			resolved = resolved[:match[0]] + resolvedValue + resolved[match[1]:]
+
+			// Enregistrer la référence croisée
+			result.CrossRefs = append(result.CrossRefs, CrossReference{
+				Alias:    aliasName,
+				Index:    index,
+				Resolved: resolvedValue,
+				Line:     lineNum,
+			})
+		} else {
+			// Garder la référence non résolue mais l'enregistrer
+			result.CrossRefs = append(result.CrossRefs, CrossReference{
+				Alias:    aliasName,
+				Index:    index,
+				Resolved: fullMatch, // Non résolu
+				Line:     lineNum,
+			})
+		}
+	}
+
+	// Résoudre $n (ex: $1 -> premier item précédent, $2 -> deuxième)
+	varMatches := s.varRefRegex.FindAllStringSubmatchIndex(resolved, -1)
+	for i := len(varMatches) - 1; i >= 0; i-- {
+		match := varMatches[i]
+		indexStr := resolved[match[2]:match[3]]
+		index, _ := strconv.Atoi(indexStr)
+
+		// Chercher dans les items précédents
+		if index > 0 && index <= len(s.previousItems) {
+			resolvedValue := s.previousItems[index-1]
+			resolved = resolved[:match[0]] + resolvedValue + resolved[match[1]:]
+		}
+	}
+
+	return resolved
+}
+
+// extractImplicitMarkers extrait les marqueurs implicites =def, *important, .ref
+func (s *N4LService) extractImplicitMarkers(line, context string, result *ParsedN4L) {
+	matches := s.implicitMarkerRegex.FindAllStringSubmatch(line, -1)
+	for _, match := range matches {
+		var marker, word string
+
+		// La regex a deux alternatives:
+		// 1. ([=*])([a-zA-Z_]\w*) pour = et * -> groupes 1 et 2
+		// 2. (\.([a-zA-Z_][a-zA-Z0-9_]*)) pour . -> groupes 3 et 4
+		if match[1] != "" && match[2] != "" {
+			// Cas = ou *
+			marker = match[1]
+			word = match[2]
+		} else if match[3] != "" && match[4] != "" {
+			// Cas . (référence)
+			marker = "."
+			word = match[4]
+		} else {
+			continue
+		}
+
+		var markerType string
+		switch marker {
+		case "=":
+			markerType = "definition" // =mot définit quelque chose
+		case "*":
+			markerType = "important" // *mot est marqué important
+		case ".":
+			markerType = "reference" // .mot est une référence
+		default:
+			continue
+		}
+
+		key := markerType + ":" + context
+		if result.ImplicitMarkers[key] == nil {
+			result.ImplicitMarkers[key] = []string{}
+		}
+		result.ImplicitMarkers[key] = append(result.ImplicitMarkers[key], word)
+	}
+}
+
+// parseCausalChain détecte et parse une chaîne causale A (rel) B (rel) C ...
+func (s *N4LService) parseCausalChain(line, context string) *CausalChain {
+	// Pattern pour chaînes avec 2+ relations: A (rel) B (rel) C
+	// On utilise une approche itérative pour supporter N relations
+	chainPattern := regexp.MustCompile(`^(.+?)\s+\(([^)]+)\)\s+(.+)$`)
+
+	parts := []string{}
+	relations := []string{}
+	remaining := line
+
+	// Extraire toutes les parties de la chaîne
+	for {
+		match := chainPattern.FindStringSubmatch(remaining)
+		if match == nil {
+			if remaining != "" && len(parts) > 0 {
+				parts = append(parts, strings.TrimSpace(remaining))
+			}
+			break
+		}
+
+		parts = append(parts, strings.TrimSpace(match[1]))
+		relations = append(relations, strings.TrimSpace(match[2]))
+		remaining = match[3]
+
+		// Vérifier si remaining contient encore une relation
+		if !strings.Contains(remaining, "(") {
+			parts = append(parts, strings.TrimSpace(remaining))
+			break
+		}
+	}
+
+	// Une chaîne causale nécessite au moins 3 éléments et 2 relations
+	if len(parts) < 3 || len(relations) < 2 {
+		return nil
+	}
+
+	// Construire la chaîne
+	chain := &CausalChain{
+		ID:      fmt.Sprintf("chain-%d", time.Now().UnixNano()),
+		Context: context,
+		Steps:   make([]ChainStep, 0, len(parts)),
+		STType:  STLeadsTo, // Par défaut, les chaînes sont causales
+	}
+
+	for i, part := range parts {
+		step := ChainStep{
+			Item:  part,
+			Index: i,
+		}
+		if i < len(relations) {
+			step.Relation = relations[i]
+		}
+		chain.Steps = append(chain.Steps, step)
+	}
+
+	// Déterminer le STType dominant
+	for _, rel := range relations {
+		stType := InferSTTypeFromRelation(rel)
+		if stType != STNear {
+			chain.STType = stType
+			break
+		}
+	}
+
+	return chain
+}
+
+// GenerateCausalChainN4L génère le N4L pour une chaîne causale
+func (s *N4LService) GenerateCausalChainN4L(chain CausalChain) string {
+	if len(chain.Steps) < 2 {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("# Chaîne causale: %s\n", chain.ID))
+	sb.WriteString(fmt.Sprintf(":: %s ::\n\n", chain.Context))
+	sb.WriteString("+:: _sequence_ ::\n\n")
+
+	// Première ligne avec toute la chaîne
+	for i, step := range chain.Steps {
+		if i == 0 {
+			sb.WriteString(fmt.Sprintf("@%s %s", sanitizeN4LName(step.Item), step.Item))
+		} else {
+			sb.WriteString(fmt.Sprintf(" (%s) %s", chain.Steps[i-1].Relation, step.Item))
+		}
+	}
+	sb.WriteString("\n\n")
+	sb.WriteString("-:: _sequence_ ::\n")
+
+	return sb.String()
+}
+
+// BuildForensicCausalChains construit les chaînes causales forensiques à partir d'une affaire
+func (s *N4LService) BuildForensicCausalChains(caseData *models.Case) []CausalChain {
+	chains := []CausalChain{}
+
+	// Chaîne 1: Timeline des événements (si disponible)
+	if len(caseData.Timeline) > 2 {
+		timelineChain := CausalChain{
+			ID:      fmt.Sprintf("timeline-%s", caseData.ID),
+			Context: "chronologie",
+			Steps:   make([]ChainStep, 0, len(caseData.Timeline)),
+			STType:  STLeadsTo,
+		}
+		for i, evt := range caseData.Timeline {
+			step := ChainStep{
+				Item:     evt.Title,
+				Relation: "puis",
+				Index:    i,
+			}
+			timelineChain.Steps = append(timelineChain.Steps, step)
+		}
+		chains = append(chains, timelineChain)
+	}
+
+	// Chaîne 2: Relations causales entre entités
+	// Trouver les relations de type "mène à", "cause", "provoque"
+	causalRelations := []models.Relation{}
+	for _, entity := range caseData.Entities {
+		for _, rel := range entity.Relations {
+			stType := InferSTTypeFromRelation(rel.Label)
+			if stType == STLeadsTo {
+				causalRelations = append(causalRelations, rel)
+			}
+		}
+	}
+
+	// Construire des chaînes à partir des relations causales
+	if len(causalRelations) > 1 {
+		// Map pour construire le graphe
+		entityNames := make(map[string]string)
+		for _, e := range caseData.Entities {
+			entityNames[e.ID] = e.Name
+		}
+
+		// Adjacence
+		adj := make(map[string][]struct {
+			to  string
+			rel string
+		})
+		for _, rel := range causalRelations {
+			fromName := entityNames[rel.FromID]
+			toName := entityNames[rel.ToID]
+			if fromName == "" {
+				fromName = rel.FromID
+			}
+			if toName == "" {
+				toName = rel.ToID
+			}
+			adj[fromName] = append(adj[fromName], struct {
+				to  string
+				rel string
+			}{toName, rel.Label})
+		}
+
+		// DFS pour trouver les chaînes
+		visited := make(map[string]bool)
+		var buildChain func(start string, path []ChainStep) []CausalChain
+		buildChain = func(start string, path []ChainStep) []CausalChain {
+			result := []CausalChain{}
+			nexts := adj[start]
+			if len(nexts) == 0 {
+				if len(path) >= 3 {
+					chain := CausalChain{
+						ID:      fmt.Sprintf("causal-%s-%d", caseData.ID, len(chains)+len(result)),
+						Context: "causalité",
+						Steps:   make([]ChainStep, len(path)),
+						STType:  STLeadsTo,
+					}
+					copy(chain.Steps, path)
+					result = append(result, chain)
+				}
+				return result
+			}
+
+			for _, next := range nexts {
+				if !visited[next.to] {
+					visited[next.to] = true
+					newPath := append(path, ChainStep{
+						Item:     next.to,
+						Relation: next.rel,
+						Index:    len(path),
+					})
+					result = append(result, buildChain(next.to, newPath)...)
+					visited[next.to] = false
+				}
+			}
+			return result
+		}
+
+		// Trouver les sources (sans arêtes entrantes)
+		hasIncoming := make(map[string]bool)
+		for _, nexts := range adj {
+			for _, n := range nexts {
+				hasIncoming[n.to] = true
+			}
+		}
+
+		for start := range adj {
+			if !hasIncoming[start] {
+				visited[start] = true
+				initialPath := []ChainStep{{Item: start, Index: 0}}
+				chains = append(chains, buildChain(start, initialPath)...)
+				visited[start] = false
+			}
+		}
+	}
+
+	return chains
 }

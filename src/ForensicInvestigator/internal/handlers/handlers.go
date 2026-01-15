@@ -431,13 +431,25 @@ func (h *Handler) HandleN4LParse(w http.ResponseWriter, r *http.Request) {
 		Content string `json:"content"`
 		CaseID  string `json:"case_id"`
 	}
-	if err := json.Unmarshal(body, &req); err == nil && req.Content != "" {
+	if err := json.Unmarshal(body, &req); err == nil {
 		content = req.Content
 		caseID = req.CaseID
 	} else {
 		// Fallback: contenu brut
 		content = string(body)
 		caseID = r.URL.Query().Get("case_id")
+	}
+
+	// Si content est vide mais case_id fourni, charger le N4L du cas
+	if content == "" && caseID != "" {
+		c, err := h.cases.GetCase(caseID)
+		if err == nil {
+			if c.N4LContent != "" {
+				content = c.N4LContent
+			} else {
+				content = h.n4lGenerator.ExportCaseToN4L(c)
+			}
+		}
 	}
 
 	// Parser avec extraction forensique complète
@@ -1426,12 +1438,22 @@ func (h *Handler) HandleAnalyzePath(w http.ResponseWriter, r *http.Request) {
 		req.MaxDepth = 5
 	}
 
-	// Récupérer les données du graphe
-	graphData, err := h.cases.BuildGraphData(req.CaseID)
+	// Récupérer l'affaire
+	caseData, err := h.cases.GetCase(req.CaseID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
+
+	// Utiliser le graphe N4L parsé (comme HandleGraph) pour avoir les vraies relations
+	var n4lContent string
+	if caseData.N4LContent != "" {
+		n4lContent = caseData.N4LContent
+	} else {
+		n4lContent = h.n4lGenerator.ExportCaseToN4L(caseData)
+	}
+	parsed := h.n4l.ParseForensicN4L(n4lContent, req.CaseID)
+	graphData := &parsed.Graph
 
 	// Résoudre les IDs des nœuds (supporter les labels/noms pour compatibilité N4L)
 	resolveNodeID := func(nodeID string) string {
@@ -1455,15 +1477,22 @@ func (h *Handler) HandleAnalyzePath(w http.ResponseWriter, r *http.Request) {
 		return strings.ReplaceAll(id, "_", "-")
 	}
 
-	// Récupérer l'affaire pour trouver les noms des entités
-	caseData, _ := h.cases.GetCase(req.CaseID)
+	// DEBUG: Afficher les IDs reçus
+	fmt.Printf("[HandleAnalyzePath] IDs reçus: from=%s, to=%s, case=%s\n", req.FromID, req.ToID, req.CaseID)
+	fmt.Printf("[HandleAnalyzePath] Nombre d'entités dans l'affaire: %d\n", len(caseData.Entities))
+
+	// Chercher les noms des entités par leurs IDs
 	if caseData != nil {
 		// Chercher le nom de l'entité par son ID (avec normalisation pour supporter tirets et underscores)
 		normalizedFromID := normalizeID(req.FromID)
 		normalizedToID := normalizeID(req.ToID)
 
+		fromFound := false
+		toFound := false
+
 		for _, entity := range caseData.Entities {
 			if entity.ID == req.FromID || entity.ID == normalizedFromID {
+				fmt.Printf("[HandleAnalyzePath] FromID trouvé: %s -> %s\n", entity.ID, entity.Name)
 				// L'entité a cet ID, chercher le nœud par son nom
 				resolved := resolveNodeID(entity.Name)
 				if resolved != entity.Name {
@@ -1471,24 +1500,90 @@ func (h *Handler) HandleAnalyzePath(w http.ResponseWriter, r *http.Request) {
 				} else {
 					req.FromID = entity.Name // Utiliser le nom directement car N4L utilise les noms comme IDs
 				}
+				fromFound = true
 				break
 			}
 		}
 		for _, entity := range caseData.Entities {
 			if entity.ID == req.ToID || entity.ID == normalizedToID {
+				fmt.Printf("[HandleAnalyzePath] ToID trouvé: %s -> %s\n", entity.ID, entity.Name)
 				resolved := resolveNodeID(entity.Name)
 				if resolved != entity.Name {
 					req.ToID = resolved
 				} else {
 					req.ToID = entity.Name
 				}
+				toFound = true
 				break
+			}
+		}
+
+		if !fromFound {
+			fmt.Printf("[HandleAnalyzePath] ATTENTION: FromID '%s' non trouvé dans les entités!\n", req.FromID)
+			// Essayer de trouver directement dans le graphe N4L (peut être un alias N4L)
+			for _, node := range graphData.Nodes {
+				if node.ID == req.FromID || node.Label == req.FromID {
+					fmt.Printf("[HandleAnalyzePath] FromID trouvé dans graphe N4L: %s\n", node.ID)
+					req.FromID = node.ID
+					fromFound = true
+					break
+				}
+			}
+			// Essayer de résoudre via les aliases N4L parsés
+			if !fromFound {
+				for alias, names := range parsed.Aliases {
+					if alias == req.FromID && len(names) > 0 {
+						// Extraire le nom de l'entité depuis l'alias
+						name := names[0]
+						if parenIdx := strings.Index(name, "("); parenIdx > 0 {
+							name = strings.TrimSpace(name[:parenIdx])
+						}
+						fmt.Printf("[HandleAnalyzePath] FromID résolu via alias N4L: %s -> %s\n", alias, name)
+						req.FromID = name
+						fromFound = true
+						break
+					}
+				}
+			}
+		}
+		if !toFound {
+			fmt.Printf("[HandleAnalyzePath] ATTENTION: ToID '%s' non trouvé dans les entités!\n", req.ToID)
+			// Essayer de trouver directement dans le graphe N4L (peut être un alias N4L)
+			for _, node := range graphData.Nodes {
+				if node.ID == req.ToID || node.Label == req.ToID {
+					fmt.Printf("[HandleAnalyzePath] ToID trouvé dans graphe N4L: %s\n", node.ID)
+					req.ToID = node.ID
+					toFound = true
+					break
+				}
+			}
+			// Essayer de résoudre via les aliases N4L parsés
+			if !toFound {
+				for alias, names := range parsed.Aliases {
+					if alias == req.ToID && len(names) > 0 {
+						// Extraire le nom de l'entité depuis l'alias
+						name := names[0]
+						if parenIdx := strings.Index(name, "("); parenIdx > 0 {
+							name = strings.TrimSpace(name[:parenIdx])
+						}
+						fmt.Printf("[HandleAnalyzePath] ToID résolu via alias N4L: %s -> %s\n", alias, name)
+						req.ToID = name
+						toFound = true
+						break
+					}
+				}
 			}
 		}
 	}
 
+	// DEBUG: Afficher les paramètres résolus
+	fmt.Printf("[HandleAnalyzePath] FromID résolu: %s, ToID résolu: %s\n", req.FromID, req.ToID)
+	fmt.Printf("[HandleAnalyzePath] Graphe: %d noeuds, %d edges\n", len(graphData.Nodes), len(graphData.Edges))
+
 	// Trouver les chemins entre les deux entités
 	paths := h.findPaths(graphData, req.FromID, req.ToID, req.MaxDepth)
+
+	fmt.Printf("[HandleAnalyzePath] Chemins trouvés: %d\n", len(paths))
 
 	if len(paths) == 0 {
 		json.NewEncoder(w).Encode(map[string]interface{}{
@@ -1499,10 +1594,9 @@ func (h *Handler) HandleAnalyzePath(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Préparer le contexte pour l'analyse
-	c, _ := h.cases.GetCase(req.CaseID)
 	context := ""
-	if c != nil {
-		context = c.Description
+	if caseData != nil {
+		context = caseData.Description
 	}
 
 	// Analyser le premier chemin avec l'IA

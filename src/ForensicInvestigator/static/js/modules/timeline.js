@@ -6,7 +6,7 @@ const TimelineModule = {
     // Configuration Timeline
     // ============================================
     timelineConfig: {
-        zoomLevel: 'month', // day, week, month
+        zoomLevel: 'day', // day, week, month
         showOverlays: {
             suspects: true,
             locations: true,
@@ -86,6 +86,22 @@ const TimelineModule = {
         if (!this.currentCase) return;
 
         this.initTimelineControls();
+
+        // Ensure N4L data is loaded for causal chains display
+        if (!this.lastN4LParse && this.currentCase.n4l_content) {
+            try {
+                const response = await fetch('/api/n4l/parse', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: this.currentCase.n4l_content })
+                });
+                if (response.ok) {
+                    this.lastN4LParse = await response.json();
+                }
+            } catch (e) {
+                console.warn('Could not load N4L data for timeline:', e);
+            }
+        }
 
         const container = document.getElementById('timeline-list');
         const events = this.currentCase.timeline || [];
@@ -179,6 +195,8 @@ const TimelineModule = {
                 ${this.renderOverlayTracks(overlays)}
             </div>
             ` : ''}
+
+            ${this.renderCausalChainsSection(events)}
 
             <div class="timeline-main">
                 <div class="timeline-ruler">
@@ -863,11 +881,21 @@ const TimelineModule = {
     // Scroll to Timeline Event
     // ============================================
     scrollToTimelineEvent(eventId) {
-        const event = document.querySelector(`.timeline-event[data-id="${eventId}"]`);
+        // Remove previous highlights
+        document.querySelectorAll('.timeline-event.scroll-highlighted').forEach(el => {
+            el.classList.remove('scroll-highlighted');
+        });
+
+        // Try both data-id and data-event-id selectors
+        let event = document.querySelector(`.timeline-event[data-event-id="${eventId}"]`);
+        if (!event) {
+            event = document.querySelector(`.timeline-event[data-id="${eventId}"]`);
+        }
+
         if (event) {
             event.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            event.classList.add('search-highlight');
-            setTimeout(() => event.classList.remove('search-highlight'), 2000);
+            event.classList.add('scroll-highlighted');
+            setTimeout(() => event.classList.remove('scroll-highlighted'), 3000);
 
             // Expand it
             const details = document.getElementById(`event-details-${eventId}`);
@@ -932,12 +960,12 @@ const TimelineModule = {
             content.classList.toggle('hidden', content.id !== 'view-dashboard');
         });
 
-        // Attendre que le graphe soit rendu
+        // Attendre que le graphe N4L soit rendu
         const waitForGraph = async () => {
-            if (!this.graph || !this.graphNodes) {
-                await this.renderGraph();
+            if (!this.n4lGraph || !this.n4lGraphNodes) {
+                await this.loadDashboardGraph();
             }
-            return this.graph && this.graphNodes;
+            return this.n4lGraph && this.n4lGraphNodes;
         };
 
         const graphReady = await waitForGraph();
@@ -954,7 +982,7 @@ const TimelineModule = {
         });
 
         // Trouver les nœuds correspondants aux entités de l'événement
-        const allNodeIds = this.graphNodes.getIds();
+        const allNodeIds = this.n4lGraphNodes.getIds();
         const matchedNodeIds = [];
 
         for (const entityId of event.entities) {
@@ -964,7 +992,7 @@ const TimelineModule = {
 
             // Chercher le nœud par nom d'entité (car les nœuds N4L utilisent les noms)
             for (const nodeId of allNodeIds) {
-                const node = this.graphNodes.get(nodeId);
+                const node = this.n4lGraphNodes.get(nodeId);
 
                 // Le graphe N4L utilise les noms comme IDs
                 if (entityName && (nodeId === entityName || node.label === entityName)) {
@@ -985,7 +1013,7 @@ const TimelineModule = {
         }
 
         // Masquer les nœuds non sélectionnés, mettre en évidence les sélectionnés
-        const allNodes = this.graphNodes.get();
+        const allNodes = this.n4lGraphNodes.get();
         const nodeUpdates = allNodes.map(node => {
             const isHighlighted = matchedNodeIds.includes(node.id);
             return {
@@ -998,10 +1026,10 @@ const TimelineModule = {
                 } : undefined
             };
         });
-        this.graphNodes.update(nodeUpdates);
+        this.n4lGraphNodes.update(nodeUpdates);
 
         // Masquer les arêtes qui ne connectent pas les nœuds sélectionnés
-        const allEdges = this.graphEdges.get();
+        const allEdges = this.n4lGraphEdges.get();
         const edgeUpdates = allEdges.map(edge => {
             const isConnected = matchedNodeIds.includes(edge.from) && matchedNodeIds.includes(edge.to);
             return {
@@ -1009,10 +1037,10 @@ const TimelineModule = {
                 hidden: !isConnected
             };
         });
-        this.graphEdges.update(edgeUpdates);
+        this.n4lGraphEdges.update(edgeUpdates);
 
         // Centrer la vue sur les nœuds sélectionnés
-        this.graph.fit({
+        this.n4lGraph.fit({
             nodes: matchedNodeIds,
             animation: { duration: 500, easingFunction: 'easeInOutQuad' }
         });
@@ -1219,6 +1247,233 @@ const TimelineModule = {
             console.error('Error deleting event:', error);
             alert('Erreur lors de la suppression');
         }
+    },
+
+    // ============================================
+    // Causal Chains Integration (N4L Advanced Feature)
+    // ============================================
+    renderCausalChainsSection(events) {
+        // Get causal chains from N4L parsed data
+        const causalChains = this.lastN4LParse?.causal_chains || [];
+        if (causalChains.length === 0) return '';
+
+        // Helper: Extract word stems (simple French stemming)
+        const getStem = (word) => {
+            if (!word || word.length < 4) return word;
+            // Remove common French suffixes
+            return word
+                .replace(/ement$/, '')
+                .replace(/ation$/, '')
+                .replace(/ement$/, '')
+                .replace(/tion$/, '')
+                .replace(/ure$/, '')
+                .replace(/age$/, '')
+                .replace(/ée?s?$/, '')
+                .replace(/és?$/, '')
+                .replace(/er$/, '')
+                .replace(/ir$/, '')
+                .replace(/ant$/, '')
+                .replace(/ent$/, '');
+        };
+
+        // Helper: Get all words from text
+        const getWords = (text) => {
+            return text.toLowerCase()
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Remove accents
+                .split(/[\s\-_']+/)
+                .filter(w => w.length > 2);
+        };
+
+        // Helper: Check if two texts match flexibly
+        const flexibleMatch = (stepLabel, evtText) => {
+            const stepWords = getWords(stepLabel);
+            const evtWords = getWords(evtText);
+
+            // Direct inclusion check
+            const stepNorm = stepLabel.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            const evtNorm = evtText.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            if (evtNorm.includes(stepNorm) || stepNorm.includes(evtNorm)) return true;
+
+            // Stem-based matching: check if any step word stem matches any event word stem
+            for (const sw of stepWords) {
+                const swStem = getStem(sw);
+                for (const ew of evtWords) {
+                    const ewStem = getStem(ew);
+                    // Match if stems are similar (one contains the other or same)
+                    if (swStem.length >= 3 && ewStem.length >= 3) {
+                        if (swStem.includes(ewStem) || ewStem.includes(swStem) || swStem === ewStem) {
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            // Keyword matching for common forensic terms
+            const synonyms = {
+                'poison': ['empoisonnement', 'empoisonner', 'toxique', 'intoxication'],
+                'empoisonnement': ['poison', 'empoisonner', 'toxique', 'intoxication'],
+                'meurtre': ['tuer', 'mort', 'assassinat', 'homicide', 'crime'],
+                'vol': ['voler', 'cambriolage', 'derober'],
+                'fuite': ['fuir', 'echapper', 'evasion', 'partir'],
+                'entree': ['entrer', 'penetrer', 'intrusion', 'acces'],
+                'preparation': ['preparer', 'planifier', 'planification'],
+                'jardin': ['exterieur', 'dehors', 'parc'],
+                'the': ['boisson', 'tasse', 'infusion']
+            };
+
+            for (const sw of stepWords) {
+                const swNorm = sw.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                const swSyns = synonyms[swNorm] || [];
+                for (const ew of evtWords) {
+                    const ewNorm = ew.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                    if (swSyns.includes(ewNorm)) return true;
+                    // Check reverse
+                    const ewSyns = synonyms[ewNorm] || [];
+                    if (ewSyns.includes(swNorm)) return true;
+                }
+            }
+
+            return false;
+        };
+
+        // Match chains with timeline events
+        const chainsWithEvents = causalChains.map((chain, index) => {
+            const matchedEvents = [];
+            const steps = chain.steps || [];
+
+            steps.forEach((step, stepIndex) => {
+                // ChainStep structure uses 'item' not 'entity' or 'label'
+                const stepLabel = step.item || step.entity || step.label || '';
+                const matchingEvent = events.find(evt => {
+                    const evtText = `${evt.title || ''} ${evt.description || ''}`;
+                    return flexibleMatch(stepLabel, evtText);
+                });
+                if (matchingEvent) {
+                    matchedEvents.push({
+                        step,
+                        stepIndex,
+                        event: matchingEvent
+                    });
+                }
+            });
+
+            return {
+                ...chain,
+                index,
+                matchedEvents,
+                matchRate: steps.length > 0 ? Math.round((matchedEvents.length / steps.length) * 100) : 0
+            };
+        }).filter(c => c.steps && c.steps.length > 0);
+
+        if (chainsWithEvents.length === 0) return '';
+
+        return `
+            <div class="timeline-causal-chains-panel">
+                <div class="causal-chains-header" onclick="app.toggleTimelineCausalChains()">
+                    <span class="material-icons">route</span>
+                    <strong>Chaînes Causales (${chainsWithEvents.length})</strong>
+                    <span class="causal-chains-badge">${chainsWithEvents.filter(c => c.matchRate > 50).length} liées à la timeline</span>
+                    <span class="material-icons expand-icon">expand_more</span>
+                </div>
+                <div class="causal-chains-content" id="timeline-causal-chains-content" style="display: none;">
+                    ${chainsWithEvents.map(chain => `
+                        <div class="timeline-causal-chain ${chain.matchRate > 50 ? 'linked' : ''}"
+                             data-chain-index="${chain.index}">
+                            <div class="chain-header" onclick="app.highlightTimelineCausalChain(${chain.index})">
+                                <span class="chain-context">${chain.context || 'Général'}</span>
+                                <span class="chain-match-rate ${chain.matchRate > 50 ? 'high' : chain.matchRate > 0 ? 'medium' : 'low'}">
+                                    ${chain.matchRate}% lié
+                                </span>
+                            </div>
+                            <div class="chain-steps-flow">
+                                ${(chain.steps || []).map((step, i) => {
+                                    const match = chain.matchedEvents.find(m => m.stepIndex === i);
+                                    const hasMatch = !!match;
+                                    const eventId = match ? match.event.id : '';
+                                    return `
+                                        <span class="chain-step ${hasMatch ? 'matched clickable' : ''}"
+                                              ${hasMatch ? `onclick="event.stopPropagation(); app.scrollToTimelineEvent('${eventId}')" title="Cliquer pour voir: ${match.event.title || ''}"` : ''}>
+                                            ${step.item || step.entity || step.label || '?'}
+                                        </span>
+                                        ${i < chain.steps.length - 1 ? `<span class="chain-arrow">${step.relation || '→'}</span>` : ''}
+                                    `;
+                                }).join('')}
+                            </div>
+                            ${chain.matchedEvents.length > 0 ? `
+                                <div class="chain-matched-events-list">
+                                    <div class="chain-matched-header">
+                                        <span class="material-icons">event</span>
+                                        ${chain.matchedEvents.length} événement(s) correspondant(s):
+                                    </div>
+                                    ${chain.matchedEvents.map(m => `
+                                        <div class="chain-matched-event-item"
+                                             onclick="event.stopPropagation(); app.scrollToTimelineEvent('${m.event.id}')">
+                                            <span class="material-icons">arrow_forward</span>
+                                            <span class="matched-step-name">${m.step.item || m.step.entity || '?'}</span>
+                                            <span class="matched-event-arrow">→</span>
+                                            <span class="matched-event-title">${m.event.title || 'Événement'}</span>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            ` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    },
+
+    toggleTimelineCausalChains() {
+        const content = document.getElementById('timeline-causal-chains-content');
+        const icon = document.querySelector('.timeline-causal-chains-panel .expand-icon');
+        if (content) {
+            const isHidden = content.style.display === 'none';
+            content.style.display = isHidden ? 'block' : 'none';
+            if (icon) icon.textContent = isHidden ? 'expand_less' : 'expand_more';
+        }
+    },
+
+    highlightTimelineCausalChain(chainIndex) {
+        const causalChains = this.lastN4LParse?.causal_chains || [];
+        const chain = causalChains[chainIndex];
+        if (!chain) return;
+
+        // Remove previous highlights
+        document.querySelectorAll('.timeline-event.chain-highlighted').forEach(el => {
+            el.classList.remove('chain-highlighted');
+        });
+        document.querySelectorAll('.timeline-causal-chain.active').forEach(el => {
+            el.classList.remove('active');
+        });
+
+        // Mark current chain as active
+        const chainEl = document.querySelector(`.timeline-causal-chain[data-chain-index="${chainIndex}"]`);
+        if (chainEl) chainEl.classList.add('active');
+
+        // Highlight matching events in timeline
+        const events = this.currentCase?.timeline || [];
+        const steps = chain.steps || [];
+
+        steps.forEach((step, stepIndex) => {
+            // ChainStep structure uses 'item' not 'entity' or 'label'
+            const stepLabel = (step.item || step.entity || step.label || '').toLowerCase();
+            events.forEach(evt => {
+                const evtTitle = (evt.title || evt.description || '').toLowerCase();
+                if (evtTitle.includes(stepLabel) || stepLabel.includes(evtTitle.split(' ')[0])) {
+                    const eventEl = document.querySelector(`.timeline-event[data-event-id="${evt.id}"]`);
+                    if (eventEl) {
+                        eventEl.classList.add('chain-highlighted');
+                        eventEl.style.setProperty('--chain-step', stepIndex);
+                        // Scroll to first matched event
+                        if (stepIndex === 0) {
+                            eventEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                    }
+                }
+            });
+        });
+
+        this.showToast(`Chaîne causale "${chain.context || 'Chaîne ' + (chainIndex + 1)}" surlignée`);
     }
 };
 

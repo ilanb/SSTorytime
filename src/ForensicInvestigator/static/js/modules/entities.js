@@ -302,12 +302,12 @@ const EntitiesModule = {
             content.classList.toggle('hidden', content.id !== 'view-dashboard');
         });
 
-        // Attendre que le graphe soit rendu si nécessaire
+        // Attendre que le graphe N4L soit rendu si nécessaire
         const waitForGraph = async () => {
-            if (!this.graph || !this.graphNodes) {
-                await this.renderGraph();
+            if (!this.n4lGraph || !this.n4lGraphNodes) {
+                await this.loadDashboardGraph();
             }
-            return this.graph && this.graphNodes;
+            return this.n4lGraph && this.n4lGraphNodes;
         };
 
         // Attendre un court délai pour que la navigation soit effective
@@ -315,19 +315,19 @@ const EntitiesModule = {
 
         const graphReady = await waitForGraph();
         if (!graphReady) {
-            console.warn('showEntityGraph: Graphe non disponible');
+            console.warn('showEntityGraph: Graphe N4L non disponible');
             return;
         }
 
-        // Chercher l'entité dans les nœuds du graphe (par ID ou par label)
-        const allNodeIds = this.graphNodes.getIds();
+        // Chercher l'entité dans les nœuds du graphe N4L (par ID ou par label)
+        const allNodeIds = this.n4lGraphNodes.getIds();
         const entityName = entity.name;
 
         // Trouver le nœud correspondant (par ID direct ou par label)
         let targetNodeId = null;
 
         for (const nodeId of allNodeIds) {
-            const node = this.graphNodes.get(nodeId);
+            const node = this.n4lGraphNodes.get(nodeId);
             if (nodeId === entityId || node.label === entityName) {
                 targetNodeId = nodeId;
                 break;
@@ -342,7 +342,7 @@ const EntitiesModule = {
 
         // Trouver les nœuds liés via les ARÊTES du graphe (pas les relations des entités)
         const connectedNodeIds = new Set([targetNodeId]);
-        const allEdges = this.graphEdges.get();
+        const allEdges = this.n4lGraphEdges.get();
 
         // Parcourir toutes les arêtes pour trouver celles connectées au nœud cible
         allEdges.forEach(edge => {
@@ -387,7 +387,7 @@ const EntitiesModule = {
                 font: { color: 'rgba(26, 26, 46, 0.2)' }
             };
         });
-        this.graphNodes.update(nodeUpdates);
+        this.n4lGraphNodes.update(nodeUpdates);
 
         // Mettre à jour les arêtes
         const edgeUpdates = allEdges.map(edge => {
@@ -402,10 +402,10 @@ const EntitiesModule = {
                 }
             };
         });
-        this.graphEdges.update(edgeUpdates);
+        this.n4lGraphEdges.update(edgeUpdates);
 
         // Centrer sur les nœuds connectés
-        this.graph.fit({
+        this.n4lGraph.fit({
             nodes: Array.from(connectedNodeIds),
             animation: true
         });
@@ -422,9 +422,40 @@ const EntitiesModule = {
         const entity = this.currentCase.entities.find(e => e.id === entityId);
         if (!entity) return;
 
-        const events = (this.currentCase.timeline || []).filter(e =>
-            e.entities && e.entities.includes(entityId)
-        );
+        // Normalize ID for flexible matching
+        const normalizeId = (id) => id ? id.toLowerCase().replace(/[-_\s]/g, '') : '';
+        const normalizedEntityId = normalizeId(entityId);
+        const normalizedEntityName = normalizeId(entity.name);
+
+        // Find events linked to this entity (flexible matching)
+        const events = (this.currentCase.timeline || []).filter(evt => {
+            // Check direct entity link
+            if (evt.entities && evt.entities.length > 0) {
+                const hasMatch = evt.entities.some(eid => {
+                    const normalizedEid = normalizeId(eid);
+                    return normalizedEid === normalizedEntityId ||
+                           normalizedEid === normalizedEntityName ||
+                           eid === entityId ||
+                           eid === entity.name;
+                });
+                if (hasMatch) return true;
+            }
+
+            // Check if entity name appears in event location (for places)
+            if (entity.type === 'location' || entity.type === 'lieu') {
+                if (evt.location && normalizeId(evt.location).includes(normalizedEntityName)) {
+                    return true;
+                }
+            }
+
+            // Check if entity name appears in event title or description
+            const evtText = normalizeId(`${evt.title || ''} ${evt.description || ''}`);
+            if (evtText.includes(normalizedEntityName) && normalizedEntityName.length > 3) {
+                return true;
+            }
+
+            return false;
+        });
 
         if (events.length === 0) {
             this.showModal(`Timeline: ${entity.name}`, `
@@ -442,7 +473,9 @@ const EntitiesModule = {
         const eventsHtml = events.map(e => {
             const date = new Date(e.timestamp);
             return `
-                <div class="entity-timeline-event ${e.importance}">
+                <div class="entity-timeline-event ${e.importance} clickable"
+                     onclick="app.goToTimelineEvent('${e.id}')"
+                     title="Cliquer pour voir dans la timeline">
                     <div class="event-time">
                         <span class="event-date">${date.toLocaleDateString('fr-FR')}</span>
                         <span class="event-hour">${date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
@@ -452,6 +485,9 @@ const EntitiesModule = {
                         ${e.location ? `<div class="event-location"><span class="material-icons">location_on</span>${e.location}</div>` : ''}
                         ${e.description ? `<div class="event-desc">${e.description}</div>` : ''}
                     </div>
+                    <div class="event-goto">
+                        <span class="material-icons">arrow_forward</span>
+                    </div>
                 </div>
             `;
         }).join('');
@@ -460,7 +496,7 @@ const EntitiesModule = {
             <div class="modal-explanation">
                 <span class="material-icons">info</span>
                 <p><strong>Chronologie de l'entité</strong> - Visualisez tous les événements impliquant cette entité, triés par ordre chronologique.
-                Permet de reconstituer les déplacements et actions d'une personne ou l'historique d'un lieu/objet.</p>
+                Cliquez sur un événement pour le voir dans la timeline principale.</p>
             </div>
             <div class="entity-timeline-modal">
                 <div class="timeline-header">
@@ -472,6 +508,20 @@ const EntitiesModule = {
                 </div>
             </div>
         `, null, false);
+    },
+
+    // Navigate to timeline view and highlight specific event
+    goToTimelineEvent(eventId) {
+        // Close modal
+        this.closeModal();
+
+        // Switch to timeline view
+        this.switchView('timeline');
+
+        // Wait for view to load then scroll to event
+        setTimeout(() => {
+            this.scrollToTimelineEvent(eventId);
+        }, 300);
     },
 
     // ============================================

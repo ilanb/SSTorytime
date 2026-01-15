@@ -16,6 +16,9 @@
     <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 </head>
 <body>
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
     <!-- Authentication Modal -->
     <div id="auth-modal" class="auth-modal">
         <div class="auth-modal-content">
@@ -661,7 +664,7 @@
 
                 <!-- Dashboard View -->
                 <div class="workspace-content" id="view-dashboard">
-                    <div class="panel">
+                    <div class="panel" id="panel-dashboard-graph">
                         <div class="panel-header">
                             <span class="panel-title">Graphe des Relations</span>
                             <div style="display: flex; gap: 0.5rem;">
@@ -686,11 +689,11 @@
                                     Analyser
                                 </button>
                                 <span class="btn-separator"></span>
-                                <button class="btn btn-sm btn-ghost" id="btn-reset-graph" onclick="app.resetGraphFocus()" data-tooltip="Réinitialiser la vue du graphe" data-tooltip-pos="bottom">
+                                <button class="btn btn-sm btn-ghost" id="btn-reset-dashboard-graph" onclick="app.resetDashboardGraphFocus()" data-tooltip="Réinitialiser la vue du graphe" data-tooltip-pos="bottom">
                                     <span class="material-icons">restart_alt</span>
                                     Reset
                                 </button>
-                                <button class="btn btn-sm btn-ghost" id="btn-fullscreen-graph" onclick="app.toggleGraphFullscreen()" data-tooltip="Afficher le graphe en plein écran" data-tooltip-pos="bottom">
+                                <button class="btn btn-sm btn-ghost" id="btn-fullscreen-dashboard-graph" onclick="app.toggleDashboardGraphFullscreen()" data-tooltip="Afficher le graphe en plein écran" data-tooltip-pos="bottom">
                                     <span class="material-icons">fullscreen</span>
                                     Plein écran
                                 </button>
@@ -698,16 +701,11 @@
                         </div>
                         <div class="panel-description">
                             <span class="material-icons">info</span>
-                            Visualisation des liens entre entités, preuves et événements.
-                            <strong>Inférences</strong> suggère des liens manquants.
-                            <strong>Recherche</strong> filtre les nœuds du graphe.
-                            <strong>Chemins</strong> découvre les connexions entre deux entités.
-                            <strong>Réseaux Sociaux</strong> analyse les clusters relationnels.
-                            <strong>Analyser</strong> génère une analyse IA globale.
+                            Visualisation des liens entre entités. Cliquez sur les contextes ci-dessous pour filtrer.
                         </div>
-                        <div class="panel-content" style="display: flex; flex-direction: column; overflow: hidden;">
-                            <div id="graph-metadata-container" style="max-height: 200px; overflow-y: auto; margin-bottom: 0.5rem;"></div>
-                            <div id="graph-container" style="flex: 1; min-height: 300px;"></div>
+                        <div class="panel-content" style="display: flex; flex-direction: column; overflow: hidden; min-height: 600px;">
+                            <div id="dashboard-graph-container" style="flex: 1; min-height: 400px; border: 1px solid #e2e8f0;"></div>
+                            <div id="dashboard-metadata-container" style="max-height: 200px; overflow-y: auto; margin-top: 0.5rem;"></div>
                         </div>
                     </div>
 

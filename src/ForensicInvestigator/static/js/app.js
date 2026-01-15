@@ -198,7 +198,15 @@ class ForensicApp {
 
             // Refresh view-specific content
             if (viewName === 'dashboard' && this.currentCase) {
-                if (typeof this.renderGraph === 'function') this.renderGraph();
+                // Use N4L-based dashboard graph with all functionalities
+                console.log('[App] Dashboard view, checking loadDashboardGraph:', typeof this.loadDashboardGraph);
+                if (typeof this.loadDashboardGraph === 'function') {
+                    console.log('[App] Calling loadDashboardGraph...');
+                    this.loadDashboardGraph();
+                } else if (typeof this.renderGraph === 'function') {
+                    console.log('[App] Falling back to renderGraph');
+                    this.renderGraph();
+                }
             } else if (viewName === 'n4l' && this.currentCase) {
                 if (typeof this.loadN4LContent === 'function') this.loadN4LContent();
             } else if (viewName === 'config') {
