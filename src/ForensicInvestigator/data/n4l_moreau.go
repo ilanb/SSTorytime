@@ -53,16 +53,16 @@ func GetMoreauN4LContent() string {
     " (véhicule) BMW série 3 noire AB-123-CD
     " (pointure) 42
     " (comportement) Nerveux lors interrogatoire
-    " (dernier_contact) Appel à $victime.1 le 29/08 à 18h45
+    " (dernier_contact) Appel à Victor Moreau le 29/08 à 18h45
     " (latitude) 48.8396
     " (longitude) 2.3876
 
 // Relations de Jean Moreau
-$neveu.1 (hérite de:+L) $victime.1
-$neveu.1 (doit de l'argent à:-C) $casino.1
-$neveu.1 (connaît le code d'accès:N) $bibliotheque.1
-$neveu.1 (vu au:N) Bar Le Diplomate
-$neveu.1 (alibi à:N) $ugc.1
+Jean Moreau (hérite de:+L) Victor Moreau
+Jean Moreau (doit de l'argent à:-C) Casino de Deauville
+Jean Moreau (connaît le code d'accès:N) Bibliothèque du Manoir
+Jean Moreau (vu au:N) Bar Le Diplomate
+Jean Moreau (alibi à:N) UGC Bercy
 
 @exassociee Élodie Dubois (type) personne
     " (rôle) suspect
@@ -70,7 +70,7 @@ $neveu.1 (alibi à:N) $ugc.1
     " (âge) 42 ans
     " (profession) Femme d'affaires
     " (mobile) Vengeance - perte 2 millions EUR
-    " (procédure) Procès civil en cours contre $victime.1
+    " (procédure) Procès civil en cours contre Victor Moreau
     " (menaces) Il paiera pour ce qu'il m'a fait
     " (alibi) Dîner charité Hôtel Crillon 19h-23h
     " (avocat) Maître Lefebvre
@@ -78,10 +78,10 @@ $neveu.1 (alibi à:N) $ugc.1
     " (longitude) 2.3215
 
 // Relations d'Élodie Dubois
-$exassociee.1 (en conflit avec:N) $victime.1
-$exassociee.1 (a menacé:+L) $victime.1
-$exassociee.1 (représentée par:N) $avocat.1
-$exassociee.1 (alibi à:N) $crillon.1
+Élodie Dubois (en conflit avec:N) Victor Moreau
+Élodie Dubois (a menacé:+L) Victor Moreau
+Élodie Dubois (représentée par:N) Maître Lefebvre
+Élodie Dubois (alibi à:N) Hôtel de Crillon
 
 @concurrent Antoine Mercier (type) personne
     " (rôle) suspect
@@ -94,8 +94,8 @@ $exassociee.1 (alibi à:N) $crillon.1
     " (alibi) Non vérifié
 
 // Relations d'Antoine Mercier
-$concurrent.1 (rival de:N) $victime.1
-$concurrent.1 (a perdu aux enchères contre:N) $victime.1
+Antoine Mercier (rival de:N) Victor Moreau
+Antoine Mercier (a perdu aux enchères contre:N) Victor Moreau
 
 // =============================================================
 // SECTION TÉMOINS - Observations et dépositions
@@ -117,7 +117,7 @@ $concurrent.1 (a perdu aux enchères contre:N) $victime.1
     " (longitude) 2.3175
 
 // Relations de Madame Chen
-$gouvernante.1 (employée par:N) $victime.1
+Madame Chen (employée par:N) Victor Moreau
 
 @jardinier Robert Duval (type) personne
     " (rôle) temoin
@@ -144,22 +144,22 @@ $gouvernante.1 (employée par:N) $victime.1
     " (profession) Avocat
     " (spécialité) Droit des affaires
     " (réputation) Agressif mais efficace
-    " (client) $exassociee.1
+    " (client) Élodie Dubois
     " (présent) Confrontation tribunal 25/08
 
 // Relations Maître Lefebvre
-$avocat.1 (représente:N) $exassociee.1
-$avocat.1 (a attaqué:N) $victime.1
+Maître Lefebvre (représente:N) Élodie Dubois
+Maître Lefebvre (a attaqué:N) Victor Moreau
 
 @notaire Maître Durand (type) personne
     " (rôle) temoin
     " (profession) Notaire
     " (cabinet) Étude notariale Paris 7e
-    " (action) Rencontre avec $victime.1 le 28/08
+    " (action) Rencontre avec Victor Moreau le 28/08
 
 // Relations Maître Durand
-$notaire.1 (a reçu:N) $victime.1
-$notaire.1 (a rédigé:N) $testament.1
+Maître Durand (a reçu:N) Victor Moreau
+Maître Durand (a rédigé:N) Testament actuel
 
 @individu_inconnu Homme non identifié (type) personne
     " (rôle) suspect
@@ -176,7 +176,7 @@ $notaire.1 (a rédigé:N) $testament.1
     " (identification) En cours
 
 // Relations appelant inconnu
-$appelant_inconnu.1 (a appelé:+L) $victime.1
+Homme au téléphone inconnu (a appelé:+L) Victor Moreau
 
 // =============================================================
 // SECTION LIEUX - Scène de crime et localisations
@@ -195,7 +195,7 @@ $appelant_inconnu.1 (a appelé:+L) $victime.1
     " (longitude) 2.3177
 
 // Relations Bibliothèque
-$bibliotheque.1 (propriété de:N) $victime.1
+Bibliothèque du Manoir (propriété de:N) Victor Moreau
 
 @jardin Jardin du Manoir (type) lieu
     " (description) Jardin de 500m² avec haie haute côté rue. Traces de pas près des rosiers.
@@ -208,22 +208,22 @@ $bibliotheque.1 (propriété de:N) $victime.1
     " (longitude) 2.3175
 
 // Relations Jardin
-$jardin.1 (donne accès à:+C) $bibliotheque.1
+Jardin du Manoir (donne accès à:+C) Bibliothèque du Manoir
 
 @portillon Portillon du jardin (type) lieu
     " (type) Accès secondaire
     " (sécurité) Fermé à clé
-    " (clé) Détenue par $jardinier.1
-    " (état_29_08) Fermé à 18h par $jardinier.1
+    " (clé) Détenue par Robert Duval
+    " (état_29_08) Fermé à 18h par Robert Duval
 
 // Relations Portillon
-$portillon.1 (donne accès à:+C) $jardin.1
+Portillon du jardin (donne accès à:+C) Jardin du Manoir
 
 @casino Casino de Deauville (type) lieu
     " (description) Casino où Jean Moreau a contracté des dettes importantes.
     " (adresse) 2 Rue Edmond Blanc, 14800 Deauville
     " (type_lieu) Casino
-    " (lien) Créancier de $neveu.1 - 150k EUR
+    " (lien) Créancier de Jean Moreau - 150k EUR
     " (latitude) 49.3565
     " (longitude) -0.0742
 
@@ -231,23 +231,23 @@ $portillon.1 (donne accès à:+C) $jardin.1
     " (description) Cinéma où Jean Moreau prétend avoir passé la soirée du crime (19h-22h).
     " (adresse) 2 Cour Saint-Émilion, Paris 12e
     " (type_lieu) Cinéma
-    " (alibi) Lieu déclaré par $neveu.1 le soir du crime
+    " (alibi) Lieu déclaré par Jean Moreau le soir du crime
     " (latitude) 48.8335
     " (longitude) 2.3867
 
 // Relations UGC
-$ugc.1 (alibi de:N) $neveu.1
+UGC Bercy (alibi de:N) Jean Moreau
 
 @crillon Hôtel de Crillon (type) lieu
     " (description) Palace parisien où Élodie Dubois assistait à un dîner de charité le soir du crime.
     " (adresse) 10 Place de la Concorde, Paris 8e
     " (type_lieu) Hôtel de luxe
-    " (alibi) Lieu déclaré par $exassociee.1 le soir du crime
+    " (alibi) Lieu déclaré par Élodie Dubois le soir du crime
     " (latitude) 48.8677
     " (longitude) 2.3216
 
 // Relations Crillon
-$crillon.1 (alibi de:N) $exassociee.1
+Hôtel de Crillon (alibi de:N) Élodie Dubois
 
 @bar Bar Le Diplomate (type) lieu
     " (description) Bar fréquenté par Jean Moreau. Lieu de rencontres suspects.
@@ -265,13 +265,13 @@ $crillon.1 (alibi de:N) $exassociee.1
     " (longitude) 2.3189
 
 // Relations Galerie
-$galerie.1 (propriété de:N) $victime.1
+Galerie Moreau Antiquités (propriété de:N) Victor Moreau
 
 @cercle Cercle des Bibliophiles Parisiens (type) organisation
     " (description) Club exclusif de collectionneurs de livres anciens. Victor en était membre depuis 20 ans.
 
 // Relations Cercle
-$cercle.1 (membre:N) $victime.1
+Cercle des Bibliophiles Parisiens (membre:N) Victor Moreau
 
 // =============================================================
 // SECTION PREUVES - Indices matériels et numériques
@@ -285,52 +285,52 @@ Preuves numériques => {Téléphone Victor, Vidéosurveillance UGC}
 Preuves documentaires => {Testament actuel, Brouillon testament}
 
 @tasse Tasse de thé (type) preuve physique
-    " (localisation) Table basse $bibliotheque.1
+    " (localisation) Table basse Bibliothèque du Manoir
     " (contenu) Résidus Earl Grey + substance inconnue
     " (empreintes) Victor uniquement
     " (fiabilité) 9/10
-    " (concerne) $victime.1
+    " (concerne) Victor Moreau
 
 @livre Livre "Traité des Poisons Exotiques" (type) preuve physique
     " (édition) 1923
-    " (localisation) Bureau de $victime.1
+    " (localisation) Bureau de Victor Moreau
     " (page) 247 - Alcaloïdes végétaux
     " (annotations) *Récentes - encre fraîche
     " (empreintes) Partielles non identifiées
     " (fiabilité) 7/10
 
 @traces Traces de boue (type) preuve forensique
-    " (localisation) Tapis persan $bibliotheque.1
+    " (localisation) Tapis persan Bibliothèque du Manoir
     " (composition) Terre argileuse des rosiers
-    " (pointure) *42 - correspond à $neveu.1
+    " (pointure) *42 - correspond à Jean Moreau
     " (direction) Fenêtre vers fauteuil
     " (fraîcheur) < 24h
     " (fiabilité) 8/10
 
 @telephone Téléphone de Victor (type) preuve numérique
     " (localisation) Sur la victime
-    " (appels) $neveu.1 18h45, inconnu 19h05
-    " (sms) Menaces de $exassociee.1
+    " (appels) Jean Moreau 18h45, inconnu 19h05
+    " (sms) Menaces de Élodie Dubois
     " (recherches) "poisons" le 28/08
     " (fiabilité) 9/10
-    " (concerne) $victime.1, $neveu.1, $exassociee.1
+    " (concerne) Victor Moreau, Jean Moreau, Élodie Dubois
 
 @testament Testament actuel (type) preuve documentaire
     " (date) 15/03/2025
     " (notaire) Maître Durand
-    " (bénéficiaire) $neveu.1 80%
+    " (bénéficiaire) Jean Moreau 80%
     " (statut) Valide et officiel
 
 @brouillon Brouillon nouveau testament (type) preuve documentaire
     " (date) 28/08/2025
     " (statut) *Non signé - trouvé corbeille
     " (nouveau_bénéficiaire) Fondation Moreau 90%
-    " (impact) Réduit $neveu.1 à 10%
-    " (mobile) =déshéritage Renforce le mobile de $neveu.1
+    " (impact) Réduit Jean Moreau à 10%
+    " (mobile) =déshéritage Renforce le mobile de Jean Moreau
 
 @sms SMS menaçants (type) preuve numérique
-    " (source) Téléphone de $victime.1
-    " (expéditeur) $exassociee.1
+    " (source) Téléphone de Victor Moreau
+    " (expéditeur) Élodie Dubois
     " (contenu) Menaces de vengeance
     " (date) Août 2025
     " (fiabilité) 9/10
@@ -343,7 +343,7 @@ Preuves documentaires => {Testament actuel, Brouillon testament}
     " (fiabilité) 8/10
 
 @autopsie Rapport d'autopsie (type) preuve médicale
-    " (médecin) $legiste.1
+    " (médecin) Dr. Sarah Martin
     " (date) 30/08/2025
     " (cause_décès) Empoisonnement par alcaloïde végétal
     " (heure_décès) Entre 20h et 21h
@@ -364,121 +364,121 @@ Preuves documentaires => {Testament actuel, Brouillon testament}
 
 // Événements du 15 juillet 2025
 @evt_00a 15/07/2025 14:00 Vente aux enchères contestée (lieu) Drouot
-    " (description) $victime.1 remporte un manuscrit convoité par $concurrent.1 pour 450 000€
+    " (description) Victor Moreau remporte un manuscrit convoité par Antoine Mercier pour 450 000€
     " (importance) medium
     " (vérifié) oui
-    " (implique) $victime.1, $concurrent.1
+    " (implique) Victor Moreau, Antoine Mercier
 
 // Événements du 25 août 2025
-@evt_00b 25/08/2025 10:00 Confrontation tribunal $victime.1/$exassociee.1 (lieu) Tribunal de Commerce
-    " (description) $exassociee.1 menace $victime.1: 'Il paiera pour ce qu'il m'a fait'
+@evt_00b 25/08/2025 10:00 Confrontation tribunal Victor Moreau/Élodie Dubois (lieu) Tribunal de Commerce
+    " (description) Élodie Dubois menace Victor Moreau: 'Il paiera pour ce qu'il m'a fait'
     " (importance) high
     " (vérifié) oui
-    " (implique) $victime.1, $exassociee.1, $avocat.1
-    " (preuve) $sms.1
+    " (implique) Victor Moreau, Élodie Dubois, Maître Lefebvre
+    " (preuve) SMS menaçants
 
 // ==========================================
 // Semaine du crime (27-28 août 2025)
 // ==========================================
 
 // Événements du 27 août 2025
-@evt_01 27/08/2025 14:00 Visite houleuse de $neveu.1 (lieu) Manoir
-    " (description) Discussion avec $victime.1 sur l'argent. Claque la porte en partant.
+@evt_01 27/08/2025 14:00 Visite houleuse de Jean Moreau (lieu) Manoir
+    " (description) Discussion avec Victor Moreau sur l'argent. Claque la porte en partant.
     " (importance) high
     " (vérifié) oui
-    " (implique) $victime.1, $neveu.1
+    " (implique) Victor Moreau, Jean Moreau
 
-@evt_01b 27/08/2025 22:00 $neveu.1 vu au Bar Le Diplomate (lieu) Bar Le Diplomate
+@evt_01b 27/08/2025 22:00 Jean Moreau vu au Bar Le Diplomate (lieu) Bar Le Diplomate
     " (description) Rencontre avec individu non identifié
     " (importance) medium
     " (vérifié) non
-    " (implique) $neveu.1, $individu_inconnu.1
+    " (implique) Jean Moreau, Homme non identifié
 
 // Événements du 28 août 2025
-@evt_02 28/08/2025 10:00 $victime.1 chez le notaire (lieu) Étude notariale
-    " (description) Évoque une modification du testament - veut déshériter $neveu.1
+@evt_02 28/08/2025 10:00 Victor Moreau chez le notaire (lieu) Étude notariale
+    " (description) Évoque une modification du testament - veut déshériter Jean Moreau
     " (importance) high
     " (vérifié) oui
-    " (implique) $victime.1, $notaire.1
-    " (preuve) $brouillon.1
+    " (implique) Victor Moreau, Maître Durand
+    " (preuve) Brouillon nouveau testament
 
 @evt_02b 28/08/2025 18:00 Câble caméra sectionné (lieu) Manoir
     " (description) Système de surveillance neutralisé
     " (importance) high
     " (vérifié) oui
-    " (preuve) $camera.1
+    " (preuve) Système vidéosurveillance
 
 // ==========================================
 // Jour du crime (29 août 2025)
 // ==========================================
 
 // Événements du 29 août 2025
-@evt_03 29/08/2025 15:00 $exassociee.1 vue près du manoir (lieu) Aux abords du manoir
+@evt_03 29/08/2025 15:00 Élodie Dubois vue près du manoir (lieu) Aux abords du manoir
     " (description) Aperçue par voisin M. Bertrand à 15h
     " (importance) high
     " (vérifié) non
-    " (implique) $exassociee.1
+    " (implique) Élodie Dubois
 
 @evt_04 29/08/2025 17:30 Fenêtre bibliothèque ouverte (lieu) Bibliothèque
-    " (description) Observée par $jardinier.1 - traces de boue découvertes plus tard
+    " (description) Observée par Robert Duval - traces de boue découvertes plus tard
     " (importance) medium
     " (vérifié) oui
-    " (implique) $jardinier.1, $bibliotheque.1
-    " (preuve) $traces.1
+    " (implique) Robert Duval, Bibliothèque du Manoir
+    " (preuve) Traces de boue
 
 @evt_05 29/08/2025 18:00 Départ du jardinier (lieu) Jardin
-    " (description) $jardinier.1 ferme le portillon à clé
+    " (description) Robert Duval ferme le portillon à clé
     " (importance) medium
     " (vérifié) oui
-    " (implique) $jardinier.1, $portillon.1
+    " (implique) Robert Duval, Portillon du jardin
 
-@evt_06 29/08/2025 18:45 Appel $neveu.1 vers $victime.1 (lieu) Téléphone
+@evt_06 29/08/2025 18:45 Appel Jean Moreau vers Victor Moreau (lieu) Téléphone
     " (description) Durée 3 minutes - contenu inconnu
     " (importance) high
     " (vérifié) oui
-    " (implique) $neveu.1, $victime.1
-    " (preuve) $telephone.1
+    " (implique) Jean Moreau, Victor Moreau
+    " (preuve) Téléphone de Victor
 
-@evt_07 29/08/2025 19:00 Départ $gouvernante.1 (lieu) Manoir
-    " (description) Laisse $victime.1 seul après avoir servi le thé
+@evt_07 29/08/2025 19:00 Départ Madame Chen (lieu) Manoir
+    " (description) Laisse Victor Moreau seul après avoir servi le thé
     " (importance) high
     " (vérifié) oui
-    " (implique) $gouvernante.1, $victime.1
-    " (preuve) $tasse.1
+    " (implique) Madame Chen, Victor Moreau
+    " (preuve) Tasse de thé
 
 @evt_08 29/08/2025 19:05 Appel numéro inconnu (lieu) Téléphone
-    " (description) Appel entrant sur téléphone $victime.1 - durée 2min
+    " (description) Appel entrant sur téléphone Victor Moreau - durée 2min
     " (importance) high
     " (vérifié) oui
-    " (implique) $victime.1, $appelant_inconnu.1
-    " (preuve) $telephone.1
+    " (implique) Victor Moreau, Homme au téléphone inconnu
+    " (preuve) Téléphone de Victor
 
-@evt_09 29/08/2025 19:15 $victime.1 boit son thé (lieu) Bibliothèque
+@evt_09 29/08/2025 19:15 Victor Moreau boit son thé (lieu) Bibliothèque
     " (description) Dernière activité connue - thé possiblement empoisonné
     " (importance) high
     " (vérifié) non
-    " (implique) $victime.1, $bibliotheque.1
-    " (preuve) $tasse.1
+    " (implique) Victor Moreau, Bibliothèque du Manoir
+    " (preuve) Tasse de thé
 
-@evt_09b 29/08/2025 19:25 Entrée cinéma $neveu.1 (alibi) (lieu) UGC Bercy
+@evt_09b 29/08/2025 19:25 Entrée cinéma Jean Moreau (alibi) (lieu) UGC Bercy
     " (description) Ticket acheté pour séance 19h30
     " (importance) high
     " (vérifié) oui
-    " (implique) $neveu.1
+    " (implique) Jean Moreau
 
 @evt_10 29/08/2025 20:30 Heure estimée du décès (lieu) Bibliothèque
     " (description) Selon rapport médecin légiste Dr. Martin
     " (importance) high
     " (vérifié) oui
-    " (implique) $victime.1, $medecin.1
-    " (preuve) $tasse.1, $autopsie.1
+    " (implique) Victor Moreau, Dr. Sarah Martin
+    " (preuve) Tasse de thé, Rapport d'autopsie
 
 @evt_11 29/08/2025 21:45 Découverte du corps (lieu) Bibliothèque
-    " (description) Par $gouvernante.1 revenue au manoir
+    " (description) Par Madame Chen revenue au manoir
     " (importance) high
     " (vérifié) oui
-    " (implique) $victime.1, $gouvernante.1, $bibliotheque.1
-    " (preuve) $tasse.1, $traces.1
+    " (implique) Victor Moreau, Madame Chen, Bibliothèque du Manoir
+    " (preuve) Tasse de thé, Traces de boue
 
 @evt_12 29/08/2025 22:00 Arrivée police (lieu) Manoir
     " (description) Début de l'enquête officielle
@@ -490,18 +490,18 @@ Preuves documentaires => {Testament actuel, Brouillon testament}
 // ==========================================
 
 // Chaîne causale principale: empoisonnement
-$evt_09 (mène à:+L) Empoisonnement
-Empoisonnement (mène à:+L) $evt_10
-$evt_10 (découvert par:+L) $evt_11
+Victor Moreau boit son thé (mène à:+L) Empoisonnement
+Empoisonnement (mène à:+L) Heure estimée du décès
+Heure estimée du décès (découvert par:+L) Découverte du corps
 
 // Chaîne causale: mobile financier
-$neveu.1 (dettes:+L) $casino.1
-$casino.1 (pression:+L) $neveu.1
-$neveu.1 (besoin urgent:+L) Héritage
-$evt_02 (menace:+L) $neveu.1
+Jean Moreau (dettes:+L) Casino de Deauville
+Casino de Deauville (pression:+L) Jean Moreau
+Jean Moreau (besoin urgent:+L) Héritage
+Victor Moreau chez le notaire (menace:+L) Jean Moreau
 
 // Chaîne causale: sabotage
-$evt_02b (permet:+L) Intrusion non détectée
+Câble caméra sectionné (permet:+L) Intrusion non détectée
 Intrusion non détectée (permet:+L) Crime
 
 -:: _timeline_, _sequence_ ::
@@ -518,10 +518,10 @@ Intrusion non détectée (permet:+L) Crime
     " (source) user
     " (description) Jean Moreau aurait agi pour sécuriser son héritage avant la modification du testament. Ses dettes de jeu (150 000€) créent une urgence financière. Il connaît le code d'accès du manoir et sa pointure (42) correspond aux traces de boue.
     " (mobile) Héritage 8 millions + dettes de jeu 150 000€
-    " (pour) $brouillon.1, $traces.1, $telephone.1
+    " (pour) Brouillon nouveau testament, Traces de boue, Téléphone de Victor
     " (contre) Alibi partiel cinéma UGC Bercy
     " (questions) Alibi vérifié par caméras?; Accès au poison?; Complice possible?
-    " (suspect) $neveu.1
+    " (suspect) Jean Moreau
 
 @hyp_m_02 Crime passionnel - Vengeance Élodie (type) hypothèse
     " (statut) en_attente
@@ -529,10 +529,10 @@ Intrusion non détectée (permet:+L) Crime
     " (source) user
     " (description) Élodie Dubois aurait empoisonné Victor pour se venger de la perte de 2 millions d'euros. Elle connaissait les habitudes de la victime et avait accès à la cuisine lors de visites antérieures. Sa présence près du manoir le jour du crime est troublante.
     " (mobile) Vengeance - perte 2 millions EUR
-    " (pour) $telephone.1 (SMS menaces), Connaissance des habitudes
+    " (pour) Téléphone de Victor (SMS menaces), Connaissance des habitudes
     " (contre) Alibi dîner charité Hôtel Crillon 19h-23h
     " (questions) Témoins au Crillon?; Connaissance des poisons?; Présence près du manoir confirmée?
-    " (suspect) $exassociee.1
+    " (suspect) Élodie Dubois
 
 @hyp_m_03 Complot commercial - Piste Mercier (type) hypothèse
     " (statut) en_attente
@@ -543,7 +543,7 @@ Intrusion non détectée (permet:+L) Crime
     " (pour) Conflit vente aux enchères juillet 2025, Rivalité intense
     " (contre) Pas de preuves directes, Mobile insuffisant seul
     " (questions) Alibi vérifié?; Mobile suffisant pour meurtre?; Contacts avec tueur à gages?
-    " (suspect) $concurrent.1
+    " (suspect) Antoine Mercier
 
 @hyp_m_04 Suicide maquillé (type) hypothèse
     " (statut) partielle
@@ -563,7 +563,7 @@ Intrusion non détectée (permet:+L) Crime
     " (pour) Accès total cuisine, Comportement calme après découverte, Dîner privé 26/08
     " (contre) Loyauté 15 ans, Pas de mobile apparent
     " (questions) Identifier l'appelant mystérieux; Analyse empreintes non identifiées; Mouvements bancaires suspects?
-    " (suspect) $gouvernante.1
+    " (suspect) Madame Chen
 
 // =============================================================
 // RÉSEAU DE RELATIONS - Graphe sémantique
@@ -574,28 +574,28 @@ Intrusion non détectée (permet:+L) Crime
 # Légende STTypes: N=proximité, +L=causalité, +C=containment, +E=expression
 
 // Relations familiales et financières
-$victime.1 (oncle de:N) $neveu.1
-$victime.1 (transfère de l'argent à:+L) $neveu.1
-$neveu.1 (doit de l'argent à:-C) $casino.1
-$casino.1 (menace pour recouvrement:+L) $neveu.1
+Victor Moreau (oncle de:N) Jean Moreau
+Victor Moreau (transfère de l'argent à:+L) Jean Moreau
+Jean Moreau (doit de l'argent à:-C) Casino de Deauville
+Casino de Deauville (menace pour recouvrement:+L) Jean Moreau
 
 // Relations conflictuelles
-$victime.1 (en conflit avec:N) $exassociee.1
-$exassociee.1 (a menacé:+L) $victime.1
-$exassociee.1 (accuse de fraude:+E) $victime.1
+Victor Moreau (en conflit avec:N) Élodie Dubois
+Élodie Dubois (a menacé:+L) Victor Moreau
+Élodie Dubois (accuse de fraude:+E) Victor Moreau
 
 // Relations professionnelles
-$victime.1 (emploie:-C) $gouvernante.1
-$victime.1 (emploie:-C) $jardinier.1
-$victime.1 (en rivalité avec:N) $concurrent.1
+Victor Moreau (emploie:-C) Madame Chen
+Victor Moreau (emploie:-C) Robert Duval
+Victor Moreau (en rivalité avec:N) Antoine Mercier
 
 // Relations de propriété
-$victime.1 (propriétaire de:+C) $bibliotheque.1
-$victime.1 (propriétaire de:+C) Galerie Moreau Antiquités
-$victime.1 (membre de:-C) Cercle des Bibliophiles Parisiens
+Victor Moreau (propriétaire de:+C) Bibliothèque du Manoir
+Victor Moreau (propriétaire de:+C) Galerie Moreau Antiquités
+Victor Moreau (membre de:-C) Cercle des Bibliophiles Parisiens
 
 // Chaîne causale du crime (hypothèse principale)
-// $neveu.1 (a tué:+L) $victime.1
+// Jean Moreau (a tué:+L) Victor Moreau
 
 // =============================================================
 // CHAÎNES CAUSALES DÉTECTÉES
@@ -617,7 +617,7 @@ $victime.1 (membre de:-C) Cercle des Bibliophiles Parisiens
 -:: _sequence_ ::
 
 // =============================================================
-// RÉFÉRENCES CROISÉES - Pour utilisation $alias.n
+// RÉFÉRENCES CROISÉES - Pour utilisation dans les recherches
 // =============================================================
 
 :: références croisées ::
@@ -628,12 +628,6 @@ suspects => {Jean Moreau, Élodie Dubois, Antoine Mercier}
 temoins => {Madame Chen, Robert Duval, Dr. Sarah Martin}
 lieux => {Bibliothèque du Manoir, Jardin du Manoir, Casino de Deauville, UGC Bercy, Hôtel de Crillon}
 preuves => {Tasse de thé, Livre des poisons, Traces de boue, Téléphone Victor, Testament actuel, Brouillon testament}
-
-# Exemples d'utilisation:
-# $victimes.1 = Victor Moreau
-# $suspects.1 = Jean Moreau (suspect principal)
-# $suspects.2 = Élodie Dubois
-# $preuves.3 = Traces de boue
 
 // =============================================================
 // NOTES D'ENQUÊTE - TODO items
@@ -682,7 +676,7 @@ func GetDisparitionN4LContent() string {
 
 +:: _timeline_ ::
 
-15/08/2025 18h00 $disparue.1 quitte le travail
+15/08/2025 18h00 Marie Lefèvre quitte le travail
 15/08/2025 19h30 Dernier achat carte bancaire - supermarché
 15/08/2025 22h30 Dernier message WhatsApp à une amie
 16/08/2025 08h00 Non-présentation au travail

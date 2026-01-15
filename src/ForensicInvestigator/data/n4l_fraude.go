@@ -32,10 +32,10 @@ func GetFraudeN4LContent() string {
     " (longitude) 2.3075
 
 // Relations de Philippe Martin
-$pdg.1 (supérieur hiérarchique de:+C) $directrice.1
-$pdg.1 (a escroqué:+L) $victimes.1
-$pdg.1 (a transféré vers:-C) $compte_suisse.1
-$pdg.1 (propriétaire de:+C) $societe.1
+Philippe Martin (supérieur hiérarchique de:+C) Céline Roux
+Philippe Martin (a escroqué:+L) Association Victimes FinanceMax
+Philippe Martin (a transféré vers:-C) Compte HSBC Suisse
+Philippe Martin (propriétaire de:+C) FinanceMax SARL
 
 @directrice Céline Roux (type) personne
     " (rôle) suspect
@@ -47,9 +47,9 @@ $pdg.1 (propriétaire de:+C) $societe.1
     " (commission) 5% sur chaque investissement recruté
 
 // Relations de Céline Roux
-$directrice.1 (complice de:+L) $pdg.1
-$directrice.1 (a recruté:+L) $victimes.1
-$directrice.1 (subordonnée de:-C) $pdg.1
+Céline Roux (complice de:+L) Philippe Martin
+Céline Roux (a recruté:+L) Association Victimes FinanceMax
+Céline Roux (subordonnée de:-C) Philippe Martin
 
 @comptable Marc Dubois (type) personne
     " (rôle) suspect
@@ -60,8 +60,8 @@ $directrice.1 (subordonnée de:-C) $pdg.1
     " (methode) Faux bilans, rapports mensongers
 
 // Relations du comptable
-$comptable.1 (complice de:+L) $pdg.1
-$comptable.1 (a falsifié:+L) $bilans.1
+Marc Dubois (complice de:+L) Philippe Martin
+Marc Dubois (a falsifié:+L) Bilans falsifiés
 
 // =============================================================
 // SECTION VICTIMES ET ORGANISATIONS
@@ -77,8 +77,8 @@ $comptable.1 (a falsifié:+L) $bilans.1
     " (action) Plainte collective
 
 // Relations de l'association
-$victimes.1 (porte plainte contre:+L) $pdg.1
-$victimes.1 (porte plainte contre:+L) $directrice.1
+Association Victimes FinanceMax (porte plainte contre:+L) Philippe Martin
+Association Victimes FinanceMax (porte plainte contre:+L) Céline Roux
 
 @retraite Marcel Lefebvre (type) personne
     " (rôle) victime
@@ -90,9 +90,9 @@ $victimes.1 (porte plainte contre:+L) $directrice.1
     " (statut) Représentant des victimes
 
 // Relations de Marcel Lefebvre
-$retraite.1 (a été escroqué par:+L) $pdg.1
-$retraite.1 (recruté par:N) $directrice.1
-$retraite.1 (président de:+C) $victimes.1
+Marcel Lefebvre (a été escroqué par:+L) Philippe Martin
+Marcel Lefebvre (recruté par:N) Céline Roux
+Marcel Lefebvre (président de:+C) Association Victimes FinanceMax
 
 @medecin Dr. Catherine Moreau (type) personne
     " (rôle) victime
@@ -135,12 +135,12 @@ $retraite.1 (président de:+C) $victimes.1
     " (description) Société offshore pour blanchir les fonds.
     " (nom) Golden Investments Corp
     " (juridiction) Panama
-    " (beneficiaire_reel) $pdg.1
+    " (beneficiaire_reel) Philippe Martin
 
 // Relations des comptes
-$compte_suisse.1 (alimenté par:+L) $societe.1
-$compte_suisse.1 (transfère vers:+L) $compte_panama.1
-$compte_panama.1 (bénéficiaire réel:N) $pdg.1
+Compte HSBC Suisse (alimenté par:+L) FinanceMax SARL
+Compte HSBC Suisse (transfère vers:+L) Société écran Panama
+Société écran Panama (bénéficiaire réel:N) Philippe Martin
 
 // =============================================================
 // SECTION TÉMOINS
@@ -158,9 +158,9 @@ $compte_panama.1 (bénéficiaire réel:N) $pdg.1
     " (action) Alerte AMF juillet 2024
 
 // Relations du lanceur d'alerte
-$lanceur.1 (ancien employé de:N) $societe.1
-$lanceur.1 (a dénoncé:+L) $pdg.1
-$lanceur.1 (a alerté:+L) $amf.1
+Antoine Mercier (ancien employé de:N) FinanceMax SARL
+Antoine Mercier (a dénoncé:+L) Philippe Martin
+Antoine Mercier (a alerté:+L) AMF
 
 @amf AMF - Autorité des Marchés Financiers (type) organisation
     " (rôle) temoin - autorité
@@ -169,8 +169,8 @@ $lanceur.1 (a alerté:+L) $amf.1
     " (transmission) Parquet de Paris
 
 // Relations AMF
-$amf.1 (enquête sur:+L) $societe.1
-$amf.1 (a saisi:+L) Parquet de Paris
+AMF (enquête sur:+L) FinanceMax SARL
+AMF (a saisi:+L) Parquet de Paris
 
 @banquier Laurent Petit (type) personne
     " (rôle) temoin
@@ -195,7 +195,7 @@ Preuves testimoniales => {Témoignage lanceur d'alerte}
     " (description) Contrats promettant 15% de rendement mensuel garanti
     " (clauses) Abusives - aucune mention des risques
     " (fiabilité) 10/10
-    " (concerne) $pdg.1, $directrice.1, $victimes.1
+    " (concerne) Philippe Martin, Céline Roux, Association Victimes FinanceMax
 
 @bilans Bilans falsifiés (type) preuve documentaire
     " (periode) 2022-2025
@@ -203,14 +203,14 @@ Preuves testimoniales => {Témoignage lanceur d'alerte}
     " (actifs_declares) 45 millions €
     " (actifs_reels) < 2 millions €
     " (fiabilité) 10/10
-    " (concerne) $pdg.1, $comptable.1
+    " (concerne) Philippe Martin, Marc Dubois
 
 @emails Emails internes (type) preuve numérique
     " (source) Serveur FinanceMax
     " (description) Communications entre dirigeants sur la gestion du schéma
     " (extraits) Discussions sur 'tenir encore 6 mois'
     " (fiabilité) 9/10
-    " (concerne) $pdg.1, $directrice.1
+    " (concerne) Philippe Martin, Céline Roux
 
 @releves Relevés bancaires (type) preuve documentaire
     " (comptes) FinanceMax, HSBC Suisse, Panama
@@ -218,10 +218,10 @@ Preuves testimoniales => {Témoignage lanceur d'alerte}
     " (montant_trace) 18 millions €
     " (destination) Comptes offshore
     " (fiabilité) 10/10
-    " (concerne) $pdg.1, $compte_suisse.1, $compte_panama.1
+    " (concerne) Philippe Martin, Compte HSBC Suisse, Société écran Panama
 
 @temoignage Témoignage lanceur d'alerte (type) preuve testimoniale
-    " (temoin) $lanceur.1
+    " (temoin) Antoine Mercier
     " (description) Décrit le fonctionnement interne et le schéma de Ponzi
     " (elements) Recrutement, promesses, versements
     " (fiabilité) 9/10
@@ -247,20 +247,20 @@ Preuves testimoniales => {Témoignage lanceur d'alerte}
     " (description) Immatriculation de la société au RCS Paris
     " (importance) high
     " (vérifié) oui
-    " (implique) $pdg.1
+    " (implique) Philippe Martin
 
 @evt_f_02 01/06/2022 09:00 Premiers investisseurs (lieu) Bureaux FinanceMax
     " (description) Début du recrutement de clients. 50 premiers investisseurs.
     " (importance) high
     " (vérifié) oui
-    " (implique) $pdg.1, $directrice.1
+    " (implique) Philippe Martin, Céline Roux
     " (montant) 500 000 €
 
 @evt_f_03 15/12/2022 09:00 Premiers paiements de rendements (lieu) Paris
     " (description) Versement des premiers 'rendements' aux investisseurs initiaux
     " (importance) medium
     " (vérifié) oui
-    " (implique) $societe.1, $victimes.1
+    " (implique) FinanceMax SARL, Association Victimes FinanceMax
 
 // ==========================================
 // Expansion (2023-2024)
@@ -270,66 +270,66 @@ Preuves testimoniales => {Témoignage lanceur d'alerte}
     " (description) Recrutement de 5 commerciaux pour accélérer le démarchage
     " (importance) medium
     " (vérifié) oui
-    " (implique) $pdg.1, $directrice.1
+    " (implique) Philippe Martin, Céline Roux
 
 @evt_f_05 01/07/2023 09:00 Cap des 500 clients (lieu) Paris
     " (description) FinanceMax compte désormais 500 investisseurs
     " (importance) medium
     " (vérifié) oui
-    " (implique) $societe.1
+    " (implique) FinanceMax SARL
     " (montant) 12 millions €
 
 @evt_f_06 15/01/2024 09:00 Embauche Antoine Mercier (lieu) Bureaux FinanceMax
-    " (description) $lanceur.1 rejoint l'équipe commerciale
+    " (description) Antoine Mercier rejoint l'équipe commerciale
     " (importance) medium
     " (vérifié) oui
-    " (implique) $lanceur.1
+    " (implique) Antoine Mercier
 
 @evt_f_07 15/06/2024 09:00 Démission Mercier (lieu) Bureaux FinanceMax
-    " (description) $lanceur.1 découvre la fraude et démissionne
+    " (description) Antoine Mercier découvre la fraude et démissionne
     " (importance) high
     " (vérifié) oui
-    " (implique) $lanceur.1, $pdg.1
+    " (implique) Antoine Mercier, Philippe Martin
 
 // ==========================================
 // Alerte et effondrement (2024-2025)
 // ==========================================
 
 @evt_f_08 01/07/2024 09:00 Alerte AMF (lieu) AMF Paris
-    " (description) $lanceur.1 alerte l'AMF sur la fraude
+    " (description) Antoine Mercier alerte l'AMF sur la fraude
     " (importance) high
     " (vérifié) oui
-    " (implique) $lanceur.1, $amf.1
+    " (implique) Antoine Mercier, AMF
 
 @evt_f_09 15/09/2024 09:00 Enquête préliminaire (lieu) Paris
     " (description) L'AMF ouvre une enquête préliminaire
     " (importance) high
     " (vérifié) oui
-    " (implique) $amf.1, $societe.1
+    " (implique) AMF, FinanceMax SARL
 
 @evt_f_10 01/03/2025 09:00 Premiers retards de paiement (lieu) Paris
     " (description) FinanceMax commence à retarder les versements de rendements
     " (importance) high
     " (vérifié) oui
-    " (implique) $societe.1, $victimes.1
+    " (implique) FinanceMax SARL, Association Victimes FinanceMax
 
 @evt_f_11 15/07/2025 09:00 Perquisitions (lieu) Bureaux FinanceMax et domiciles
     " (description) Perquisitions simultanées aux bureaux et chez les dirigeants
     " (importance) high
     " (vérifié) oui
-    " (implique) $pdg.1, $directrice.1, $comptable.1
+    " (implique) Philippe Martin, Céline Roux, Marc Dubois
 
 @evt_f_12 16/07/2025 09:00 Mises en examen (lieu) Tribunal de Paris
     " (description) Martin, Roux et Dubois mis en examen pour escroquerie en bande organisée
     " (importance) high
     " (vérifié) oui
-    " (implique) $pdg.1, $directrice.1, $comptable.1
+    " (implique) Philippe Martin, Céline Roux, Marc Dubois
 
 @evt_f_13 01/08/2025 09:00 Gel des avoirs (lieu) Suisse et Panama
     " (description) Gel des comptes offshore sur commission rogatoire internationale
     " (importance) high
     " (vérifié) oui
-    " (implique) $compte_suisse.1, $compte_panama.1
+    " (implique) Compte HSBC Suisse, Société écran Panama
     " (montant) 4.2 millions €
 
 // ==========================================
@@ -337,14 +337,14 @@ Preuves testimoniales => {Témoignage lanceur d'alerte}
 // ==========================================
 
 // Chaîne causale principale: schéma de Ponzi
-$evt_f_02 (alimente:+L) $evt_f_03
-$evt_f_03 (attire:+L) Nouveaux investisseurs
+Premiers investisseurs (alimente:+L) Premiers paiements
+Premiers paiements (attire:+L) Nouveaux investisseurs
 Nouveaux investisseurs (alimente:+L) Anciens rendements
 
 // Chaîne causale: effondrement
-$evt_f_07 (mène à:+L) $evt_f_08
-$evt_f_08 (mène à:+L) $evt_f_09
-$evt_f_09 (mène à:+L) $evt_f_11
+Démission Mercier (mène à:+L) Alerte AMF
+Alerte AMF (mène à:+L) Enquête préliminaire
+Enquête préliminaire (mène à:+L) Perquisitions
 
 -:: _timeline_, _sequence_ ::
 
@@ -359,16 +359,16 @@ $evt_f_09 (mène à:+L) $evt_f_11
     " (confiance) 95%
     " (source) user
     " (description) Philippe Martin a mis en place un schéma de Ponzi classique avec l'aide de Céline Roux et Marc Dubois. Les rendements versés aux anciens clients provenaient uniquement des apports des nouveaux.
-    " (pour) $contrats.1, $bilans.1, $releves.1, $temoignage.1
+    " (pour) Contrats d'investissement, Bilans falsifiés, Relevés bancaires, Témoignage lanceur d'alerte
     " (contre) Aucun - preuves accablantes
-    " (suspect) $pdg.1, $directrice.1, $comptable.1
+    " (suspect) Philippe Martin, Céline Roux, Marc Dubois
 
 @hyp_f_02 Blanchiment international (type) hypothèse
     " (statut) en_attente
     " (confiance) 85%
     " (source) user
     " (description) Une partie des fonds aurait été blanchie via des sociétés offshore au Panama et en Suisse. D'autres complices pourraient être impliqués.
-    " (pour) $releves.1, Société écran Panama
+    " (pour) Relevés bancaires, Société écran Panama
     " (contre) Traçabilité complexe
     " (questions) Autres sociétés écran?; Complices à l'étranger?; Montant total blanchi?
 
@@ -390,24 +390,24 @@ $evt_f_09 (mène à:+L) $evt_f_11
 # Légende STTypes: N=proximité, +L=causalité, +C=containment, +E=expression
 
 // Relations hiérarchiques
-$pdg.1 (dirige:+C) $societe.1
-$pdg.1 (supérieur de:+C) $directrice.1
-$pdg.1 (supérieur de:+C) $comptable.1
+Philippe Martin (dirige:+C) FinanceMax SARL
+Philippe Martin (supérieur de:+C) Céline Roux
+Philippe Martin (supérieur de:+C) Marc Dubois
 
 // Relations de fraude
-$pdg.1 (a escroqué:+L) $victimes.1
-$directrice.1 (a recruté:+L) $victimes.1
-$comptable.1 (a falsifié:+L) $bilans.1
+Philippe Martin (a escroqué:+L) Association Victimes FinanceMax
+Céline Roux (a recruté:+L) Association Victimes FinanceMax
+Marc Dubois (a falsifié:+L) Bilans falsifiés
 
 // Relations financières
-$societe.1 (transfère vers:-C) $compte_suisse.1
-$compte_suisse.1 (transfère vers:-C) $compte_panama.1
-$compte_panama.1 (bénéficiaire:N) $pdg.1
+FinanceMax SARL (transfère vers:-C) Compte HSBC Suisse
+Compte HSBC Suisse (transfère vers:-C) Société écran Panama
+Société écran Panama (bénéficiaire:N) Philippe Martin
 
 // Relations d'alerte
-$lanceur.1 (a dénoncé:+L) $pdg.1
-$lanceur.1 (a alerté:+L) $amf.1
-$amf.1 (a saisi:+L) Parquet de Paris
+Antoine Mercier (a dénoncé:+L) Philippe Martin
+Antoine Mercier (a alerté:+L) AMF
+AMF (a saisi:+L) Parquet de Paris
 
 // =============================================================
 // CHAÎNES CAUSALES DÉTECTÉES

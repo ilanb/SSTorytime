@@ -34,7 +34,7 @@ func GetIncendieN4LContent() string {
     " (indices) Résidus d'essence en 3 points
 
 // Relations des lieux
-$zone_depart.1 (située dans:+C) $entrepot.1
+Zone de départ du feu (située dans:+C) Entrepôt Logistique Nord
 
 // =============================================================
 // SECTION SUSPECTS
@@ -56,10 +56,10 @@ $zone_depart.1 (située dans:+C) $entrepot.1
     " (longitude) 3.1500
 
 // Relations d'André Petit
-$proprietaire.1 (propriétaire de:+C) $entrepot.1
-$proprietaire.1 (assuré par:N) $assurance.1
-$proprietaire.1 (endetté envers:-C) $banque.1
-$proprietaire.1 (aurait commandité:+L) Incendie
+André Petit (propriétaire de:+C) Entrepôt Logistique Nord
+André Petit (assuré par:N) Assurance MutualPro
+André Petit (endetté envers:-C) Banque Populaire Nord
+André Petit (aurait commandité:+L) Incendie
 
 @executant Individu non identifié (type) personne
     " (rôle) suspect
@@ -78,8 +78,8 @@ $proprietaire.1 (aurait commandité:+L) Incendie
     " (connaissance) Accès et agencement de l'entrepôt
 
 // Relations de l'employé
-$employe.1 (ancien employé de:N) $entrepot.1
-$employe.1 (licencié par:N) $proprietaire.1
+Michel Garnier (ancien employé de:N) Entrepôt Logistique Nord
+Michel Garnier (licencié par:N) André Petit
 
 // =============================================================
 // SECTION TÉMOINS
@@ -96,9 +96,9 @@ $employe.1 (licencié par:N) $proprietaire.1
     " (rapport) Accélérant identifié (essence)
 
 // Relations de l'expert
-$expert.1 (a expertisé:+L) $entrepot.1
-$expert.1 (mandaté par:N) $assurance.1
-$expert.1 (conclut contre:+L) $proprietaire.1
+Expert Assurance Durand (a expertisé:+L) Entrepôt Logistique Nord
+Expert Assurance Durand (mandaté par:N) Assurance MutualPro
+Expert Assurance Durand (conclut contre:+L) André Petit
 
 @pompier Capitaine Leroy (type) personne
     " (rôle) temoin
@@ -126,8 +126,8 @@ $expert.1 (conclut contre:+L) $proprietaire.1
     " (position) Refuse indemnisation - fraude présumée
 
 // Relations de l'assurance
-$assurance.1 (suspecte fraude de:+L) $proprietaire.1
-$assurance.1 (a mandaté:N) $expert.1
+Assurance MutualPro (suspecte fraude de:+L) André Petit
+Assurance MutualPro (a mandaté:N) Expert Assurance Durand
 
 @banque Banque Populaire Nord (type) organisation
     " (description) Créancier principal d'André Petit. Menace de saisie immobilière.
@@ -135,12 +135,12 @@ $assurance.1 (a mandaté:N) $expert.1
     " (action) Mise en demeure envoyée
 
 // Relations de la banque
-$banque.1 (créancier de:-C) $proprietaire.1
-$banque.1 (menace de saisie:+L) $proprietaire.1
+Banque Populaire Nord (créancier de:-C) André Petit
+Banque Populaire Nord (menace de saisie:+L) André Petit
 
 @societe LogiNord SARL (type) organisation
     " (description) Société d'André Petit exploitant l'entrepôt. En difficulté financière.
-    " (gerant) $proprietaire.1
+    " (gerant) André Petit
     " (capital) 100 000 €
     " (chiffre_affaires) En baisse - 2.1M en 2024 vs 3.5M en 2023
 
@@ -156,7 +156,7 @@ Preuves documentaires => {Augmentation assurance, Relevés bancaires, Inventaire
 Preuves numériques => {Vidéosurveillance voisine}
 
 @accelerant Traces d'accélérant (type) preuve forensique
-    " (localisation) $zone_depart.1 - 3 points distincts
+    " (localisation) Zone de départ du feu - 3 points distincts
     " (description) Résidus d'essence retrouvés en 3 points distincts de l'entrepôt
     " (analyse) Essence sans plomb 95
     " (conclusion) Origine criminelle confirmée
@@ -175,7 +175,7 @@ Preuves numériques => {Vidéosurveillance voisine}
     " (apres) 4.5 millions €
     " (delai) 3 mois avant l'incendie
     " (fiabilité) 9/10
-    " (concerne) $proprietaire.1, $assurance.1
+    " (concerne) André Petit, Assurance MutualPro
 
 @releves_bancaires Relevés bancaires Petit (type) preuve documentaire
     " (source) Banque Populaire Nord
@@ -183,7 +183,7 @@ Preuves numériques => {Vidéosurveillance voisine}
     " (decouvert) 380 000 €
     " (rejets) Plusieurs prélèvements impayés
     " (fiabilité) 9/10
-    " (concerne) $proprietaire.1
+    " (concerne) André Petit
 
 @inventaire Inventaire stock (type) preuve documentaire
     " (date) 15/09/2025
@@ -198,7 +198,7 @@ Preuves numériques => {Vidéosurveillance voisine}
     " (heure) 3h10 le 28/09/2025
     " (contenu) Homme en scooter, direction entrepôt
     " (fiabilité) 6/10
-    " (concerne) $executant.1
+    " (concerne) Individu non identifié
 
 // =============================================================
 // SECTION CHRONOLOGIE - Séquence temporelle complète
@@ -216,33 +216,33 @@ Preuves numériques => {Vidéosurveillance voisine}
     " (description) Baisse du chiffre d'affaires - perte de clients majeurs
     " (importance) medium
     " (vérifié) oui
-    " (implique) $proprietaire.1, $societe.1
+    " (implique) André Petit, LogiNord SARL
 
 @evt_i_00b 15/03/2025 09:00 Mise en demeure de la banque (lieu) Banque Populaire
-    " (description) $banque.1 envoie une mise en demeure pour impayés
+    " (description) Banque Populaire Nord envoie une mise en demeure pour impayés
     " (importance) high
     " (vérifié) oui
-    " (implique) $proprietaire.1, $banque.1
+    " (implique) André Petit, Banque Populaire Nord
 
 @evt_i_00c 01/05/2025 09:00 Licenciement Michel Garnier (lieu) Entrepôt
-    " (description) $employe.1 licencié pour vol de marchandises
+    " (description) Michel Garnier licencié pour vol de marchandises
     " (importance) medium
     " (vérifié) oui
-    " (implique) $employe.1, $proprietaire.1
+    " (implique) Michel Garnier, André Petit
 
 @evt_i_01 01/07/2025 09:00 Augmentation assurance (lieu) MutualPro
-    " (description) $proprietaire.1 fait doubler la couverture d'assurance
+    " (description) André Petit fait doubler la couverture d'assurance
     " (importance) high
     " (vérifié) oui
-    " (implique) $proprietaire.1, $assurance.1
-    " (preuve) $police_assurance.1
+    " (implique) André Petit, Assurance MutualPro
+    " (preuve) Augmentation assurance
 
 @evt_i_02 15/09/2025 09:00 Dernier inventaire (lieu) Entrepôt
     " (description) Inventaire déclarant un stock de 1.2 million € - surévaluation suspectée
     " (importance) medium
     " (vérifié) oui
-    " (implique) $proprietaire.1
-    " (preuve) $inventaire.1
+    " (implique) André Petit
+    " (preuve) Inventaire stock
 
 // ==========================================
 // Nuit de l'incendie (28 septembre 2025)
@@ -252,14 +252,14 @@ Preuves numériques => {Vidéosurveillance voisine}
     " (description) Caméra voisine capte un individu en scooter
     " (importance) high
     " (vérifié) oui
-    " (implique) $executant.1
-    " (preuve) $video_voisin.1
+    " (implique) Individu non identifié
+    " (preuve) Vidéosurveillance voisine
 
 @evt_i_04 28/09/2025 03:15 Départ feu (lieu) Entrepôt
     " (description) Incendie déclenché en 3 points simultanés
     " (importance) high
     " (vérifié) oui
-    " (preuve) $accelerant.1, $foyers.1
+    " (preuve) Traces d'accélérant, Trois foyers distincts
 
 @evt_i_05 28/09/2025 03:25 Détection incendie (lieu) Zone industrielle
     " (description) Alarme incendie déclenchée - voisins alertent les secours
@@ -270,36 +270,36 @@ Preuves numériques => {Vidéosurveillance voisine}
     " (description) Premier véhicule de pompiers sur place - feu déjà important
     " (importance) medium
     " (vérifié) oui
-    " (implique) $pompier.1
+    " (implique) Capitaine Leroy
 
 @evt_i_07 28/09/2025 07:00 Feu maîtrisé (lieu) Entrepôt
     " (description) Incendie sous contrôle après 3h30 d'intervention
     " (importance) medium
     " (vérifié) oui
-    " (implique) $pompier.1
+    " (implique) Capitaine Leroy
 
 // ==========================================
 // Après incendie
 // ==========================================
 
 @evt_i_08 29/09/2025 09:00 Début expertise (lieu) Entrepôt
-    " (description) $expert.1 commence son investigation
+    " (description) Expert Assurance Durand commence son investigation
     " (importance) high
     " (vérifié) oui
-    " (implique) $expert.1
+    " (implique) Expert Assurance Durand
 
 @evt_i_09 01/10/2025 09:00 Conclusion origine criminelle (lieu) Entrepôt
     " (description) Expert conclut à un incendie volontaire - 3 foyers, accélérant
     " (importance) high
     " (vérifié) oui
-    " (implique) $expert.1
-    " (preuve) $accelerant.1
+    " (implique) Expert Assurance Durand
+    " (preuve) Traces d'accélérant
 
 @evt_i_10 05/10/2025 09:00 Refus indemnisation MutualPro (lieu) MutualPro
-    " (description) $assurance.1 refuse de payer - suspicion de fraude
+    " (description) Assurance MutualPro refuse de payer - suspicion de fraude
     " (importance) high
     " (vérifié) oui
-    " (implique) $assurance.1, $proprietaire.1
+    " (implique) Assurance MutualPro, André Petit
 
 // ==========================================
 // Chaînes causales
@@ -329,10 +329,10 @@ Destruction entrepôt (permet:+L) Demande indemnisation
     " (source) user
     " (description) André Petit aurait commandité l'incendie pour toucher l'indemnisation de 4.5 millions € et rembourser ses dettes de 380 000€. L'augmentation de l'assurance 3 mois avant est très suspecte.
     " (mobile) Rembourser dettes 380 000€ + profit
-    " (pour) $police_assurance.1, $releves_bancaires.1, $accelerant.1
+    " (pour) Augmentation assurance, Relevés bancaires Petit, Traces d'accélérant
     " (contre) Pas de preuves directes de commandite
     " (questions) Qui a exécuté l'incendie?; Liens avec l'ancien employé Garnier?; Communications suspectes?
-    " (suspect) $proprietaire.1
+    " (suspect) André Petit
 
 @hyp_i_02 Exécution par ancien employé (type) hypothèse
     " (statut) en_attente
@@ -342,14 +342,14 @@ Destruction entrepôt (permet:+L) Demande indemnisation
     " (pour) Connaissance des lieux, Mobile de vengeance, Licenciement récent
     " (contre) Pas de preuves de contact avec Petit
     " (questions) Où était Garnier la nuit de l'incendie?; Contacts avec Petit après licenciement?
-    " (suspect) $employe.1
+    " (suspect) Michel Garnier
 
 @hyp_i_03 Stock surévalué (type) hypothèse
     " (statut) en_attente
     " (confiance) 70%
     " (source) user
     " (description) En plus de l'incendie volontaire, le stock détruit aurait été volontairement surévalué dans l'inventaire pour maximiser l'indemnisation.
-    " (pour) $inventaire.1, Difficultés financières
+    " (pour) Inventaire stock, Difficultés financières
     " (contre) Difficile à prouver après destruction
     " (questions) Factures d'achat du stock?; Clients pouvant témoigner du stock réel?
 
@@ -362,19 +362,19 @@ Destruction entrepôt (permet:+L) Demande indemnisation
 # Légende STTypes: N=proximité, +L=causalité, +C=containment, +E=expression
 
 // Relations de propriété et finance
-$proprietaire.1 (propriétaire de:+C) $entrepot.1
-$proprietaire.1 (gérant de:+C) $societe.1
-$proprietaire.1 (endetté envers:-C) $banque.1
-$proprietaire.1 (assuré par:N) $assurance.1
+André Petit (propriétaire de:+C) Entrepôt Logistique Nord
+André Petit (gérant de:+C) LogiNord SARL
+André Petit (endetté envers:-C) Banque Populaire Nord
+André Petit (assuré par:N) Assurance MutualPro
 
 // Relations suspectes
-$proprietaire.1 (aurait commandité:+L) Incendie
-$employe.1 (aurait exécuté:+L) Incendie
-$assurance.1 (suspecte fraude de:+L) $proprietaire.1
+André Petit (aurait commandité:+L) Incendie
+Michel Garnier (aurait exécuté:+L) Incendie
+Assurance MutualPro (suspecte fraude de:+L) André Petit
 
 // Relations professionnelles passées
-$employe.1 (licencié par:N) $proprietaire.1
-$employe.1 (ancien employé de:N) $entrepot.1
+Michel Garnier (licencié par:N) André Petit
+Michel Garnier (ancien employé de:N) Entrepôt Logistique Nord
 
 // =============================================================
 // CHAÎNES CAUSALES DÉTECTÉES

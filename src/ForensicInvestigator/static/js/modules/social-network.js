@@ -6,7 +6,7 @@ const SocialNetworkModule = {
     socialNetworkConfig: {
         minCommunitySize: 2,
         maxCommunities: 10,
-        brokerThreshold: 0.3,
+        brokerThreshold: 0.01, // Seuil bas pour capturer les brokers même modestes
         flowTypes: ['information', 'argent', 'influence', 'preuve'],
         temporalGranularity: 'day' // day, week, month
     },
@@ -743,10 +743,15 @@ Questions à analyser:
         // Calculer la betweenness centrality
         const betweenness = this.calculateBetweennessCentrality(graphData);
 
-        // Trier et identifier les top brokers
+        console.log('Betweenness centrality:', betweenness);
+
+        // Trier et identifier les top brokers (limité à 10)
         const sortedNodes = Object.entries(betweenness)
             .sort((a, b) => b[1] - a[1])
-            .filter(([_, score]) => score > this.socialNetworkConfig.brokerThreshold);
+            .filter(([_, score]) => score > this.socialNetworkConfig.brokerThreshold)
+            .slice(0, 10); // Limiter à 10 brokers max
+
+        console.log('Brokers identifiés:', sortedNodes);
 
         this.brokers = sortedNodes.map(([nodeId, score]) => ({ nodeId, score }));
 
@@ -844,7 +849,8 @@ Questions à analyser:
             const [current, path] = stack.pop();
 
             if (current === source) {
-                result.push(path.reverse());
+                // Créer une copie inversée (ne pas modifier le tableau original)
+                result.push([...path].reverse());
                 continue;
             }
 

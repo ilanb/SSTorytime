@@ -36,7 +36,7 @@ func GetCambriolageN4LContent() string {
     " (vitrines_forcees) 3 vitrines
 
 // Relations Salle
-$salle_africaine.1 (située dans:+C) $musee.1
+Salle d'Art Africain (située dans:+C) Musée des Arts Premiers
 
 @sortie_secours Sortie de secours (type) lieu
     " (description) Issue utilisée par les cambrioleurs. Donne sur l'allée de service.
@@ -63,9 +63,9 @@ $salle_africaine.1 (située dans:+C) $musee.1
     " (longitude) 2.3520
 
 // Relations de Pierre Lafont
-$agent.1 (ancien employé de:N) $musee.1
-$agent.1 (aurait collaboré avec:N) $reseau.1
-$agent.1 (connaît les codes de:+L) $musee.1
+Pierre Lafont (ancien employé de:N) Musée des Arts Premiers
+Pierre Lafont (aurait collaboré avec:N) Collectionneurs suspects
+Pierre Lafont (connaît les codes de:+L) Musée des Arts Premiers
 
 @reseau Collectionneurs suspects (type) organisation
     " (rôle) suspect
@@ -76,9 +76,9 @@ $agent.1 (connaît les codes de:+L) $musee.1
     " (interpol) Fichés - trafic d'œuvres
 
 // Relations du réseau
-$reseau.1 (intéressé par:+L) $statuettes.1
-$reseau.1 (a ciblé:+L) $musee.1
-$reseau.1 (aurait recruté:N) $agent.1
+Collectionneurs suspects (intéressé par:+L) Statuettes Dogon
+Collectionneurs suspects (a ciblé:+L) Musée des Arts Premiers
+Collectionneurs suspects (aurait recruté:N) Pierre Lafont
 
 @receleur Galerie Brunel (type) organisation
     " (rôle) suspect
@@ -89,8 +89,8 @@ $reseau.1 (aurait recruté:N) $agent.1
     " (specialite) Art africain et océanien
 
 // Relations du receleur
-$receleur.1 (pourrait recevoir:N) $statuettes.1
-$receleur.1 (en contact avec:N) $reseau.1
+Galerie Brunel (pourrait recevoir:N) Statuettes Dogon
+Galerie Brunel (en contact avec:N) Collectionneurs suspects
 
 @complice Individu non identifié (type) personne
     " (rôle) suspect
@@ -115,8 +115,8 @@ $receleur.1 (en contact avec:N) $reseau.1
     " (observation) Système d'alarme semblait normal
 
 // Relations du gardien
-$gardien.1 (employé de:N) $musee.1
-$gardien.1 (a découvert:+L) Vol
+Robert Martinez (employé de:N) Musée des Arts Premiers
+Robert Martinez (a découvert:+L) Vol
 
 @conservateur Dr. Émilie Durand (type) personne
     " (rôle) temoin
@@ -126,8 +126,8 @@ $gardien.1 (a découvert:+L) Vol
     " (evaluation) 2.8 millions € pour les 5 statuettes
 
 // Relations de la conservatrice
-$conservateur.1 (responsable de:N) $salle_africaine.1
-$conservateur.1 (a évalué:N) $statuettes.1
+Dr. Émilie Durand (responsable de:N) Salle d'Art Africain
+Dr. Émilie Durand (a évalué:N) Statuettes Dogon
 
 @voisin Claude Bernard (type) personne
     " (rôle) temoin
@@ -183,8 +183,8 @@ $conservateur.1 (a évalué:N) $statuettes.1
     " (valeur) 300 000 €
 
 // Relations des statuettes
-$statuettes.1 (exposées dans:+C) $salle_africaine.1
-$statuettes.1 (convoitées par:N) $reseau.1
+Statuettes Dogon (exposées dans:+C) Salle d'Art Africain
+Statuettes Dogon (convoitées par:N) Collectionneurs suspects
 
 // =============================================================
 // SECTION PREUVES - Indices matériels et numériques
@@ -197,7 +197,7 @@ Preuves physiques => {Gants en latex, Traces de fourgon, Vitrine forcée}
 Preuves numériques => {Vidéosurveillance, Signal d'alarme}
 
 @gants Gants en latex (type) preuve physique
-    " (localisation) Près $sortie_secours.1
+    " (localisation) Près Sortie de secours
     " (description) Paire de gants chirurgicaux noirs
     " (analyse) ADN en cours d'analyse
     " (fiabilité) 8/10
@@ -207,17 +207,17 @@ Preuves numériques => {Vidéosurveillance, Signal d'alarme}
     " (description) Empreintes de pneus dans la boue
     " (modele) Renault Master
     " (fiabilité) 6/10
-    " (correspondance) Témoignage $voisin.1
+    " (correspondance) Témoignage Claude Bernard
 
 @video Vidéosurveillance neutralisée (type) preuve numérique
-    " (localisation) Système central $musee.1
+    " (localisation) Système central Musée des Arts Premiers
     " (description) Signal coupé de 2h15 à 3h45. Image de boucle détectée.
     " (methode) Boucle vidéo - professionnel
     " (derniere_image) 2h14 - silhouette suspecte
     " (fiabilité) 7/10
 
 @vitrine Vitrine forcée (type) preuve physique
-    " (localisation) $salle_africaine.1
+    " (localisation) Salle d'Art Africain
     " (description) 3 vitrines ouvertes sans bruit - technique professionnelle
     " (methode) Découpe diamant sur verre blindé
     " (empreintes) Aucune - gants utilisés
@@ -228,7 +228,7 @@ Preuves numériques => {Vidéosurveillance, Signal d'alarme}
     " (methode) Code d'accès utilisé
     " (code) Ancien code - changé après licenciement Lafont?
     " (fiabilité) 8/10
-    " (concerne) $agent.1
+    " (concerne) Pierre Lafont
 
 // =============================================================
 // SECTION CHRONOLOGIE - Séquence temporelle complète
@@ -243,22 +243,22 @@ Preuves numériques => {Vidéosurveillance, Signal d'alarme}
 // ==========================================
 
 @evt_c_00 01/04/2025 09:00 Licenciement Pierre Lafont (lieu) Musée
-    " (description) $agent.1 licencié pour faute professionnelle (négligence)
+    " (description) Pierre Lafont licencié pour faute professionnelle (négligence)
     " (importance) high
     " (vérifié) oui
-    " (implique) $agent.1, $musee.1
+    " (implique) Pierre Lafont, Musée des Arts Premiers
 
 @evt_c_00b 15/04/2025 09:00 Codes d'accès censés être changés (lieu) Musée
     " (description) Procédure de changement des codes après licenciement
     " (importance) high
     " (vérifié) non - à vérifier
-    " (implique) $musee.1
+    " (implique) Musée des Arts Premiers
 
 @evt_c_00c 15/09/2025 14:00 Visite suspecte au musée (lieu) Salle africaine
     " (description) Homme photographiant longuement les vitrines - identifié?
     " (importance) medium
     " (vérifié) non
-    " (implique) $salle_africaine.1
+    " (implique) Salle d'Art Africain
 
 // ==========================================
 // Nuit du cambriolage (1-2 octobre 2025)
@@ -268,57 +268,57 @@ Preuves numériques => {Vidéosurveillance, Signal d'alarme}
     " (description) Fermeture normale du musée au public
     " (importance) medium
     " (vérifié) oui
-    " (implique) $musee.1
+    " (implique) Musée des Arts Premiers
 
 @evt_c_01b 01/10/2025 22:00 Début service gardien (lieu) Musée
-    " (description) $gardien.1 prend son service de nuit
+    " (description) Robert Martinez prend son service de nuit
     " (importance) medium
     " (vérifié) oui
-    " (implique) $gardien.1
+    " (implique) Robert Martinez
 
 @evt_c_02 02/10/2025 02:14 Dernière image vidéosurveillance (lieu) Entrée de service
     " (description) Silhouette suspecte captée avant la coupure
     " (importance) high
     " (vérifié) oui
-    " (implique) $complice.1
-    " (preuve) $video.1
+    " (implique) Individu non identifié
+    " (preuve) Vidéosurveillance neutralisée
 
 @evt_c_03 02/10/2025 02:15 Coupure vidéosurveillance (lieu) Musée
     " (description) Système vidéo neutralisé - boucle insérée
     " (importance) high
     " (vérifié) oui
-    " (preuve) $video.1
+    " (preuve) Vidéosurveillance neutralisée
 
 @evt_c_03b 02/10/2025 02:30 Fourgon blanc observé (lieu) Allée de service
-    " (description) Fourgon blanc aperçu par $voisin.1
+    " (description) Fourgon blanc aperçu par Claude Bernard
     " (importance) high
     " (vérifié) oui
-    " (implique) $voisin.1
-    " (preuve) $traces.1
+    " (implique) Claude Bernard
+    " (preuve) Traces de fourgon
 
 @evt_c_04 02/10/2025 02:30 Intrusion estimée (lieu) Musée
     " (description) Entrée des cambrioleurs - durée estimée 1h15
     " (importance) high
     " (vérifié) non - estimation
-    " (implique) $sortie_secours.1
+    " (implique) Sortie de secours
 
 @evt_c_04b 02/10/2025 03:00 Ronde gardien - RAS (lieu) Musée
-    " (description) $gardien.1 effectue sa ronde - ne remarque rien
+    " (description) Robert Martinez effectue sa ronde - ne remarque rien
     " (importance) medium
     " (vérifié) oui
-    " (implique) $gardien.1
+    " (implique) Robert Martinez
 
 @evt_c_05 02/10/2025 03:45 Retour vidéosurveillance (lieu) Musée
     " (description) Système vidéo revient à la normale - cambrioleurs partis
     " (importance) high
     " (vérifié) oui
-    " (preuve) $video.1
+    " (preuve) Vidéosurveillance neutralisée
 
 @evt_c_06 02/10/2025 06:00 Découverte vol (lieu) Salle africaine
-    " (description) $gardien.1 découvre les vitrines vides lors de sa ronde matinale
+    " (description) Robert Martinez découvre les vitrines vides lors de sa ronde matinale
     " (importance) high
     " (vérifié) oui
-    " (implique) $gardien.1, $salle_africaine.1
+    " (implique) Robert Martinez, Salle d'Art Africain
 
 @evt_c_07 02/10/2025 06:15 Alerte police (lieu) Musée
     " (description) Appel au commissariat - arrivée police 6h30
@@ -330,14 +330,14 @@ Preuves numériques => {Vidéosurveillance, Signal d'alarme}
 // ==========================================
 
 // Chaîne causale principale: préparation
-$evt_c_00 (mène à:+L) Connaissance système
+Licenciement Pierre Lafont (mène à:+L) Connaissance système
 Connaissance système (permet:+L) Neutralisation alarme
-$evt_c_00c (mène à:+L) Repérage cibles
+Licenciement Pierre Lafontc (mène à:+L) Repérage cibles
 
 // Chaîne causale: exécution
-$evt_c_03 (permet:+L) Intrusion non détectée
+Coupure vidéosurveillance (permet:+L) Intrusion non détectée
 Intrusion non détectée (permet:+L) Vol des statuettes
-$evt_c_03b (confirme:N) Véhicule de fuite
+Coupure vidéosurveillanceb (confirme:N) Véhicule de fuite
 
 -:: _timeline_, _sequence_ ::
 
@@ -353,20 +353,20 @@ $evt_c_03b (confirme:N) Véhicule de fuite
     " (source) user
     " (description) L'ancien agent de sécurité Pierre Lafont aurait fourni les codes d'accès et les plans du système de sécurité à une équipe de professionnels. Son licenciement récent lui donne un mobile de revanche.
     " (mobile) Revanche + argent
-    " (pour) $alarme.1, Connaissance du système, Licenciement récent
+    " (pour) Signal d'alarme, Connaissance du système, Licenciement récent
     " (contre) Alibi à vérifier
     " (questions) Les codes ont-ils été changés après son départ?; Contacts avec le réseau de collectionneurs?; Où était-il la nuit du vol?
-    " (suspect) $agent.1
+    " (suspect) Pierre Lafont
 
 @hyp_c_02 Commande du réseau international (type) hypothèse
     " (statut) en_attente
     " (confiance) 65%
     " (source) user
     " (description) Le vol aurait été commandité par le réseau de collectionneurs identifié par Interpol. Les statuettes Dogon étaient spécifiquement ciblées pour un acheteur.
-    " (pour) $reseau.1 fiché Interpol, Visite suspecte septembre, Valeur des pièces
+    " (pour) Collectionneurs suspects fiché Interpol, Visite suspecte septembre, Valeur des pièces
     " (contre) Pas de preuves directes
     " (questions) Qui est le commanditaire final?; Les pièces ont-elles déjà quitté la France?; Lien avec autres vols similaires?
-    " (suspect) $reseau.1
+    " (suspect) Collectionneurs suspects
 
 @hyp_c_03 Recel via galerie Brunel (type) hypothèse
     " (statut) en_attente
@@ -376,7 +376,7 @@ $evt_c_03b (confirme:N) Véhicule de fuite
     " (pour) Spécialisation art africain, Réputation douteuse
     " (contre) Sous surveillance depuis enquête précédente
     " (questions) Contacts récents avec le réseau?; Mouvements financiers suspects?
-    " (suspect) $receleur.1
+    " (suspect) Galerie Brunel
 
 // =============================================================
 // RÉSEAU DE RELATIONS - Graphe sémantique
@@ -387,18 +387,18 @@ $evt_c_03b (confirme:N) Véhicule de fuite
 # Légende STTypes: N=proximité, +L=causalité, +C=containment, +E=expression
 
 // Relations avec le musée
-$agent.1 (ancien employé de:N) $musee.1
-$gardien.1 (employé de:N) $musee.1
-$conservateur.1 (responsable de:+C) $salle_africaine.1
+Pierre Lafont (ancien employé de:N) Musée des Arts Premiers
+Robert Martinez (employé de:N) Musée des Arts Premiers
+Dr. Émilie Durand (responsable de:+C) Salle d'Art Africain
 
 // Relations de complicité présumée
-$agent.1 (aurait informé:+L) $reseau.1
-$reseau.1 (aurait commandité:+L) Vol
-$reseau.1 (utilise:N) $receleur.1
+Pierre Lafont (aurait informé:+L) Collectionneurs suspects
+Collectionneurs suspects (aurait commandité:+L) Vol
+Collectionneurs suspects (utilise:N) Galerie Brunel
 
 // Relations avec les objets volés
-$statuettes.1 (volées dans:+C) $salle_africaine.1
-$statuettes.1 (convoitées par:N) $reseau.1
+Statuettes Dogon (volées dans:+C) Salle d'Art Africain
+Statuettes Dogon (convoitées par:N) Collectionneurs suspects
 
 // =============================================================
 // CHAÎNES CAUSALES DÉTECTÉES

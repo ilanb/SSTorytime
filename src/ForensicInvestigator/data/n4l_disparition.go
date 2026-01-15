@@ -53,9 +53,9 @@ func GetDisparitionSophieN4LContent() string {
     " (longitude) 1.4440
 
 // Relations de Marc Delmas
-$adjoint.1 (a menacé:+L) $journaliste.1
-$adjoint.1 (favorise dans les marchés:N) $btp.1
-$adjoint.1 (collabore avec:N) $maire.1
+Marc Delmas (a menacé:+L) Sophie Laurent
+Marc Delmas (favorise dans les marchés:N) Roux Constructions SARL
+Marc Delmas (collabore avec:N) Bernard Castex
 
 @btp Roux Constructions SARL (type) organisation
     " (rôle) suspect
@@ -68,8 +68,8 @@ $adjoint.1 (collabore avec:N) $maire.1
     " (longitude) 1.4320
 
 // Relations de Roux Constructions
-$btp.1 (verse des commissions à:-C) $adjoint.1
-$btp.1 (incriminé par:N) $dossier.1
+Roux Constructions SARL (verse des commissions à:-C) Marc Delmas
+Roux Constructions SARL (incriminé par:N) Dossier d'enquête manuscrit
 
 @maire Bernard Castex (type) personne
     " (rôle) suspect
@@ -80,8 +80,8 @@ $btp.1 (incriminé par:N) $dossier.1
     " (implication) Indirecte - supervision marchés
 
 // Relations du Maire
-$maire.1 (supérieur de:N) $adjoint.1
-$maire.1 (mentionné dans:N) $dossier.1
+Bernard Castex (supérieur de:N) Marc Delmas
+Bernard Castex (mentionné dans:N) Dossier d'enquête manuscrit
 
 // =============================================================
 // SECTION TÉMOINS - Observations et dépositions
@@ -101,8 +101,8 @@ $maire.1 (mentionné dans:N) $dossier.1
     " (longitude) 1.4442
 
 // Relations de Thomas Blanc
-$collegue.1 (dernier à avoir vu:+L) $journaliste.1
-$collegue.1 (employé par:N) $journal.1
+Thomas Blanc (dernier à avoir vu:+L) Sophie Laurent
+Thomas Blanc (employé par:N) Le Courrier du Midi
 
 @source Source Anonyme X (type) personne
     " (rôle) temoin
@@ -113,8 +113,8 @@ $collegue.1 (employé par:N) $journal.1
     " (statut) Introuvable depuis disparition
 
 // Relations de Source X
-$source.1 (informateur de:+L) $journaliste.1
-$source.1 (pourrait être proche de:N) $maire.1
+Source Anonyme X (informateur de:+L) Sophie Laurent
+Source Anonyme X (pourrait être proche de:N) Bernard Castex
 
 // =============================================================
 // SECTION LIEUX - Scène de disparition et localisations
@@ -131,7 +131,7 @@ $source.1 (pourrait être proche de:N) $maire.1
     " (longitude) 1.4445
 
 // Relations Parking
-$parking.1 (lieu de disparition de:+L) $journaliste.1
+Parking du Journal (lieu de disparition de:+L) Sophie Laurent
 
 @journal Le Courrier du Midi (type) organisation
     " (description) Journal régional employeur de Sophie. Rédacteur en chef: Jean-Pierre Faure.
@@ -142,8 +142,8 @@ $parking.1 (lieu de disparition de:+L) $journaliste.1
     " (longitude) 1.4442
 
 // Relations Journal
-$journal.1 (a reçu des pressions de:+L) $adjoint.1
-$journal.1 (employeur de:N) $journaliste.1
+Le Courrier du Midi (a reçu des pressions de:+L) Marc Delmas
+Le Courrier du Midi (employeur de:N) Sophie Laurent
 
 @mairie Mairie de Toulouse (type) lieu
     " (description) Siège de l'administration municipale. Lieu de travail des suspects Delmas et Castex.
@@ -163,27 +163,27 @@ Preuves numériques => {Téléphone portable, Vidéosurveillance, Messages Signa
 Preuves documentaires => {Dossier d'enquête, Relevé bancaire Roux}
 
 @vehicule Véhicule abandonné (type) preuve physique
-    " (localisation) $parking.1
+    " (localisation) Parking du Journal
     " (description) Renault Clio retrouvée au parking du journal
     " (état) Portes non verrouillées
     " (contenu) Sac à main avec portefeuille et cartes
     " (fiabilité) 9/10
-    " (concerne) $journaliste.1
+    " (concerne) Sophie Laurent
 
 @telephone Téléphone portable (type) preuve numérique
     " (localisation) Absent - dernier signal à 19h45
     " (description) Dernier signal près du parking. Messages supprimés récupérés.
     " (messages) RDV avec source X à 19h30
     " (fiabilité) 8/10
-    " (concerne) $journaliste.1, $source.1
+    " (concerne) Sophie Laurent, Source Anonyme X
 
 @video Vidéosurveillance parking (type) preuve numérique
-    " (localisation) $parking.1
+    " (localisation) Parking du Journal
     " (description) Sophie monte VOLONTAIREMENT dans un SUV noir à 19h48
     " (immatriculation) Partielle: ...BD-31
     " (conducteur) Non identifiable
     " (fiabilité) 7/10
-    " (concerne) $journaliste.1, $suv.1
+    " (concerne) Sophie Laurent, SUV Noir
 
 @dossier Dossier d'enquête manuscrit (type) preuve documentaire
     " (localisation) Bureau de Sophie
@@ -191,13 +191,13 @@ Preuves documentaires => {Dossier d'enquête, Relevé bancaire Roux}
     " (noms) Delmas, Roux, Castex
     " (montants) Estimés à 2.3M€
     " (fiabilité) 9/10
-    " (concerne) $journaliste.1, $adjoint.1, $btp.1, $maire.1
+    " (concerne) Sophie Laurent, Marc Delmas, Roux Constructions SARL, Bernard Castex
 
 @signal Messages Signal cryptés (type) preuve numérique
-    " (source) Téléphone de $journaliste.1
+    " (source) Téléphone de Sophie Laurent
     " (description) Historique partiellement récupéré
     " (message_cle) J'ai les preuves définitives. RDV 19h30 parking habituel.
-    " (expediteur) $source.1
+    " (expediteur) Source Anonyme X
     " (fiabilité) 8/10
 
 @enregistrement Enregistrement appel Delmas (type) preuve numérique
@@ -205,13 +205,13 @@ Preuves documentaires => {Dossier d'enquête, Relevé bancaire Roux}
     " (description) Appel au rédacteur en chef - menaces voilées
     " (contenu) Vos journalistes feraient mieux de se calmer si le journal veut garder ses annonceurs publics.
     " (fiabilité) 9/10
-    " (concerne) $adjoint.1, $journal.1
+    " (concerne) Marc Delmas, Le Courrier du Midi
 
 @releve Relevé bancaire Roux Constructions (type) preuve documentaire
     " (description) Virements réguliers vers compte offshore
     " (correspondance) Dates d'attribution de marchés
     " (fiabilité) 7/10
-    " (concerne) $btp.1, $adjoint.1
+    " (concerne) Roux Constructions SARL, Marc Delmas
 
 @suv SUV Noir (type) objet
     " (description) Véhicule dans lequel Sophie est montée à 19h48
@@ -219,7 +219,7 @@ Preuves documentaires => {Dossier d'enquête, Relevé bancaire Roux}
     " (proprietaire) Recherche en cours
 
 // Relations SUV
-$suv.1 (a transporté:+L) $journaliste.1
+SUV Noir (a transporté:+L) Sophie Laurent
 
 // =============================================================
 // SECTION CHRONOLOGIE - Séquence temporelle complète
@@ -235,39 +235,39 @@ $suv.1 (a transporté:+L) $journaliste.1
 
 // Début de l'enquête
 @evt_d_00 01/07/2025 09:00 Début enquête corruption (lieu) Toulouse
-    " (description) $journaliste.1 commence ses investigations sur les marchés publics
+    " (description) Sophie Laurent commence ses investigations sur les marchés publics
     " (importance) medium
     " (vérifié) oui
-    " (implique) $journaliste.1
+    " (implique) Sophie Laurent
 
 // Publication premier article
 @evt_d_01 10/09/2025 08:00 Premier article publié (lieu) Le Courrier du Midi
     " (description) Révélations sur surfacturation marché école Jean-Jaurès
     " (importance) high
     " (vérifié) oui
-    " (implique) $journaliste.1, $journal.1
+    " (implique) Sophie Laurent, Le Courrier du Midi
 
 // Réaction de la mairie
 @evt_d_01b 10/09/2025 14:00 Réaction de la mairie (lieu) Mairie Toulouse
     " (description) Communiqué contestant les accusations
     " (importance) medium
     " (vérifié) oui
-    " (implique) $maire.1
+    " (implique) Bernard Castex
 
 // Menaces de Delmas
 @evt_d_02 12/09/2025 14:00 Menaces de Delmas (lieu) Téléphone
     " (description) Appel au rédacteur en chef - menaces voilées sur annonceurs
     " (importance) high
     " (vérifié) oui
-    " (implique) $adjoint.1, $journal.1
-    " (preuve) $enregistrement.1
+    " (implique) Marc Delmas, Le Courrier du Midi
+    " (preuve) Enregistrement appel Delmas
 
 // Second article
 @evt_d_02b 13/09/2025 08:00 Second article publié (lieu) Le Courrier du Midi
     " (description) Nouvelles révélations sur Roux Constructions
     " (importance) high
     " (vérifié) oui
-    " (implique) $journaliste.1, $btp.1
+    " (implique) Sophie Laurent, Roux Constructions SARL
 
 // ==========================================
 // Jour de la disparition (15 septembre 2025)
@@ -278,38 +278,38 @@ $suv.1 (a transporté:+L) $journaliste.1
     " (description) 'J'ai les preuves définitives. RDV 19h30 parking habituel.'
     " (importance) high
     " (vérifié) oui
-    " (implique) $journaliste.1, $source.1
-    " (preuve) $signal.1
+    " (implique) Sophie Laurent, Source Anonyme X
+    " (preuve) Messages Signal cryptés
 
 // Sophie informe Thomas
 @evt_d_03b 15/09/2025 18:00 Sophie informe Thomas (lieu) Rédaction
     " (description) Parle d'un RDV important, semble stressée
     " (importance) medium
     " (vérifié) oui
-    " (implique) $journaliste.1, $collegue.1
+    " (implique) Sophie Laurent, Thomas Blanc
 
 // Départ du journal
 @evt_d_04 15/09/2025 19:30 Départ du journal (lieu) Le Courrier du Midi
-    " (description) $journaliste.1 quitte la rédaction - vue par $collegue.1
+    " (description) Sophie Laurent quitte la rédaction - vue par Thomas Blanc
     " (importance) high
     " (vérifié) oui
-    " (implique) $journaliste.1, $collegue.1
+    " (implique) Sophie Laurent, Thomas Blanc
 
 // Dernier signal téléphone
 @evt_d_05 15/09/2025 19:45 Dernier signal téléphone (lieu) Parking
     " (description) Localisation près du parking puis perdue
     " (importance) high
     " (vérifié) oui
-    " (implique) $journaliste.1
-    " (preuve) $telephone.1
+    " (implique) Sophie Laurent
+    " (preuve) Téléphone portable
 
 // Monte dans SUV noir
 @evt_d_06 15/09/2025 19:48 Monte dans SUV noir (lieu) Parking
     " (description) Sophie monte VOLONTAIREMENT - capté par vidéosurveillance
     " (importance) high
     " (vérifié) oui
-    " (implique) $journaliste.1, $suv.1
-    " (preuve) $video.1
+    " (implique) Sophie Laurent, SUV Noir
+    " (preuve) Vidéosurveillance parking
 
 // ==========================================
 // Après disparition (16 septembre 2025)
@@ -320,29 +320,29 @@ $suv.1 (a transporté:+L) $journaliste.1
     " (description) Renault Clio découverte par gardien - portes non verrouillées
     " (importance) high
     " (vérifié) oui
-    " (implique) $parking.1
-    " (preuve) $vehicule.1
+    " (implique) Parking du Journal
+    " (preuve) Véhicule abandonné
 
 // Signalement disparition
 @evt_d_08 16/09/2025 10:00 Signalement disparition (lieu) Commissariat
-    " (description) $collegue.1 alerte la police
+    " (description) Thomas Blanc alerte la police
     " (importance) high
     " (vérifié) oui
-    " (implique) $collegue.1
+    " (implique) Thomas Blanc
 
 // ==========================================
 // Chaînes causales
 // ==========================================
 
 // Chaîne causale principale: disparition
-$evt_d_03 (mène à:+L) Rendez-vous piège
-Rendez-vous piège (mène à:+L) $evt_d_06
-$evt_d_06 (mène à:+L) Disparition
+Message de Source X (mène à:+L) Rendez-vous piège
+Rendez-vous piège (mène à:+L) Monte dans SUV noir
+Monte dans SUV noir (mène à:+L) Disparition
 
 // Chaîne causale: mobile
-$journaliste.1 (enquête sur:+L) $adjoint.1
-$adjoint.1 (menace:+L) $journal.1
-$adjoint.1 (commandite:+L) Enlèvement possible
+Sophie Laurent (enquête sur:+L) Marc Delmas
+Marc Delmas (menace:+L) Le Courrier du Midi
+Marc Delmas (commandite:+L) Enlèvement possible
 
 -:: _timeline_, _sequence_ ::
 
@@ -358,30 +358,30 @@ $adjoint.1 (commandite:+L) Enlèvement possible
     " (source) user
     " (description) Sophie aurait été enlevée sur ordre de Marc Delmas pour l'empêcher de publier de nouvelles révélations. Le SUV pourrait appartenir à un sbire ou à Roux Constructions.
     " (mobile) Éviter révélations corruption
-    " (pour) $video.1, $enregistrement.1
+    " (pour) Vidéosurveillance parking, Enregistrement appel Delmas
     " (contre) Alibi Delmas - conseil municipal
     " (questions) Qui conduit le SUV noir?; Lien entre le SUV et Roux Constructions?; Où a-t-elle été emmenée?
-    " (suspect) $adjoint.1
+    " (suspect) Marc Delmas
 
 @hyp_d_02 Piège de la Source X (type) hypothèse
     " (statut) en_attente
     " (confiance) 60%
     " (source) user
     " (description) La Source X pourrait être un agent double travaillant pour les corrompus. Le RDV était un piège pour attirer Sophie.
-    " (pour) $signal.1, $telephone.1
+    " (pour) Messages Signal cryptés, Téléphone portable
     " (contre) Aucune preuve de duplicité de Source X
     " (questions) Source X est-elle complice ou victime?; Qui connaissait l'existence de Source X?; Source X a-t-elle aussi disparu?
-    " (suspect) $source.1
+    " (suspect) Source Anonyme X
 
 @hyp_d_03 Implication du Maire (type) hypothèse
     " (statut) en_attente
     " (confiance) 45%
     " (source) ai
     " (description) Le maire Castex pourrait avoir ordonné l'enlèvement pour protéger sa réélection. Delmas n'est qu'un exécutant.
-    " (pour) $dossier.1, Position hiérarchique
+    " (pour) Dossier d'enquête manuscrit, Position hiérarchique
     " (contre) Pas de preuves directes contre Castex
     " (questions) Castex était-il au courant des menaces de Delmas?; Quel est le niveau d'implication du maire?; Liens avec le crime organisé?
-    " (suspect) $maire.1
+    " (suspect) Bernard Castex
 
 @hyp_d_04 Disparition volontaire (type) hypothèse
     " (statut) partielle
@@ -401,26 +401,26 @@ $adjoint.1 (commandite:+L) Enlèvement possible
 # Légende STTypes: N=proximité, +L=causalité, +C=containment, +E=expression
 
 // Relations de corruption
-$adjoint.1 (reçoit des pots-de-vin de:-C) $btp.1
-$btp.1 (obtient des marchés de:+L) $adjoint.1
-$maire.1 (supervise:+C) $adjoint.1
+Marc Delmas (reçoit des pots-de-vin de:-C) Roux Constructions SARL
+Roux Constructions SARL (obtient des marchés de:+L) Marc Delmas
+Bernard Castex (supervise:+C) Marc Delmas
 
 // Relations d'enquête
-$journaliste.1 (enquête sur:+L) $adjoint.1
-$journaliste.1 (enquête sur:+L) $btp.1
-$journaliste.1 (enquête sur:+L) $maire.1
-$source.1 (fournit des preuves à:+L) $journaliste.1
+Sophie Laurent (enquête sur:+L) Marc Delmas
+Sophie Laurent (enquête sur:+L) Roux Constructions SARL
+Sophie Laurent (enquête sur:+L) Bernard Castex
+Source Anonyme X (fournit des preuves à:+L) Sophie Laurent
 
 // Relations d'intimidation
-$adjoint.1 (menace:+L) $journal.1
-$adjoint.1 (a menacé:+L) $journaliste.1
+Marc Delmas (menace:+L) Le Courrier du Midi
+Marc Delmas (a menacé:+L) Sophie Laurent
 
 // Relations professionnelles
-$journaliste.1 (employée par:-C) $journal.1
-$collegue.1 (employé par:-C) $journal.1
+Sophie Laurent (employée par:-C) Le Courrier du Midi
+Thomas Blanc (employé par:-C) Le Courrier du Midi
 
 // Chaîne causale du crime (hypothèse principale)
-// $adjoint.1 (a fait enlever:+L) $journaliste.1
+// Marc Delmas (a fait enlever:+L) Sophie Laurent
 
 // =============================================================
 // CHAÎNES CAUSALES DÉTECTÉES

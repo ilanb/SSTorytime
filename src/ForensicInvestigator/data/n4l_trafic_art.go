@@ -33,9 +33,9 @@ func GetTraficArtN4LContent() string {
     " (longitude) 2.3876
 
 // Relations de Jean Moreau
-$intermediaire.1 (complice de:+L) $chef_reseau.1
-$intermediaire.1 (fréquente:N) $bar.1
-$intermediaire.1 (a accès à:+C) $galerie_moreau.1
+Jean Moreau (complice de:+L) Viktor Sokolov
+Jean Moreau (fréquente:N) Bar Le Diplomate
+Jean Moreau (a accès à:+C) Galerie Moreau Antiquités
 
 @chef_reseau Viktor Sokolov (type) personne
     " (rôle) suspect principal
@@ -50,9 +50,9 @@ $intermediaire.1 (a accès à:+C) $galerie_moreau.1
     " (longitude) 2.3200
 
 // Relations de Viktor Sokolov
-$chef_reseau.1 (blanchit via:+L) $btp.1
-$chef_reseau.1 (commandite:+L) Vols d'œuvres
-$chef_reseau.1 (dirige:+C) Réseau international
+Viktor Sokolov (blanchit via:+L) Roux Constructions SARL
+Viktor Sokolov (commandite:+L) Vols d'œuvres
+Viktor Sokolov (dirige:+C) Réseau international
 
 // CONNEXION AFFAIRE DISPARITION - Même entreprise
 @btp Roux Constructions SARL (type) organisation
@@ -65,8 +65,8 @@ $chef_reseau.1 (dirige:+C) Réseau international
     " (lien_affaire_disparition) Même entreprise que dans l'affaire Sophie Laurent
 
 // Relations de Roux Constructions
-$btp.1 (verse des commissions à:-C) $politicien.1
-$btp.1 (blanchit pour:+L) $chef_reseau.1
+Roux Constructions SARL (verse des commissions à:-C) Marc Delmas
+Roux Constructions SARL (blanchit pour:+L) Viktor Sokolov
 
 // CONNEXION AFFAIRE DISPARITION - Même personne
 @politicien Marc Delmas (type) personne
@@ -79,8 +79,8 @@ $btp.1 (blanchit pour:+L) $chef_reseau.1
     " (lien_affaire_disparition) Principal suspect dans disparition Sophie Laurent
 
 // Relations de Marc Delmas
-$politicien.1 (reçoit des pots-de-vin de:-C) $btp.1
-$politicien.1 (possède:+C) Œuvres volées
+Marc Delmas (reçoit des pots-de-vin de:-C) Roux Constructions SARL
+Marc Delmas (possède:+C) Œuvres volées
 
 // CONNEXION AFFAIRE MOREAU - Même personne
 @expert Antoine Mercier (type) personne
@@ -93,8 +93,8 @@ $politicien.1 (possède:+C) Œuvres volées
     " (lien_affaire_moreau) Rival de Victor Moreau, suspect dans son meurtre
 
 // Relations d'Antoine Mercier
-$expert.1 (travaille pour:+L) $chef_reseau.1
-$expert.1 (expertisait pour:N) $galerie_moreau.1
+Antoine Mercier (travaille pour:+L) Viktor Sokolov
+Antoine Mercier (expertisait pour:N) Galerie Moreau Antiquités
 
 // =============================================================
 // SECTION LIEUX
@@ -112,8 +112,8 @@ $expert.1 (expertisait pour:N) $galerie_moreau.1
     " (longitude) 2.3378
 
 // Relations Galerie L'Éclipse
-$galerie_eclipse.1 (contrôlée par:+C) $chef_reseau.1
-$galerie_eclipse.1 (écoule:+L) Œuvres volées
+Galerie L'Éclipse (contrôlée par:+C) Viktor Sokolov
+Galerie L'Éclipse (écoule:+L) Œuvres volées
 
 // CONNEXION AFFAIRE MOREAU - Même lieu
 @bar Bar Le Diplomate (type) lieu
@@ -136,8 +136,8 @@ $galerie_eclipse.1 (écoule:+L) Œuvres volées
     " (longitude) 2.3189
 
 // Relations Galerie Moreau
-$galerie_moreau.1 (héritée par:N) $intermediaire.1
-$galerie_moreau.1 (expertisée par:N) $expert.1
+Galerie Moreau Antiquités (héritée par:N) Jean Moreau
+Galerie Moreau Antiquités (expertisée par:N) Antoine Mercier
 
 // =============================================================
 // SECTION TÉMOINS
@@ -155,9 +155,9 @@ $galerie_moreau.1 (expertisée par:N) $expert.1
     " (denonciation) A fourni liste des œuvres et membres du réseau
 
 // Relations de Claire Fontaine
-$temoin_cle.1 (ancienne employée de:N) $galerie_eclipse.1
-$temoin_cle.1 (a dénoncé:+L) $chef_reseau.1
-$temoin_cle.1 (a identifié:+L) $intermediaire.1, $expert.1
+Claire Fontaine (ancienne employée de:N) Galerie L'Éclipse
+Claire Fontaine (a dénoncé:+L) Viktor Sokolov
+Claire Fontaine (a identifié:+L) Jean Moreau, Antoine Mercier
 
 @interpol Agent Interpol Müller (type) personne
     " (rôle) temoin expert
@@ -183,43 +183,43 @@ Preuves physiques => {Œuvres saisies chez Delmas}
     " (description) Factures de travaux fictifs pour un total de 2.3 millions €
     " (correspondance) Dates de ventes d'œuvres
     " (fiabilité) 9/10
-    " (concerne) $btp.1, $politicien.1
+    " (concerne) Roux Constructions SARL, Marc Delmas
 
 @liste_interpol Liste d'œuvres volées Interpol (type) preuve documentaire
     " (source) Base de données Interpol
     " (description) Inventaire des 12 œuvres transitées par le réseau
-    " (oeuvres_retrouvees) 3 chez $politicien.1
+    " (oeuvres_retrouvees) 3 chez Marc Delmas
     " (oeuvres_recherchees) 9 en cours de localisation
     " (fiabilité) 10/10
 
 @ecoutes Écoutes téléphoniques (type) preuve numérique
     " (periode) Septembre-Octobre 2025
-    " (description) Conversations entre $chef_reseau.1 et $intermediaire.1
+    " (description) Conversations entre Viktor Sokolov et Jean Moreau
     " (contenu) Mentions de 'livraisons', 'l'oncle', 'la galerie'
     " (fiabilité) 8/10
-    " (concerne) $intermediaire.1, $chef_reseau.1
+    " (concerne) Jean Moreau, Viktor Sokolov
 
 @video_bar Vidéosurveillance Bar Le Diplomate (type) preuve numérique
     " (date) 05/10/2025
-    " (description) $intermediaire.1 remet une enveloppe à un homme non identifié
-    " (localisation) $bar.1
+    " (description) Jean Moreau remet une enveloppe à un homme non identifié
+    " (localisation) Bar Le Diplomate
     " (fiabilité) 7/10
-    " (concerne) $intermediaire.1
+    " (concerne) Jean Moreau
 
 @temoignage Témoignage Claire Fontaine (type) preuve testimoniale
-    " (temoin) $temoin_cle.1
+    " (temoin) Claire Fontaine
     " (description) Décrit le processus de blanchiment et nomme Sokolov, Moreau et Mercier
     " (elements) Schéma du réseau, contacts, méthodes
     " (fiabilité) 8/10
-    " (concerne) $chef_reseau.1, $intermediaire.1, $expert.1
+    " (concerne) Viktor Sokolov, Jean Moreau, Antoine Mercier
 
 @oeuvres_saisies Œuvres saisies chez Delmas (type) preuve physique
-    " (localisation) Domicile de $politicien.1
+    " (localisation) Domicile de Marc Delmas
     " (description) 3 œuvres d'art africain figurant sur la liste Interpol
     " (valeur) 450 000 € estimés
     " (provenance) Réseau Sokolov
     " (fiabilité) 10/10
-    " (concerne) $politicien.1, $chef_reseau.1
+    " (concerne) Marc Delmas, Viktor Sokolov
 
 // =============================================================
 // SECTION CHRONOLOGIE - Séquence temporelle complète
@@ -237,95 +237,95 @@ Preuves physiques => {Œuvres saisies chez Delmas}
     " (description) Interpol ouvre une enquête sur le réseau Sokolov
     " (importance) medium
     " (vérifié) oui
-    " (implique) $chef_reseau.1
+    " (implique) Viktor Sokolov
 
 @evt_t_00b 15/03/2024 09:00 Claire Fontaine embauchée à L'Éclipse (lieu) Galerie L'Éclipse
-    " (description) $temoin_cle.1 commence à travailler à la galerie
+    " (description) Claire Fontaine commence à travailler à la galerie
     " (importance) medium
     " (vérifié) oui
-    " (implique) $temoin_cle.1, $galerie_eclipse.1
+    " (implique) Claire Fontaine, Galerie L'Éclipse
 
 // ==========================================
 // Connexion avec Affaire Moreau (août 2025)
 // ==========================================
 
 @evt_t_01 27/08/2025 22:00 Jean Moreau vu au Bar Le Diplomate (lieu) Bar Le Diplomate
-    " (description) $intermediaire.1 rencontre un individu non identifié - même soir mentionné dans affaire Moreau
+    " (description) Jean Moreau rencontre un individu non identifié - même soir mentionné dans affaire Moreau
     " (importance) high
     " (vérifié) oui
-    " (implique) $intermediaire.1, $bar.1
+    " (implique) Jean Moreau, Bar Le Diplomate
     " (connexion) Affaire Moreau - evt-m-01b
 
 @evt_t_02 29/08/2025 20:30 Décès de Victor Moreau (lieu) Manoir Moreau
     " (description) Victor Moreau décède empoisonné - affaire case-moreau-001
     " (importance) high
     " (vérifié) oui
-    " (implique) $intermediaire.1
-    " (connexion) Affaire Moreau - $intermediaire.1 héritier et suspect
+    " (implique) Jean Moreau
+    " (connexion) Affaire Moreau - Jean Moreau héritier et suspect
 
 // ==========================================
 // Dénonciation et enquête (août-octobre 2025)
 // ==========================================
 
 @evt_t_03 15/08/2025 09:00 Démission et dénonciation Claire Fontaine (lieu) Anonyme
-    " (description) $temoin_cle.1 quitte la galerie et alerte anonymement les autorités
+    " (description) Claire Fontaine quitte la galerie et alerte anonymement les autorités
     " (importance) high
     " (vérifié) oui
-    " (implique) $temoin_cle.1
+    " (implique) Claire Fontaine
 
 // CONNEXION AFFAIRE DISPARITION
 @evt_t_04 15/09/2025 19:48 Disparition Sophie Laurent (lieu) Parking Toulouse
     " (description) Sophie Laurent disparaît - enquêtait sur Roux Constructions et Delmas
     " (importance) high
     " (vérifié) oui
-    " (implique) $politicien.1, $btp.1
+    " (implique) Marc Delmas, Roux Constructions SARL
     " (connexion) Affaire Disparition - case-disparition-002
 
 @evt_t_05 01/10/2025 09:00 Mise sur écoute du réseau (lieu) Paris
     " (description) Autorisation d'écoutes téléphoniques sur Sokolov et Moreau
     " (importance) high
     " (vérifié) oui
-    " (implique) $chef_reseau.1, $intermediaire.1
+    " (implique) Viktor Sokolov, Jean Moreau
 
 @evt_t_06 05/10/2025 21:00 Remise d'enveloppe au Bar Le Diplomate (lieu) Bar Le Diplomate
-    " (description) $intermediaire.1 filmé remettant une enveloppe
+    " (description) Jean Moreau filmé remettant une enveloppe
     " (importance) high
     " (vérifié) oui
-    " (implique) $intermediaire.1, $bar.1
-    " (preuve) $video_bar.1
+    " (implique) Jean Moreau, Bar Le Diplomate
+    " (preuve) Vidéosurveillance Bar Le Diplomate
 
 @evt_t_07 10/10/2025 06:00 Perquisitions simultanées (lieu) Paris, Toulouse, Luxembourg
     " (description) Perquisitions chez Delmas, Roux Constructions, Galerie L'Éclipse
     " (importance) high
     " (vérifié) oui
-    " (implique) $politicien.1, $btp.1, $galerie_eclipse.1
-    " (preuve) $oeuvres_saisies.1
+    " (implique) Marc Delmas, Roux Constructions SARL, Galerie L'Éclipse
+    " (preuve) Œuvres saisies chez Delmas
 
 @evt_t_08 10/10/2025 14:00 Saisie des 3 œuvres chez Delmas (lieu) Domicile Delmas
     " (description) 3 œuvres d'art africain saisies - figurent sur liste Interpol
     " (importance) high
     " (vérifié) oui
-    " (implique) $politicien.1
-    " (preuve) $oeuvres_saisies.1, $liste_interpol.1
+    " (implique) Marc Delmas
+    " (preuve) Œuvres saisies chez Delmas, Liste d'œuvres volées Interpol
 
 @evt_t_09 14/10/2025 09:00 Mandat d'arrêt international Sokolov (lieu) Interpol Lyon
     " (description) Mandat d'arrêt émis contre Viktor Sokolov
     " (importance) high
     " (vérifié) oui
-    " (implique) $chef_reseau.1
+    " (implique) Viktor Sokolov
 
 // ==========================================
 // Chaînes causales
 // ==========================================
 
 // Chaîne causale: connexion Moreau
-$evt_t_01 (même contexte que:N) Meurtre Victor Moreau
-Meurtre Victor Moreau (donne accès à:+L) $galerie_moreau.1
-$galerie_moreau.1 (utilisée pour:+L) Recel
+Jean Moreau vu au Bar Le Diplomate (même contexte que:N) Meurtre Victor Moreau
+Meurtre Victor Moreau (donne accès à:+L) Galerie Moreau Antiquités
+Galerie Moreau Antiquités (utilisée pour:+L) Recel
 
 // Chaîne causale: connexion Disparition
-$evt_t_04 (liée à enquête sur:N) $btp.1
-$btp.1 (blanchit pour:+L) $chef_reseau.1
+Disparition Sophie Laurent (liée à enquête sur:N) Roux Constructions SARL
+Roux Constructions SARL (blanchit pour:+L) Viktor Sokolov
 
 -:: _timeline_, _sequence_ ::
 
@@ -340,16 +340,16 @@ $btp.1 (blanchit pour:+L) $chef_reseau.1
     " (confiance) 90%
     " (source) user
     " (description) Viktor Sokolov dirige un réseau international de trafic d'œuvres d'art utilisant plusieurs intermédiaires (Jean Moreau, Antoine Mercier) et des structures de blanchiment (Roux Constructions, Galerie L'Éclipse).
-    " (pour) $temoignage.1, $ecoutes.1, $liste_interpol.1
+    " (pour) Témoignage Claire Fontaine, Écoutes téléphoniques, Liste d'œuvres volées Interpol
     " (contre) Sokolov en fuite - pas encore arrêté
-    " (suspect) $chef_reseau.1
+    " (suspect) Viktor Sokolov
 
 @hyp_t_02 Connexion meurtre Victor Moreau (type) hypothèse
     " (statut) en_attente
     " (confiance) 70%
     " (source) ai
     " (description) Le meurtre de Victor Moreau (case-moreau-001) pourrait être lié au trafic d'art. Jean Moreau hérite de la galerie qui servait peut-être au recel, et Antoine Mercier était un rival impliqué dans le réseau.
-    " (pour) $intermediaire.1 héritier, $expert.1 impliqué dans les deux affaires, $galerie_moreau.1 suspectée
+    " (pour) Jean Moreau héritier, Antoine Mercier impliqué dans les deux affaires, Galerie Moreau Antiquités suspectée
     " (contre) Pas de preuves directes du lien
     " (questions) Victor Moreau était-il impliqué ou victime?; Le meurtre visait-il à prendre le contrôle de la galerie?
     " (connexion) case-moreau-001
@@ -359,7 +359,7 @@ $btp.1 (blanchit pour:+L) $chef_reseau.1
     " (confiance) 75%
     " (source) ai
     " (description) La disparition de Sophie Laurent (case-disparition-002) pourrait être liée au volet blanchiment du réseau. Elle enquêtait sur Roux Constructions et Marc Delmas, tous deux impliqués dans le blanchiment pour Sokolov.
-    " (pour) $btp.1 dans les deux affaires, $politicien.1 dans les deux affaires
+    " (pour) Roux Constructions SARL dans les deux affaires, Marc Delmas dans les deux affaires
     " (contre) Pas de preuves que Sophie connaissait le volet artistique
     " (questions) Sophie avait-elle découvert le lien avec le trafic d'art?; Son informateur Source X connaissait-il le réseau Sokolov?
     " (connexion) case-disparition-002
@@ -369,9 +369,9 @@ $btp.1 (blanchit pour:+L) $chef_reseau.1
     " (confiance) 85%
     " (source) user
     " (description) Marc Delmas facilite les activités de Roux Constructions en échange d'œuvres d'art. Il utilise sa position pour protéger le réseau de blanchiment.
-    " (pour) $oeuvres_saisies.1, $factures.1, Position politique
+    " (pour) Œuvres saisies chez Delmas, Factures falsifiées Roux Constructions, Position politique
     " (contre) Nie toute implication
-    " (suspect) $politicien.1
+    " (suspect) Marc Delmas
 
 // =============================================================
 // RÉSEAU DE RELATIONS - Graphe sémantique
@@ -382,24 +382,24 @@ $btp.1 (blanchit pour:+L) $chef_reseau.1
 # Légende STTypes: N=proximité, +L=causalité, +C=containment, +E=expression
 
 // Hiérarchie du réseau
-$chef_reseau.1 (dirige:+C) Réseau international
-$chef_reseau.1 (recrute:+L) $intermediaire.1
-$chef_reseau.1 (emploie:+L) $expert.1
+Viktor Sokolov (dirige:+C) Réseau international
+Viktor Sokolov (recrute:+L) Jean Moreau
+Viktor Sokolov (emploie:+L) Antoine Mercier
 
 // Blanchiment
-$chef_reseau.1 (blanchit via:+L) $btp.1
-$btp.1 (verse des commissions à:-C) $politicien.1
-$politicien.1 (facilite permis pour:+L) $btp.1
+Viktor Sokolov (blanchit via:+L) Roux Constructions SARL
+Roux Constructions SARL (verse des commissions à:-C) Marc Delmas
+Marc Delmas (facilite permis pour:+L) Roux Constructions SARL
 
 // Recel
-$galerie_eclipse.1 (écoule:+L) Œuvres volées
-$expert.1 (authentifie pour:+L) $galerie_eclipse.1
-$galerie_moreau.1 (servait au recel pour:N) $chef_reseau.1
+Galerie L'Éclipse (écoule:+L) Œuvres volées
+Antoine Mercier (authentifie pour:+L) Galerie L'Éclipse
+Galerie Moreau Antiquités (servait au recel pour:N) Viktor Sokolov
 
 // Connexions inter-affaires
-$intermediaire.1 (suspect dans:N) Affaire Moreau
-$politicien.1 (suspect dans:N) Affaire Disparition
-$btp.1 (impliqué dans:N) Affaire Disparition
+Jean Moreau (suspect dans:N) Affaire Moreau
+Marc Delmas (suspect dans:N) Affaire Disparition
+Roux Constructions SARL (impliqué dans:N) Affaire Disparition
 
 // =============================================================
 // CHAÎNES CAUSALES DÉTECTÉES
