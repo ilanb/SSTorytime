@@ -745,6 +745,40 @@ const N4LModule = {
         this.n4lGraphEdges.update(edgeUpdates);
     },
 
+    // Focus on a marker node by its label text
+    focusMarkerNode(markerText) {
+        // Try dashboard graph first (since Graph Preview was removed)
+        if (this.dashboardGraph && this.dashboardGraphNodes) {
+            const allNodes = this.dashboardGraphNodes.get();
+            let node = allNodes.find(n => n.label === markerText);
+            if (!node) node = allNodes.find(n => n.label && n.label.toLowerCase() === markerText.toLowerCase());
+            if (!node) node = allNodes.find(n => n.label && n.label.includes(markerText));
+
+            if (node) {
+                this.dashboardGraph.selectNodes([node.id]);
+                this.dashboardGraph.focus(node.id, { scale: 1.5, animation: { duration: 300, easingFunction: 'easeInOutQuad' } });
+                this.showToast(`Nœud "${node.label}" sélectionné`);
+                return;
+            }
+        }
+
+        // Fallback to N4L graph if available
+        if (this.n4lGraph && this.n4lGraphNodes) {
+            const allNodes = this.n4lGraphNodes.get();
+            let node = allNodes.find(n => n.label === markerText);
+            if (!node) node = allNodes.find(n => n.label && n.label.toLowerCase() === markerText.toLowerCase());
+            if (!node) node = allNodes.find(n => n.label && n.label.includes(markerText));
+
+            if (node) {
+                this.focusN4LGraphNode(node.id);
+                this.showToast(`Nœud "${node.label}" sélectionné`);
+                return;
+            }
+        }
+
+        this.showToast(`Nœud "${markerText}" non trouvé dans le graphe`, 'info');
+    },
+
     // ============================================
     // N4L Context Menu
     // ============================================
@@ -1863,6 +1897,9 @@ const N4LModule = {
         // Store current filter state
         this.n4lActiveContextFilter = this.n4lActiveContextFilter || null;
 
+        // Helper function for escaping HTML in attributes
+        const escapeHtml = (str) => String(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
         let metadataHtml = `
             <!-- Info Banner -->
             <div class="n4l-info-banner">
@@ -2014,7 +2051,6 @@ const N4LModule = {
         // Aliases Section (collapsible)
         if (result.aliases && Object.keys(result.aliases).length > 0) {
             const aliases = Object.entries(result.aliases);
-            const escapeHtml = (str) => String(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
             const getDisplayName = (value) => {
                 let v = Array.isArray(value) ? value[0] : value;
                 if (!v) return '';
@@ -2157,19 +2193,19 @@ const N4LModule = {
                             ${definitions.length > 0 ? `
                                 <div class="n4l-marker-group">
                                     <div class="n4l-marker-label"><span class="n4l-marker-icon">=</span> Définitions</div>
-                                    <div class="n4l-marker-tags">${definitions.slice(0, 10).map(d => `<span class="n4l-tag n4l-tag-def">${d}</span>`).join(' ')}</div>
+                                    <div class="n4l-marker-tags">${definitions.slice(0, 10).map(d => `<span class="n4l-tag n4l-tag-def n4l-marker-clickable" data-marker="${escapeHtml(d)}">${d}</span>`).join(' ')}</div>
                                 </div>
                             ` : ''}
                             ${importants.length > 0 ? `
                                 <div class="n4l-marker-group">
                                     <div class="n4l-marker-label"><span class="n4l-marker-icon">*</span> Importants</div>
-                                    <div class="n4l-marker-tags">${importants.slice(0, 10).map(i => `<span class="n4l-tag n4l-tag-important">${i}</span>`).join(' ')}</div>
+                                    <div class="n4l-marker-tags">${importants.slice(0, 10).map(i => `<span class="n4l-tag n4l-tag-important n4l-marker-clickable" data-marker="${escapeHtml(i)}">${i}</span>`).join(' ')}</div>
                                 </div>
                             ` : ''}
                             ${references.length > 0 ? `
                                 <div class="n4l-marker-group">
                                     <div class="n4l-marker-label"><span class="n4l-marker-icon">.</span> Références</div>
-                                    <div class="n4l-marker-tags">${references.slice(0, 10).map(r => `<span class="n4l-tag n4l-tag-ref">${r}</span>`).join(' ')}</div>
+                                    <div class="n4l-marker-tags">${references.slice(0, 10).map(r => `<span class="n4l-tag n4l-tag-ref n4l-marker-clickable" data-marker="${escapeHtml(r)}">${r}</span>`).join(' ')}</div>
                                 </div>
                             ` : ''}
                         </div>
@@ -2209,6 +2245,20 @@ const N4LModule = {
                     const aliasKey = aliasItem.getAttribute('data-alias-key');
                     if (aliasKey) {
                         this.focusN4LAlias(aliasKey);
+                    }
+                }
+            };
+        }
+
+        // Add click handler for marker tags
+        const markersSection = metadataContainer.querySelector('.n4l-markers-section');
+        if (markersSection) {
+            markersSection.onclick = (e) => {
+                const markerTag = e.target.closest('.n4l-marker-clickable');
+                if (markerTag) {
+                    const markerText = markerTag.getAttribute('data-marker');
+                    if (markerText) {
+                        this.focusMarkerNode(markerText);
                     }
                 }
             };
@@ -2307,6 +2357,9 @@ const N4LModule = {
         const contextCount = result.contexts?.length || 0;
         const aliasCount = result.aliases ? Object.keys(result.aliases).length : 0;
         const sequenceCount = result.sequences?.length || 0;
+
+        // Helper function for escaping HTML in attributes
+        const escapeHtml = (str) => String(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
         let metadataHtml = `
             <!-- Info Banner -->
@@ -2459,7 +2512,6 @@ const N4LModule = {
         // Aliases Section (collapsible)
         if (result.aliases && Object.keys(result.aliases).length > 0) {
             const aliases = Object.entries(result.aliases);
-            const escapeHtml = (str) => String(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
             const getDisplayName = (value) => {
                 let v = Array.isArray(value) ? value[0] : value;
                 if (!v) return '';
@@ -2602,19 +2654,19 @@ const N4LModule = {
                             ${definitions.length > 0 ? `
                                 <div class="n4l-marker-group">
                                     <div class="n4l-marker-label"><span class="n4l-marker-icon">=</span> Définitions</div>
-                                    <div class="n4l-marker-tags">${definitions.slice(0, 10).map(d => `<span class="n4l-tag n4l-tag-def">${d}</span>`).join(' ')}</div>
+                                    <div class="n4l-marker-tags">${definitions.slice(0, 10).map(d => `<span class="n4l-tag n4l-tag-def n4l-marker-clickable" data-marker="${escapeHtml(d)}">${d}</span>`).join(' ')}</div>
                                 </div>
                             ` : ''}
                             ${importants.length > 0 ? `
                                 <div class="n4l-marker-group">
                                     <div class="n4l-marker-label"><span class="n4l-marker-icon">*</span> Importants</div>
-                                    <div class="n4l-marker-tags">${importants.slice(0, 10).map(i => `<span class="n4l-tag n4l-tag-important">${i}</span>`).join(' ')}</div>
+                                    <div class="n4l-marker-tags">${importants.slice(0, 10).map(i => `<span class="n4l-tag n4l-tag-important n4l-marker-clickable" data-marker="${escapeHtml(i)}">${i}</span>`).join(' ')}</div>
                                 </div>
                             ` : ''}
                             ${references.length > 0 ? `
                                 <div class="n4l-marker-group">
                                     <div class="n4l-marker-label"><span class="n4l-marker-icon">.</span> Références</div>
-                                    <div class="n4l-marker-tags">${references.slice(0, 10).map(r => `<span class="n4l-tag n4l-tag-ref">${r}</span>`).join(' ')}</div>
+                                    <div class="n4l-marker-tags">${references.slice(0, 10).map(r => `<span class="n4l-tag n4l-tag-ref n4l-marker-clickable" data-marker="${escapeHtml(r)}">${r}</span>`).join(' ')}</div>
                                 </div>
                             ` : ''}
                         </div>
@@ -2644,6 +2696,20 @@ const N4LModule = {
         }
 
         container.innerHTML = metadataHtml;
+
+        // Add click handler for marker tags
+        const markersSection = container.querySelector('.n4l-markers-section');
+        if (markersSection) {
+            markersSection.onclick = (e) => {
+                const markerTag = e.target.closest('.n4l-marker-clickable');
+                if (markerTag) {
+                    const markerText = markerTag.getAttribute('data-marker');
+                    if (markerText) {
+                        this.focusMarkerNode(markerText);
+                    }
+                }
+            };
+        }
     },
 
     // Dashboard filter by context (same logic as N4L)

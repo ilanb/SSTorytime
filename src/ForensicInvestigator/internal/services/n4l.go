@@ -354,6 +354,21 @@ func (s *N4LService) ParseN4L(content string) ParsedN4L {
 				subjectsMap[entityName] = true
 				result.Subjects = append(result.Subjects, entityName)
 			}
+
+			// Mode séquence: créer des edges entre les alias consécutifs
+			if s.sequenceMode && entityName != "" {
+				currentSequence = append(currentSequence, entityName)
+				if previousItem != "" && previousItem != entityName {
+					seqEdge := models.GraphEdge{
+						From:    previousItem,
+						To:      entityName,
+						Label:   "puis",
+						Type:    "sequence",
+						Context: currentContext,
+					}
+					result.Graph.Edges = append(result.Graph.Edges, seqEdge)
+				}
+			}
 			previousItem = entityName
 			// Ne PAS continuer à parser le contenu car les attributs ne sont pas des relations
 			continue

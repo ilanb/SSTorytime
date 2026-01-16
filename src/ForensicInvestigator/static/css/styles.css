@@ -2104,6 +2104,77 @@ body {
     font-size: 0.75rem;
 }
 
+/* N4L Marker Groups */
+.n4l-marker-group {
+    margin-bottom: 0.5rem;
+}
+
+.n4l-marker-label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 0.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.n4l-marker-icon {
+    font-weight: 700;
+    font-size: 0.85rem;
+}
+
+.n4l-marker-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+}
+
+.n4l-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 500;
+}
+
+.n4l-tag-def {
+    background: #ecfdf5;
+    color: #059669;
+    border: 1px solid #a7f3d0;
+}
+
+.n4l-tag-important {
+    background: #fef3c7;
+    color: #d97706;
+    border: 1px solid #fcd34d;
+}
+
+.n4l-tag-ref {
+    background: #e0f2fe;
+    color: #0284c7;
+    border: 1px solid #7dd3fc;
+}
+
+/* Clickable marker styles */
+.n4l-marker-clickable {
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.n4l-marker-clickable:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+    filter: brightness(0.95);
+}
+
+.n4l-marker-clickable:active {
+    transform: translateY(0);
+    box-shadow: none;
+}
+
 /* Forms */
 .form-group {
     margin-bottom: 1rem;
