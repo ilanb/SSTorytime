@@ -961,9 +961,6 @@
                                     <span class="material-icons">download</span>
                                     Exporter
                                 </button>
-                                <button class="btn btn-sm btn-icon" onclick="app.togglePanel('panel-n4l-editor')" data-tooltip="Masquer ou agrandir l'éditeur" data-tooltip-pos="bottom">
-                                    <span class="material-icons">chevron_left</span>
-                                </button>
                             </div>
                         </div>
                         <div class="panel-description">
@@ -973,29 +970,7 @@
                             <strong>Glissez un fichier .txt</strong> ou cliquez sur <strong>Importer</strong> pour convertir du texte en N4L via IA.
                         </div>
                         <div class="panel-content">
-                            <textarea class="form-textarea" id="n4l-editor" style="min-height: 400px; font-family: monospace;"></textarea>
-                        </div>
-                    </div>
-
-                    <div class="panel" id="panel-n4l-graph">
-                        <div class="panel-header">
-                            <span class="panel-title">Prévisualisation du Graphe</span>
-                            <div class="panel-header-actions">
-                                <button class="btn btn-sm btn-ghost" id="btn-fullscreen-n4l" onclick="app.toggleN4LFullscreen()" data-tooltip="Plein écran" data-tooltip-pos="bottom">
-                                    <span class="material-icons">fullscreen</span>
-                                </button>
-                                <button class="btn btn-sm btn-icon" onclick="app.togglePanel('panel-n4l-graph')" data-tooltip="Masquer ou agrandir le graphe" data-tooltip-pos="bottom">
-                                    <span class="material-icons">chevron_right</span>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="panel-description">
-                            <span class="material-icons">info</span>
-                            Visualisation interactive du graphe générée. Cliquez sur les contextes ci-dessous pour filtrer.
-                        </div>
-                        <div class="panel-content" style="display: flex; flex-direction: column; overflow: hidden;">
-                            <div id="n4l-graph-container" style="flex: 1; min-height: 300px;"></div>
-                            <div id="n4l-metadata-container" style="max-height: 300px; overflow-y: auto; margin-top: 0.5rem;"></div>
+                            <textarea class="form-textarea" id="n4l-editor" style="min-height: 600px; font-family: monospace;"></textarea>
                         </div>
                     </div>
                 </div>
