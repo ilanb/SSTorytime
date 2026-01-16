@@ -314,9 +314,33 @@ const DashboardModule = {
             this.loadHypotheses();
             this.updateHRMView();
 
-            // Rafraîchir la carte géographique si la vue est active
-            const geoMapView = document.getElementById('view-geo-map');
-            if (geoMapView && !geoMapView.classList.contains('hidden')) {
+            // Rafraîchir la vue courante (importante pour sélection depuis n'importe quel menu)
+            this.refreshCurrentView();
+        } catch (error) {
+            console.error('Error selecting case:', error);
+        }
+    },
+
+    // Rafraîchir la vue courante après sélection d'une affaire
+    refreshCurrentView() {
+        // Déterminer quelle vue est actuellement active
+        const views = document.querySelectorAll('[id^="view-"]');
+        let currentViewName = 'dashboard';
+
+        views.forEach(v => {
+            if (!v.classList.contains('hidden')) {
+                currentViewName = v.id.replace('view-', '');
+            }
+        });
+
+        console.log('[Dashboard] refreshCurrentView:', currentViewName);
+
+        // Rafraîchir la vue selon son type
+        switch (currentViewName) {
+            case 'n4l':
+                if (typeof this.loadN4LContent === 'function') this.loadN4LContent();
+                break;
+            case 'geo-map':
                 const content = document.getElementById('geo-map-content');
                 if (content && typeof this.renderGeoMap === 'function') {
                     content.innerHTML = this.renderGeoMap();
@@ -326,9 +350,34 @@ const DashboardModule = {
                         }
                     }, 100);
                 }
-            }
-        } catch (error) {
-            console.error('Error selecting case:', error);
+                break;
+            case 'graph-analysis':
+                if (typeof this.loadGraphAnalysis === 'function') this.loadGraphAnalysis();
+                break;
+            case 'social-network':
+                if (typeof this.loadSocialNetworkView === 'function') this.loadSocialNetworkView();
+                else if (typeof this.initSocialNetwork === 'function') this.initSocialNetwork();
+                break;
+            case 'scenarios':
+                if (typeof this.loadScenarios === 'function') this.loadScenarios();
+                break;
+            case 'anomalies':
+                if (typeof this.loadAnomalies === 'function') this.loadAnomalies();
+                break;
+            case 'cross-case':
+                if (typeof this.scanCrossConnections === 'function') this.scanCrossConnections();
+                break;
+            case 'investigation':
+                if (typeof this.loadInvestigation === 'function') this.loadInvestigation();
+                break;
+            case 'notebook':
+                if (typeof this.loadNotebook === 'function') this.loadNotebook();
+                break;
+            case 'hrm':
+                if (typeof this.updateHRMView === 'function') this.updateHRMView();
+                break;
+            // Les vues entities, evidence, timeline, hypotheses sont déjà rafraîchies via loadEntities(), etc.
+            // La vue dashboard est déjà rafraîchie via loadDashboardGraph(), renderCaseSummary(), etc.
         }
     },
 
