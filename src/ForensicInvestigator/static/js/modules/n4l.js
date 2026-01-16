@@ -178,6 +178,15 @@ const N4LModule = {
         const sequence = this.lastN4LParse.sequences[seqIndex];
         if (!sequence) return;
 
+        // Always reset the graph first to ensure all nodes are visible
+        if (this.isInSpecialView) {
+            this.isInSpecialView = false;
+            this.restoreFullGraph();
+        } else {
+            this.resetGraphStateQuiet();
+        }
+        this.n4lActiveContextFilter = null;
+
         // Find nodes matching sequence labels
         const seqNodeIds = [];
         const allNodes = this.n4lGraphNodes?.get() || [];
@@ -501,7 +510,8 @@ const N4LModule = {
 
         // Check if we're in special mode (causal chains, hypotheses, or TODO) - need to restore full graph
         const specialFilters = ['chaînes causales', 'hypothèses, pistes', 'pistes, hypothèses', 'TODO, notes', 'notes, TODO'];
-        if (this.currentCausalChain || specialFilters.includes(this.n4lActiveContextFilter)) {
+        if (this.isInSpecialView || this.currentCausalChain || specialFilters.includes(this.n4lActiveContextFilter)) {
+            this.isInSpecialView = false;
             this.restoreFullGraph();
             this.n4lActiveContextFilter = null;
             // Refresh metadata display to update button states
@@ -513,6 +523,7 @@ const N4LModule = {
 
         // Reset filter state
         this.n4lActiveContextFilter = null;
+        this.isInSpecialView = false;
 
         // Reset graph state using the quiet method
         this.resetGraphStateQuiet();
@@ -543,20 +554,29 @@ const N4LModule = {
 
         // Special case: "chaînes causales" - show all causal chains combined
         if (context === 'chaînes causales') {
+            this.isInSpecialView = true;
             this.showAllCausalChains();
             return;
         }
 
         // Special case: "hypothèses" or "pistes" - show hypothesis aliases as graph
         if (context.includes('hypothèse') || context.includes('piste')) {
+            this.isInSpecialView = true;
             this.showHypothesesGraph();
             return;
         }
 
         // Special case: "TODO" or "notes" - show TODO items as graph
         if (context.toLowerCase().includes('todo') || context.toLowerCase().includes('note')) {
+            this.isInSpecialView = true;
             this.showTodoGraph();
             return;
+        }
+
+        // If coming from a special view, do a full reset first
+        if (this.isInSpecialView) {
+            this.isInSpecialView = false;
+            this.resetN4LFilter();
         }
 
         // IMPORTANT: Reset graph state before applying new filter
@@ -654,7 +674,7 @@ const N4LModule = {
     // N4L Graph Focus
     // ============================================
     focusN4LGraphNode(nodeId) {
-        if (!this.n4lGraph || !this.n4lGraphNodes || !this.n4lGraphEdges) return;
+        if (!this.n4lGraph || !this.n4lGraphNodes || !this.n4lGraphEdges || !this.n4lGraphNodesData) return;
 
         if (this.selectedN4LNode === nodeId) {
             this.resetN4LGraphFocus();
@@ -714,6 +734,15 @@ const N4LModule = {
         const nodeData = this.n4lGraphNodesData.find(n => n.id === nodeId);
         if (nodeData) {
             this.showToast(`${nodeData.label} - ${connectedNodes.size - 1} connexion(s)`);
+        }
+
+        // Centrer la vue sur le nœud sélectionné (sans changer le zoom)
+        const nodePosition = this.n4lGraph.getPositions([nodeId])[nodeId];
+        if (nodePosition) {
+            this.n4lGraph.moveTo({
+                position: { x: nodePosition.x, y: nodePosition.y },
+                animation: false
+            });
         }
     },
 
@@ -1860,7 +1889,13 @@ const N4LModule = {
         this.n4lGraph = new vis.Network(container, { nodes, edges }, options);
         this.n4lGraphNodes = nodes;
         this.n4lGraphEdges = edges;
+        this.n4lGraphNodesData = nodes.get();  // Store array copy for lookups
         this.selectedN4LNode = null;
+
+        // Désactiver la physique après stabilisation pour éviter les mouvements erratiques
+        this.n4lGraph.once('stabilized', () => {
+            this.n4lGraph.setOptions({ physics: { enabled: false } });
+        });
 
         // Add click handler
         this.n4lGraph.on('click', (params) => {
@@ -1973,19 +2008,47 @@ const N4LModule = {
             </div>
         `;
 
-        // Contexts Section with Filters
-        if (result.contexts && result.contexts.length > 0) {
+        // Contexts Section with Filters (excluding special views)
+        const isSpecialContext = (ctx) => {
+            const lower = ctx.toLowerCase();
+            return lower.includes('hypothèse') || lower.includes('piste') || lower.includes('chaînes causales') || lower.includes('chaines causales');
+        };
+        const regularContexts = result.contexts ? result.contexts.filter(ctx => !isSpecialContext(ctx)) : [];
+        const availableSpecialContexts = result.contexts ? result.contexts.filter(ctx => isSpecialContext(ctx)) : [];
+
+        if (regularContexts.length > 0) {
             metadataHtml += `
                 <div class="n4l-section">
                     <div class="n4l-section-header">
                         <span class="material-icons">filter_list</span>
                         <span>Filtrer par contexte</span>
-                        <button class="n4l-reset-btn ${this.n4lActiveContextFilter ? '' : 'hidden'}" onclick="app.resetN4LFilter()" title="Réinitialiser le filtre">
-                            <span class="material-icons">refresh</span> Reset
-                        </button>
                     </div>
                     <div class="n4l-context-grid">
-                        ${result.contexts.map(ctx => {
+                        ${regularContexts.map(ctx => {
+                            const isActive = this.n4lActiveContextFilter === ctx;
+                            const icon = this.getContextIcon(ctx);
+                            return `
+                                <button class="n4l-context-btn ${isActive ? 'active' : ''}" onclick="app.filterByContext('${ctx}')">
+                                    <span class="material-icons">${icon}</span>
+                                    <span>${ctx}</span>
+                                </button>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Special Views Section (hypothèses, chaînes causales)
+        if (availableSpecialContexts.length > 0) {
+            metadataHtml += `
+                <div class="n4l-section">
+                    <div class="n4l-section-header">
+                        <span class="material-icons">analytics</span>
+                        <span>Vues spéciales</span>
+                    </div>
+                    <div class="n4l-context-grid">
+                        ${availableSpecialContexts.map(ctx => {
                             const isActive = this.n4lActiveContextFilter === ctx;
                             const icon = this.getContextIcon(ctx);
                             return `
@@ -2434,19 +2497,47 @@ const N4LModule = {
             </div>
         `;
 
-        // Contexts Section with Filters
-        if (result.contexts && result.contexts.length > 0) {
+        // Contexts Section with Filters (excluding special views)
+        const isSpecialContext = (ctx) => {
+            const lower = ctx.toLowerCase();
+            return lower.includes('hypothèse') || lower.includes('piste') || lower.includes('chaînes causales') || lower.includes('chaines causales');
+        };
+        const regularContexts = result.contexts ? result.contexts.filter(ctx => !isSpecialContext(ctx)) : [];
+        const availableSpecialContexts = result.contexts ? result.contexts.filter(ctx => isSpecialContext(ctx)) : [];
+
+        if (regularContexts.length > 0) {
             metadataHtml += `
                 <div class="n4l-section">
                     <div class="n4l-section-header">
                         <span class="material-icons">filter_list</span>
                         <span>Filtrer par contexte</span>
-                        <button class="n4l-reset-btn ${this.dashboardActiveContextFilter ? '' : 'hidden'}" onclick="app.resetDashboardFilter()" title="Réinitialiser le filtre">
-                            <span class="material-icons">refresh</span> Reset
-                        </button>
                     </div>
                     <div class="n4l-context-grid">
-                        ${result.contexts.map(ctx => {
+                        ${regularContexts.map(ctx => {
+                            const isActive = this.dashboardActiveContextFilter === ctx;
+                            const icon = this.getContextIcon(ctx);
+                            return `
+                                <button class="n4l-context-btn ${isActive ? 'active' : ''}" onclick="app.filterDashboardByContext('${ctx}')">
+                                    <span class="material-icons">${icon}</span>
+                                    <span>${ctx}</span>
+                                </button>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Special Views Section (hypothèses, chaînes causales)
+        if (availableSpecialContexts.length > 0) {
+            metadataHtml += `
+                <div class="n4l-section">
+                    <div class="n4l-section-header">
+                        <span class="material-icons">analytics</span>
+                        <span>Vues spéciales</span>
+                    </div>
+                    <div class="n4l-context-grid">
+                        ${availableSpecialContexts.map(ctx => {
                             const isActive = this.dashboardActiveContextFilter === ctx;
                             const icon = this.getContextIcon(ctx);
                             return `
