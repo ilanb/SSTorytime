@@ -9,7 +9,17 @@ const EntitiesModule = {
         if (!this.currentCase) return;
 
         const container = document.getElementById('entities-list');
-        const entities = this.currentCase.entities || [];
+        // Filtrer les entités vides et dédupliquer par nom
+        const seenNames = new Set();
+        const entities = (this.currentCase.entities || []).filter(e => {
+            // Ignorer les entités sans nom
+            if (!e.name || e.name.trim() === '') return false;
+            // Dédupliquer par nom (garder la première occurrence avec le plus de données)
+            const normalizedName = e.name.trim().toLowerCase();
+            if (seenNames.has(normalizedName)) return false;
+            seenNames.add(normalizedName);
+            return true;
+        });
 
         if (entities.length === 0) {
             container.innerHTML = `

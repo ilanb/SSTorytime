@@ -663,11 +663,32 @@ func (s *N4LService) ParseForensicN4L(content string, caseID string) ForensicPar
 
 			switch itemType {
 			case "entity":
+				// Extraire le type explicite s'il existe: "Nom (type) personne"
+				entityType := s.inferEntityType(currentContext)
+				entityRole := s.inferEntityRole(currentContext)
+				typeRegex := regexp.MustCompile(`\(type\)\s*(\w+)`)
+				if typeMatch := typeRegex.FindStringSubmatch(fullItemName); len(typeMatch) == 2 {
+					explicitType := strings.ToLower(strings.TrimSpace(typeMatch[1]))
+					switch explicitType {
+					case "personne", "person":
+						entityType = models.EntityPerson
+					case "lieu", "location", "place":
+						entityType = models.EntityPlace
+					case "objet", "object":
+						entityType = models.EntityObject
+					case "organisation", "organization", "org":
+						entityType = models.EntityOrg
+					case "document", "doc":
+						entityType = models.EntityDocument
+					case "evenement", "événement", "event":
+						entityType = models.EntityEvent
+					}
+				}
 				entityAttrs[aliasName] = &EntityAttributes{
 					ID:         aliasName,
 					Name:       itemName,
-					Type:       s.inferEntityType(currentContext),
-					Role:       s.inferEntityRole(currentContext),
+					Type:       entityType,
+					Role:       entityRole,
 					Attributes: make(map[string]string),
 					Context:    currentContext,
 				}
@@ -819,9 +840,16 @@ func (s *N4LService) ParseForensicN4L(content string, caseID string) ForensicPar
 	now := time.Now()
 
 	// Entités - avec résolution des alias dans les noms et attributs
+	// Map pour dédupliquer par nom (garder l'entité avec le plus de données)
+	seenEntityNames := make(map[string]int) // nom -> index dans result.Entities
 	for _, attrs := range entityAttrs {
 		// Résoudre les alias dans le nom si c'est un alias
 		resolvedName := resolveAliases(attrs.Name)
+
+		// Ignorer les entités sans nom
+		if strings.TrimSpace(resolvedName) == "" {
+			continue
+		}
 
 		// Résoudre les alias dans la description
 		resolvedDesc := resolveAliases(attrs.Description)
@@ -843,7 +871,22 @@ func (s *N4LService) ParseForensicN4L(content string, caseID string) ForensicPar
 			Relations:   []models.Relation{},
 			CreatedAt:   now,
 		}
-		result.Entities = append(result.Entities, entity)
+
+		// Vérifier si une entité avec ce nom existe déjà
+		if existingIdx, exists := seenEntityNames[resolvedName]; exists {
+			// Comparer et garder celle avec le plus de données
+			existingEntity := result.Entities[existingIdx]
+			newScore := len(entity.Description) + len(entity.Attributes)*10
+			existingScore := len(existingEntity.Description) + len(existingEntity.Attributes)*10
+			if newScore > existingScore {
+				// Remplacer par la nouvelle entité (plus complète)
+				result.Entities[existingIdx] = entity
+			}
+		} else {
+			// Nouvelle entité
+			seenEntityNames[resolvedName] = len(result.Entities)
+			result.Entities = append(result.Entities, entity)
+		}
 	}
 
 	// Preuves - avec résolution des alias
@@ -990,6 +1033,16 @@ func (s *N4LService) ParseForensicN4L(content string, caseID string) ForensicPar
 // determineItemType détermine le type d'élément selon le contexte
 func (s *N4LService) determineItemType(context string) string {
 	context = strings.ToLower(context)
+
+	// Contextes qui ne créent PAS d'entités (à ignorer)
+	// Les chaînes causales, références croisées, notes et TODO ne sont pas des entités
+	if strings.Contains(context, "chaîne") || strings.Contains(context, "chaine") ||
+		strings.Contains(context, "causal") || strings.Contains(context, "référence") ||
+		strings.Contains(context, "reference") || strings.Contains(context, "note") ||
+		strings.Contains(context, "todo") || strings.Contains(context, "réseau") ||
+		strings.Contains(context, "reseau") || strings.Contains(context, "relation") {
+		return "skip" // Type spécial pour ignorer
+	}
 
 	// Contextes de preuves
 	if strings.Contains(context, "preuve") || strings.Contains(context, "indice") ||
