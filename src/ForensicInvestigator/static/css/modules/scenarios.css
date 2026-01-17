@@ -1,6 +1,25 @@
 /* ForensicInvestigator - Scenarios What-If Styles */
 
 /* ============================================
+   SCENARIOS COUNT BADGE
+   ============================================ */
+
+.scenarios-count-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    background: var(--primary);
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 11px;
+    margin-left: 0.5rem;
+}
+
+/* ============================================
    SCENARIOS VIEW LAYOUT
    ============================================ */
 
@@ -398,6 +417,11 @@
 
 .scenario-actions-grid .btn-action .material-icons {
     font-size: 1.1rem;
+    transition: color 0.2s ease;
+}
+
+.scenario-actions-grid .btn-action:hover .material-icons {
+    color: white;
 }
 
 /* ============================================
@@ -830,7 +854,8 @@
 #scenarios-list .empty-state-icon,
 #scenario-detail .empty-state-icon {
     font-size: 3rem;
-    color: var(--border);
+    color: var(--text-muted);
+    opacity: 0.4;
     margin-bottom: 1rem;
 }
 

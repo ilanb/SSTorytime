@@ -252,54 +252,74 @@ const InvestigationModule = {
 
         const btn = document.getElementById('btn-investigation-analyze');
         const originalText = btn.innerHTML;
-        btn.innerHTML = '<span class="material-icons">hourglass_top</span> Analyse...';
+        btn.innerHTML = '<span class="material-icons rotating">sync</span> Analyse...';
         btn.disabled = true;
 
+        // Utiliser la modal d'analyse standard avec streaming
+        this.setAnalysisContext('investigation_step', `Analyse: ${this.currentInvestigationStep.name}`, this.currentInvestigationStep.name);
+
+        const analysisContent = document.getElementById('analysis-content');
+        const analysisModal = document.getElementById('analysis-modal');
+        const modalTitle = document.getElementById('analysis-modal-title');
+        if (modalTitle) modalTitle.textContent = `Analyse IA - ${this.currentInvestigationStep.name}`;
+
+        const noteBtn = document.getElementById('btn-save-to-notebook');
+        if (noteBtn) noteBtn.style.display = '';
+
+        analysisContent.innerHTML = '<span class="streaming-cursor">▊</span>';
+        analysisModal.classList.add('active');
+
         try {
-            const response = await fetch('/api/investigation/analyze', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    case_id: this.currentCase.id,
-                    step_id: this.currentInvestigationStep.id,
-                    context: this.currentInvestigationStep.findings || []
-                })
-            });
+            // Utiliser le streaming pour l'analyse IA
+            if (typeof this.streamAIResponse === 'function') {
+                await this.streamAIResponse(
+                    '/api/investigation/analyze/stream',
+                    {
+                        case_id: this.currentCase.id,
+                        step_id: this.currentInvestigationStep.id,
+                        context: this.currentInvestigationStep.findings || []
+                    },
+                    analysisContent
+                );
 
-            if (!response.ok) throw new Error('Erreur analyse');
+                // Ajouter un insight
+                if (this.investigationSession) {
+                    const analysisText = analysisContent.textContent || '';
+                    const firstLine = analysisText.split('\n').find(l => l.trim() && !l.startsWith('#') && !l.startsWith('|'));
+                    const summary = firstLine ? firstLine.substring(0, 100) + '...' : 'Analyse complétée';
+                    this.investigationSession.insights = [
+                        ...(this.investigationSession.insights || []),
+                        `[${this.currentInvestigationStep.name}] ${summary}`
+                    ];
+                    this.renderInvestigationInsights();
+                }
+            } else {
+                // Fallback si streamAIResponse n'est pas disponible
+                const response = await fetch('/api/investigation/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        case_id: this.currentCase.id,
+                        step_id: this.currentInvestigationStep.id,
+                        context: this.currentInvestigationStep.findings || []
+                    })
+                });
 
-            const data = await response.json();
+                if (!response.ok) throw new Error('Erreur analyse');
 
-            if (data.analysis) {
-                this.showInvestigationAnalysis(data.analysis);
+                const data = await response.json();
+                if (data.analysis) {
+                    analysisContent.innerHTML = this.formatMarkdown ? this.formatMarkdown(data.analysis) : data.analysis;
+                }
             }
         } catch (error) {
             console.error('Erreur:', error);
+            analysisContent.innerHTML = `<p class="error">Erreur: ${error.message}</p>`;
             this.showToast('Erreur: ' + error.message, 'error');
         } finally {
             btn.innerHTML = originalText;
             btn.disabled = false;
         }
-    },
-
-    showInvestigationAnalysis(analysis) {
-        if (this.investigationSession) {
-            const firstLine = analysis.split('\n').find(l => l.trim() && !l.startsWith('#') && !l.startsWith('|'));
-            const summary = firstLine ? firstLine.substring(0, 100) + '...' : 'Analyse complétée';
-            this.investigationSession.insights = [
-                ...(this.investigationSession.insights || []),
-                `[${this.currentInvestigationStep.name}] ${summary}`
-            ];
-            this.renderInvestigationInsights();
-        }
-
-        const formattedAnalysis = this.formatMarkdown ? this.formatMarkdown(analysis) : analysis;
-
-        this.showModal('Analyse IA - ' + this.currentInvestigationStep.name, `
-            <div class="analysis-modal-content">
-                ${formattedAnalysis}
-            </div>
-        `, null, false);
     },
 
     markInvestigationStepComplete() {

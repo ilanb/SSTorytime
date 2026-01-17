@@ -101,6 +101,7 @@ func main() {
 	http.HandleFunc("/api/investigation/start", handler.HandleStartInvestigation)
 	http.HandleFunc("/api/investigation/suggestions", handler.HandleInvestigationSuggestions)
 	http.HandleFunc("/api/investigation/analyze", handler.HandleInvestigationAnalyze)
+	http.HandleFunc("/api/investigation/analyze/stream", handler.HandleInvestigationAnalyzeStream)
 
 	// Routes Notebook (centralisateur d'analyses IA)
 	http.HandleFunc("/api/notebook", handler.HandleNotebook)
@@ -133,6 +134,7 @@ func main() {
 	http.HandleFunc("/api/scenarios/generate", handler.HandleScenarioGenerate)
 	http.HandleFunc("/api/scenario", handler.HandleScenario)
 	http.HandleFunc("/api/scenario/simulate", handler.HandleScenarioSimulate)
+	http.HandleFunc("/api/scenario/simulate/stream", handler.HandleScenarioSimulateStream)
 	http.HandleFunc("/api/scenario/compare", handler.HandleScenarioCompare)
 	http.HandleFunc("/api/scenario/propagate", handler.HandleScenarioPropagate)
 

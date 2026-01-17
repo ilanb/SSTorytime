@@ -26,9 +26,25 @@ const ScenariosModule = {
         }
     },
 
+    updateScenariosCountBadge() {
+        const badge = document.getElementById('scenarios-count-badge');
+        if (!badge) return;
+
+        const count = this.scenarios?.length || 0;
+        if (count > 0) {
+            badge.textContent = count;
+            badge.style.display = 'inline-flex';
+        } else {
+            badge.style.display = 'none';
+        }
+    },
+
     renderScenariosList() {
         const container = document.getElementById('scenarios-list');
         if (!container) return;
+
+        // Mettre à jour le badge de comptage
+        this.updateScenariosCountBadge();
 
         if (this.scenarios.length === 0) {
             container.innerHTML = `
@@ -522,38 +538,52 @@ const ScenariosModule = {
         const noteBtn = document.getElementById('btn-save-to-notebook');
         if (noteBtn) noteBtn.style.display = '';
 
-        analysisContent.innerHTML = `
-            <div class="modal-explanation">
-                <span class="material-icons">psychology</span>
-                <p>Analyse du scenario en cours...</p>
-            </div>
-            <div id="simulation-content"><span class="streaming-cursor"></span></div>
-        `;
+        analysisContent.innerHTML = '<span class="streaming-cursor">▊</span>';
         analysisModal.classList.add('active');
 
-        try {
-            const result = await this.apiCall('/api/scenario/simulate', 'POST', {
-                case_id: this.currentCase.id,
-                scenario_id: scenarioId
-            });
+        // Utiliser le streaming pour l'analyse IA
+        if (typeof this.streamAIResponse === 'function') {
+            await this.streamAIResponse(
+                '/api/scenario/simulate/stream',
+                { case_id: this.currentCase.id, scenario_id: scenarioId },
+                analysisContent
+            );
 
-            document.getElementById('simulation-content').innerHTML =
-                this.formatMarkdown ? this.formatMarkdown(result.analysis) : result.analysis;
-
-            // Update local scenario with analysis
-            if (result.scenario) {
-                const idx = this.scenarios.findIndex(s => s.id === scenarioId);
-                if (idx !== -1) {
-                    this.scenarios[idx] = result.scenario;
-                    if (this.selectedScenario?.id === scenarioId) {
-                        this.selectedScenario = result.scenario;
-                        this.renderScenarioDetail();
-                    }
+            // Recharger le scénario pour obtenir l'analyse sauvegardée
+            await this.loadScenarios();
+            if (this.selectedScenario?.id === scenarioId) {
+                const updatedScenario = this.scenarios.find(s => s.id === scenarioId);
+                if (updatedScenario) {
+                    this.selectedScenario = updatedScenario;
+                    this.renderScenarioDetail();
                 }
             }
-        } catch (error) {
-            document.getElementById('simulation-content').innerHTML =
-                `<p class="error">Erreur: ${error.message}</p>`;
+        } else {
+            // Fallback si streamAIResponse n'est pas disponible
+            try {
+                const result = await this.apiCall('/api/scenario/simulate', 'POST', {
+                    case_id: this.currentCase.id,
+                    scenario_id: scenarioId
+                });
+
+                analysisContent.innerHTML =
+                    this.formatMarkdown ? this.formatMarkdown(result.analysis) : result.analysis;
+
+                // Update local scenario with analysis
+                if (result.scenario) {
+                    const idx = this.scenarios.findIndex(s => s.id === scenarioId);
+                    if (idx !== -1) {
+                        this.scenarios[idx] = result.scenario;
+                        if (this.selectedScenario?.id === scenarioId) {
+                            this.selectedScenario = result.scenario;
+                            this.renderScenarioDetail();
+                        }
+                    }
+                }
+            } catch (error) {
+                analysisContent.innerHTML =
+                    `<p class="error">Erreur: ${error.message}</p>`;
+            }
         }
     },
 

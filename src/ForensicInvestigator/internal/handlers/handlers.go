@@ -2946,6 +2946,198 @@ Réponds de manière concise et actionnable.`
 	})
 }
 
+// HandleInvestigationAnalyzeStream analyse une étape d'investigation avec l'IA en streaming
+func (h *Handler) HandleInvestigationAnalyzeStream(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Méthode non autorisée", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Configurer les headers SSE
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming non supporté", http.StatusInternalServerError)
+		return
+	}
+
+	var req struct {
+		CaseID   string   `json:"case_id"`
+		StepID   string   `json:"step_id"`
+		Question string   `json:"question"`
+		Context  []string `json:"context"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		fmt.Fprintf(w, "data: {\"error\": \"%s\"}\n\n", err.Error())
+		flusher.Flush()
+		return
+	}
+
+	// Récupérer l'affaire pour le contexte
+	c, err := h.cases.GetCase(req.CaseID)
+	if err != nil {
+		fmt.Fprintf(w, "data: {\"error\": \"Affaire non trouvée\"}\n\n")
+		flusher.Flush()
+		return
+	}
+
+	// Récupérer le graphe pour avoir les relations
+	graph, _ := h.cases.BuildGraphData(req.CaseID)
+
+	// Construire le prompt d'investigation
+	stepNames := map[string]string{
+		"actors":    "Identification des Acteurs",
+		"locations": "Analyse des Lieux",
+		"timeline":  "Reconstitution Chronologique",
+		"motives":   "Analyse des Mobiles",
+		"evidence":  "Évaluation des Preuves",
+		"synthesis": "Synthèse et Hypothèses",
+	}
+
+	stepName := stepNames[req.StepID]
+	if stepName == "" {
+		stepName = req.StepID
+	}
+
+	// Construire le contexte enrichi avec les vraies données
+	contextStr := fmt.Sprintf("# Affaire: %s\nType: %s\n\n", c.Name, c.Type)
+
+	// Ajouter les entités avec leurs types
+	if len(c.Entities) > 0 {
+		contextStr += "## Entités impliquées:\n"
+		for _, e := range c.Entities {
+			contextStr += fmt.Sprintf("- %s (%s): %s\n", e.Name, e.Type, e.Description)
+		}
+		contextStr += "\n"
+	}
+
+	// Ajouter les relations depuis le graphe
+	if graph != nil && len(graph.Edges) > 0 {
+		contextStr += "## Relations entre entités:\n"
+		nodeLabels := make(map[string]string)
+		for _, n := range graph.Nodes {
+			nodeLabels[n.ID] = n.Label
+		}
+		for _, edge := range graph.Edges {
+			fromName := nodeLabels[edge.From]
+			if fromName == "" {
+				fromName = edge.From
+			}
+			toName := nodeLabels[edge.To]
+			if toName == "" {
+				toName = edge.To
+			}
+			contextStr += fmt.Sprintf("- %s -[%s]-> %s\n", fromName, edge.Label, toName)
+		}
+		contextStr += "\n"
+	}
+
+	// Ajouter la timeline
+	if len(c.Timeline) > 0 {
+		contextStr += "## Chronologie des événements:\n"
+		for _, t := range c.Timeline {
+			contextStr += fmt.Sprintf("- %s: %s - %s\n", t.Timestamp.Format("2006-01-02 15:04"), t.Title, t.Description)
+		}
+		contextStr += "\n"
+	}
+
+	// Ajouter les preuves
+	if len(c.Evidence) > 0 {
+		contextStr += "## Preuves collectées:\n"
+		for _, e := range c.Evidence {
+			contextStr += fmt.Sprintf("- [%s] %s: %s\n", e.Type, e.Name, e.Description)
+		}
+		contextStr += "\n"
+	}
+
+	if len(req.Context) > 0 {
+		contextStr += "## Notes de l'enquêteur:\n"
+		for _, ctx := range req.Context {
+			contextStr += "- " + ctx + "\n"
+		}
+	}
+
+	// Construire le prompt spécifique à l'étape
+	var question string
+	switch req.StepID {
+	case "actors":
+		question = `Analyse les acteurs de cette affaire. Pour chaque personne impliquée:
+1. Identifie son rôle (victime, suspect, témoin, complice)
+2. Liste ses connexions avec les autres acteurs
+3. Évalue son importance dans l'enquête (centrale, périphérique)
+4. Note tout comportement suspect ou alibi mentionné
+
+Réponds de manière concise et structurée.`
+	case "locations":
+		question = `Analyse les lieux liés à cette affaire:
+1. Identifie tous les lieux mentionnés
+2. Détermine leur importance (scène de crime, lieu de résidence, point de rencontre)
+3. Note les connexions entre lieux et personnes
+4. Identifie les déplacements significatifs
+
+Réponds de manière concise.`
+	case "timeline":
+		question = `Reconstitue la chronologie de l'affaire:
+1. Liste les événements dans l'ordre chronologique
+2. Identifie les trous ou incohérences temporelles
+3. Note les alibis et leur validité
+4. Suggère les moments clés à investiguer
+
+Réponds de manière structurée.`
+	case "motives":
+		question = `Analyse les mobiles potentiels:
+1. Pour chaque suspect, identifie les mobiles possibles
+2. Cherche les conflits, dettes, héritages, rivalités
+3. Évalue la force de chaque mobile
+4. Note les indices supportant chaque théorie
+
+Réponds de manière analytique.`
+	case "evidence":
+		question = `Évalue les preuves de l'affaire:
+1. Classe les preuves par type (matérielle, testimoniale, documentaire)
+2. Évalue leur fiabilité et leur force probante
+3. Identifie les preuves manquantes
+4. Note les contradictions entre preuves
+
+Réponds de manière objective.`
+	case "synthesis":
+		question = `Synthétise l'ensemble de l'affaire:
+1. Résume les faits établis
+2. Liste les hypothèses principales
+3. Identifie les zones d'ombre
+4. Propose les prochaines étapes d'investigation
+
+Réponds de manière concise et actionnable.`
+	default:
+		question = fmt.Sprintf("Analyse l'étape '%s' pour cette affaire. Identifie les éléments clés et propose des pistes concrètes.", stepName)
+	}
+
+	if req.Question != "" {
+		question = req.Question
+	}
+
+	// Appeler l'IA en streaming
+	err = h.ollama.ChatStream(question, contextStr, func(chunk string, done bool) error {
+		chunkJSON, _ := json.Marshal(map[string]interface{}{
+			"chunk": chunk,
+			"done":  done,
+		})
+		fmt.Fprintf(w, "data: %s\n\n", chunkJSON)
+		flusher.Flush()
+		return nil
+	})
+
+	if err != nil {
+		errorJSON, _ := json.Marshal(map[string]string{"error": err.Error()})
+		fmt.Fprintf(w, "data: %s\n\n", errorJSON)
+		flusher.Flush()
+	}
+}
+
 // HandleGraphAnalyzeComplete effectue une analyse complète du graphe
 func (h *Handler) HandleGraphAnalyzeComplete(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -4268,6 +4460,58 @@ func (h *Handler) HandleScenarioSimulate(w http.ResponseWriter, r *http.Request)
 		"analysis": analysis,
 		"scenario": scenario,
 	})
+}
+
+// HandleScenarioSimulateStream lance une simulation IA pour un scénario en streaming
+func (h *Handler) HandleScenarioSimulateStream(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Méthode non autorisée", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Configurer les headers SSE
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming non supporté", http.StatusInternalServerError)
+		return
+	}
+
+	var req struct {
+		CaseID     string `json:"case_id"`
+		ScenarioID string `json:"scenario_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		fmt.Fprintf(w, "data: {\"error\": \"%s\"}\n\n", err.Error())
+		flusher.Flush()
+		return
+	}
+
+	if req.CaseID == "" || req.ScenarioID == "" {
+		fmt.Fprintf(w, "data: {\"error\": \"case_id et scenario_id requis\"}\n\n")
+		flusher.Flush()
+		return
+	}
+
+	err := h.scenario.SimulateWithAIStream(req.CaseID, req.ScenarioID, func(chunk string, done bool) error {
+		chunkJSON, _ := json.Marshal(map[string]interface{}{
+			"chunk": chunk,
+			"done":  done,
+		})
+		fmt.Fprintf(w, "data: %s\n\n", chunkJSON)
+		flusher.Flush()
+		return nil
+	})
+
+	if err != nil {
+		errorJSON, _ := json.Marshal(map[string]string{"error": err.Error()})
+		fmt.Fprintf(w, "data: %s\n\n", errorJSON)
+		flusher.Flush()
+	}
 }
 
 // HandleScenarioCompare compare deux scénarios

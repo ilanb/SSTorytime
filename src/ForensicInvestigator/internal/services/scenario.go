@@ -226,6 +226,56 @@ func (s *ScenarioService) SimulateWithAI(caseID, scenarioID string) (string, err
 	return analysis, nil
 }
 
+// SimulateWithAIStream utilise l'IA pour analyser un scénario en streaming
+func (s *ScenarioService) SimulateWithAIStream(caseID, scenarioID string, callback StreamCallback) error {
+	s.mu.Lock()
+
+	// Accès direct sans appeler GetScenario (évite deadlock)
+	var scenario *models.Scenario
+	if caseScenarios, ok := s.scenarios[caseID]; ok {
+		scenario = caseScenarios[scenarioID]
+	}
+	if scenario == nil {
+		s.mu.Unlock()
+		return fmt.Errorf("scénario non trouvé")
+	}
+
+	caseData, err := s.cases.GetCase(caseID)
+	if err != nil {
+		s.mu.Unlock()
+		return err
+	}
+	s.mu.Unlock()
+
+	// Construire le prompt pour l'analyse IA
+	prompt := s.buildAIPrompt(scenario, caseData)
+
+	// Appeler le service Ollama en streaming
+	caseContext := fmt.Sprintf("Affaire: %s\nDescription: %s", caseData.Name, caseData.Description)
+
+	var fullAnalysis strings.Builder
+	err = s.ollama.ChatStream(prompt, caseContext, func(chunk string, done bool) error {
+		fullAnalysis.WriteString(chunk)
+		return callback(chunk, done)
+	})
+
+	if err != nil {
+		return fmt.Errorf("erreur analyse IA: %w", err)
+	}
+
+	// Mettre à jour le scénario avec l'analyse complète
+	s.mu.Lock()
+	if caseScenarios, ok := s.scenarios[caseID]; ok {
+		if sc := caseScenarios[scenarioID]; sc != nil {
+			sc.AIAnalysis = fullAnalysis.String()
+			sc.UpdatedAt = time.Now()
+		}
+	}
+	s.mu.Unlock()
+
+	return nil
+}
+
 // GenerateScenariosWithAI génère automatiquement des scénarios basés sur l'affaire
 func (s *ScenarioService) GenerateScenariosWithAI(caseID string) ([]*models.Scenario, error) {
 	// Récupérer les données du cas
