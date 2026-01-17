@@ -1434,15 +1434,18 @@ const CrossCaseModule = {
             group: n.type,
             title: `${n.label} (${n.data?.type || 'Affaire'})`,
             shape: 'box',
-            font: { size: 14 },
+            font: {
+                size: 14,
+                color: '#ffffff'
+            },
             color: n.type === 'case_current' ? {
-                background: '#3b82f6',
-                border: '#1d4ed8',
-                highlight: { background: '#60a5fa', border: '#2563eb' }
+                background: '#1e3a5f',
+                border: '#0f2942',
+                highlight: { background: '#2d5a8a', border: '#1e3a5f' }
             } : {
-                background: '#6366f1',
-                border: '#4338ca',
-                highlight: { background: '#818cf8', border: '#4f46e5' }
+                background: '#1e3a5f',
+                border: '#0f2942',
+                highlight: { background: '#2d5a8a', border: '#1e3a5f' }
             }
         };
     },

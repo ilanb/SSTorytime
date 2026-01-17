@@ -1,0 +1,909 @@
+/* ForensicInvestigator - Scenarios What-If Styles */
+
+/* ============================================
+   SCENARIOS VIEW LAYOUT
+   ============================================ */
+
+#view-scenarios:not(.hidden) {
+    display: block;
+    overflow: hidden;
+    height: 100%;
+}
+
+/* Two-column layout container */
+.scenarios-two-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    height: 100%;
+    min-height: 0;
+}
+
+/* Left column - contains scenarios list + details panels */
+.scenarios-left-column {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* First panel in left column (Scenarios list) */
+.scenarios-left-column .panel:first-child {
+    flex: 1;
+    min-height: 200px;
+    max-height: 50%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Second panel in left column (Scenario details) */
+.scenarios-left-column .panel:nth-child(2) {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Right column - contains graph panel */
+.scenarios-right-column {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.scenarios-right-column .panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+}
+
+/* Panel content scrollable */
+#view-scenarios .panel-content {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    padding: 1rem;
+}
+
+/* Graph container fills available space */
+.scenarios-right-column .panel-content {
+    padding: 0.5rem;
+}
+
+/* Responsive: stack columns on smaller screens */
+@media (max-width: 1024px) {
+    .scenarios-two-columns {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto 400px;
+    }
+
+    .scenarios-left-column .panel:first-child {
+        max-height: 300px;
+    }
+
+    .scenarios-left-column .panel:nth-child(2) {
+        max-height: 350px;
+    }
+}
+
+/* ============================================
+   SCENARIOS LIST
+   ============================================ */
+
+#scenarios-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+/* ============================================
+   SCENARIO CARD (NEW DESIGN)
+   ============================================ */
+
+.scenario-card-new {
+    background: var(--bg-white);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.scenario-card-new:hover {
+    border-color: var(--primary);
+    box-shadow: 0 4px 12px rgba(30, 58, 95, 0.1);
+}
+
+.scenario-card-new.selected {
+    border-color: var(--primary);
+    border-width: 2px;
+    box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.1);
+}
+
+.scenario-card-new.selected-for-compare {
+    border-color: #8b5cf6;
+    border-style: dashed;
+    background: rgba(139, 92, 246, 0.05);
+}
+
+.scenario-card-new.status-archived {
+    opacity: 0.6;
+}
+
+/* Card Header */
+.scenario-card-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.scenario-card-new .scenario-type-icon {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    flex-shrink: 0;
+}
+
+.scenario-card-new .scenario-type-icon .material-icons {
+    font-size: 1.25rem;
+}
+
+/* Type-specific icon colors - with gradient backgrounds and white icons */
+.scenario-card-new .scenario-type-icon.guilt {
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
+}
+
+.scenario-card-new .scenario-type-icon.guilt .material-icons {
+    color: white;
+}
+
+.scenario-card-new .scenario-type-icon.presence {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+}
+
+.scenario-card-new .scenario-type-icon.presence .material-icons {
+    color: white;
+}
+
+.scenario-card-new .scenario-type-icon.motive {
+    background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+}
+
+.scenario-card-new .scenario-type-icon.motive .material-icons {
+    color: white;
+}
+
+.scenario-card-new .scenario-type-icon.timeline {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.scenario-card-new .scenario-type-icon.timeline .material-icons {
+    color: white;
+}
+
+.scenario-card-new .scenario-type-icon.relation {
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+}
+
+.scenario-card-new .scenario-type-icon.relation .material-icons {
+    color: white;
+}
+
+/* Default style if no type class */
+.scenario-card-new .scenario-type-icon:not(.guilt):not(.presence):not(.motive):not(.timeline):not(.relation) {
+    background: var(--bg-subtle);
+}
+
+.scenario-card-new .scenario-type-icon:not(.guilt):not(.presence):not(.motive):not(.timeline):not(.relation) .material-icons {
+    color: var(--primary);
+}
+
+.scenario-card-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.scenario-type-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+}
+
+.scenario-card-info h4 {
+    margin: 0.25rem 0 0 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-dark);
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* Plausibility Badge */
+.scenario-plausibility-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.4rem 0.6rem;
+    border-radius: 8px;
+    min-width: 50px;
+}
+
+.scenario-plausibility-badge .plausibility-value {
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.plausibility-bar-mini {
+    width: 100%;
+    height: 3px;
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 2px;
+    margin-top: 0.25rem;
+    overflow: hidden;
+}
+
+.plausibility-fill-mini {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.3s ease;
+}
+
+/* Plausibility color classes */
+.plausibility-high {
+    background: rgba(34, 197, 94, 0.15);
+    color: #16a34a;
+}
+
+.plausibility-high .plausibility-fill-mini {
+    background: #22c55e;
+}
+
+.plausibility-medium {
+    background: rgba(245, 158, 11, 0.15);
+    color: #d97706;
+}
+
+.plausibility-medium .plausibility-fill-mini {
+    background: #f59e0b;
+}
+
+.plausibility-low {
+    background: rgba(239, 68, 68, 0.15);
+    color: #dc2626;
+}
+
+.plausibility-low .plausibility-fill-mini {
+    background: #ef4444;
+}
+
+/* Assumption Box */
+.scenario-assumption-box {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    background: var(--bg-subtle);
+    border-radius: 8px;
+    margin-bottom: 0.75rem;
+    border-left: 3px solid var(--primary);
+}
+
+.scenario-assumption-box .material-icons {
+    font-size: 1rem;
+    color: var(--primary);
+    opacity: 0.6;
+    flex-shrink: 0;
+    margin-top: 0.1rem;
+}
+
+.scenario-assumption-box p {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-dark);
+    font-style: italic;
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* Metrics Row */
+.scenario-metrics-row {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.scenario-metric {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.scenario-metric .material-icons {
+    font-size: 1rem;
+}
+
+.scenario-metric .metric-number {
+    font-weight: 600;
+    color: var(--text-dark);
+}
+
+.scenario-metric.supporting {
+    color: #16a34a;
+}
+
+.scenario-metric.supporting .metric-number {
+    color: #16a34a;
+}
+
+.scenario-metric.contradicting {
+    color: #dc2626;
+}
+
+.scenario-metric.contradicting .metric-number {
+    color: #dc2626;
+}
+
+/* Actions Grid */
+.scenario-actions-grid {
+    display: flex;
+    gap: 0.5rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
+}
+
+.scenario-actions-grid .btn-action {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem;
+    background: var(--bg-subtle);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: var(--text-muted);
+}
+
+.scenario-actions-grid .btn-action:hover {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+
+.scenario-actions-grid .btn-action.danger:hover {
+    background: #dc2626;
+    border-color: #dc2626;
+}
+
+.scenario-actions-grid .btn-action .material-icons {
+    font-size: 1.1rem;
+}
+
+/* ============================================
+   SCENARIO DETAIL PANEL
+   ============================================ */
+
+#scenario-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.scenario-detail-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.scenario-detail-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-dark);
+    flex: 1;
+}
+
+/* Large Plausibility Display */
+.scenario-plausibility-large {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    border-radius: 10px;
+    min-width: 80px;
+}
+
+.scenario-plausibility-large .plausibility-score {
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.scenario-plausibility-large .plausibility-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    opacity: 0.8;
+}
+
+/* Detail Sections */
+.scenario-detail-section {
+    padding: 1rem;
+    background: var(--bg-light);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.scenario-detail-section h4 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0 0 0.75rem 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-dark);
+}
+
+.scenario-detail-section h4 .material-icons {
+    font-size: 1.1rem;
+    color: var(--primary);
+}
+
+/* Assumption Quote */
+.scenario-assumption-quote {
+    margin: 0;
+    padding: 1rem;
+    background: var(--bg-white);
+    border-left: 4px solid var(--primary);
+    border-radius: 0 8px 8px 0;
+    font-style: italic;
+    color: var(--text-dark);
+    line-height: 1.6;
+}
+
+/* ============================================
+   IMPLICATIONS LIST
+   ============================================ */
+
+.implications-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.implication-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 0.75rem;
+    background: var(--bg-white);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.85rem;
+}
+
+.implication-type-badge {
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* Implication type colors */
+.implication-type-badge.change_role {
+    background: rgba(139, 92, 246, 0.15);
+    color: #7c3aed;
+}
+
+.implication-type-badge.add_relation,
+.implication-type-badge.relation_review,
+.implication-type-badge.relation_impact {
+    background: rgba(59, 130, 246, 0.15);
+    color: #2563eb;
+}
+
+.implication-type-badge.remove_relation {
+    background: rgba(239, 68, 68, 0.15);
+    color: #dc2626;
+}
+
+.implication-type-badge.timeline_conflict,
+.implication-type-badge.temporal_proximity {
+    background: rgba(245, 158, 11, 0.15);
+    color: #d97706;
+}
+
+.implication-type-badge.presence_verification {
+    background: rgba(34, 197, 94, 0.15);
+    color: #16a34a;
+}
+
+.implication-type-badge.evidence_review {
+    background: rgba(236, 72, 153, 0.15);
+    color: #db2777;
+}
+
+.implication-description {
+    flex: 1;
+    color: var(--text-dark);
+    line-height: 1.4;
+}
+
+.implication-confidence {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    padding: 0.15rem 0.4rem;
+    background: var(--bg-subtle);
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+/* ============================================
+   FACTS LISTS
+   ============================================ */
+
+.facts-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.facts-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.35rem;
+    background: var(--bg-white);
+    border-radius: 6px;
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+.facts-list li::before {
+    font-family: 'Material Icons';
+    font-size: 1rem;
+    flex-shrink: 0;
+    margin-top: 0.1rem;
+}
+
+.facts-list.supporting li::before {
+    content: 'check_circle';
+    color: #16a34a;
+}
+
+.facts-list.contradicting li::before {
+    content: 'cancel';
+    color: #dc2626;
+}
+
+/* ============================================
+   AI ANALYSIS CONTENT
+   ============================================ */
+
+.ai-analysis-content {
+    background: var(--bg-white);
+    padding: 1rem;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    line-height: 1.6;
+    color: var(--text-dark);
+}
+
+.ai-analysis-content p {
+    margin: 0 0 0.75rem 0;
+}
+
+.ai-analysis-content p:last-child {
+    margin-bottom: 0;
+}
+
+/* ============================================
+   SCENARIO GRAPH CONTAINER
+   ============================================ */
+
+#scenario-graph-container {
+    background: var(--bg-white);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    min-height: 300px;
+    height: 100%;
+}
+
+/* ============================================
+   SCENARIO COMPARISON
+   ============================================ */
+
+.scenario-comparison {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.comparison-column {
+    background: var(--bg-light);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem;
+    text-align: center;
+}
+
+.comparison-column h3 {
+    margin: 0 0 1rem 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-dark);
+}
+
+.comparison-score {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    padding: 0.5rem;
+    border-radius: 8px;
+}
+
+.comparison-facts {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+}
+
+.comparison-facts .facts-supporting,
+.comparison-facts .facts-contradicting {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+}
+
+.comparison-facts .facts-supporting {
+    color: #16a34a;
+}
+
+.comparison-facts .facts-contradicting {
+    color: #dc2626;
+}
+
+.comparison-vs {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    color: var(--text-muted);
+}
+
+.comparison-vs .delta {
+    font-size: 1.25rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    margin-bottom: 0.5rem;
+}
+
+.comparison-vs .delta.positive {
+    background: rgba(34, 197, 94, 0.15);
+    color: #16a34a;
+}
+
+.comparison-vs .delta.negative {
+    background: rgba(239, 68, 68, 0.15);
+    color: #dc2626;
+}
+
+/* Comparison Sections */
+.comparison-section {
+    background: var(--bg-light);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.comparison-section h4 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0 0 0.75rem 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-dark);
+}
+
+.comparison-section h4 .material-icons {
+    font-size: 1.1rem;
+    color: var(--primary);
+}
+
+.comparison-section.recommendation {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(59, 130, 246, 0.02) 100%);
+    border-color: rgba(59, 130, 246, 0.2);
+}
+
+.comparison-section.recommendation h4 .material-icons {
+    color: #3b82f6;
+}
+
+.common-facts {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.common-facts li {
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.35rem;
+    background: var(--bg-white);
+    border-radius: 6px;
+    font-size: 0.85rem;
+}
+
+/* Differences Table */
+.differences-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+.differences-table th,
+.differences-table td {
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+}
+
+.differences-table th {
+    background: var(--bg-subtle);
+    font-weight: 600;
+    color: var(--text-dark);
+}
+
+.differences-table tr:last-child td {
+    border-bottom: none;
+}
+
+.significance-badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+}
+
+.significance-badge.high {
+    background: rgba(239, 68, 68, 0.15);
+    color: #dc2626;
+}
+
+.significance-badge.medium {
+    background: rgba(245, 158, 11, 0.15);
+    color: #d97706;
+}
+
+.significance-badge.low {
+    background: rgba(107, 114, 128, 0.15);
+    color: #6b7280;
+}
+
+/* ============================================
+   EMPTY STATE
+   ============================================ */
+
+#scenarios-list .empty-state,
+#scenario-detail .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 1rem;
+    text-align: center;
+}
+
+#scenarios-list .empty-state-icon,
+#scenario-detail .empty-state-icon {
+    font-size: 3rem;
+    color: var(--border);
+    margin-bottom: 1rem;
+}
+
+#scenarios-list .empty-state-title,
+#scenario-detail .empty-state-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-dark);
+    margin-bottom: 0.5rem;
+}
+
+#scenarios-list .empty-state-description,
+#scenario-detail .empty-state-description {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+/* ============================================
+   ROTATING ANIMATION (for loading state)
+   ============================================ */
+
+.rotating {
+    animation: rotate 1s linear infinite;
+}
+
+@keyframes rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+
+@media (max-width: 768px) {
+    .scenario-comparison {
+        grid-template-columns: 1fr;
+    }
+
+    .comparison-vs {
+        flex-direction: row;
+        padding: 0.5rem 0;
+    }
+
+    .comparison-vs .delta {
+        margin-bottom: 0;
+        margin-right: 0.5rem;
+    }
+
+    .scenario-card-header {
+        flex-wrap: wrap;
+    }
+
+    .scenario-plausibility-badge {
+        width: 100%;
+        margin-top: 0.5rem;
+        flex-direction: row;
+        justify-content: center;
+        gap: 0.5rem;
+    }
+
+    .plausibility-bar-mini {
+        flex: 1;
+        max-width: 100px;
+        margin-top: 0;
+    }
+
+    .scenario-metrics-row {
+        flex-wrap: wrap;
+    }
+
+    .scenario-actions-grid {
+        flex-wrap: wrap;
+    }
+}

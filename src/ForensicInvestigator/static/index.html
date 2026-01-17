@@ -4,7 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Forensic Investigator - PEACE & PROGREAI - Aide à l'Enquête</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=30">
+    <!-- CSS Modules - Base components -->
+    <link rel="stylesheet" href="/static/css/modules/index.css?v=51">
+    <!-- Legacy styles (remaining styles not yet modularized) -->
+    <link rel="stylesheet" href="/static/css/styles.css?v=31">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
@@ -476,6 +479,72 @@
                 </div>
 
                 <div class="help-section">
+                    <h3><span class="material-icons">fork_right</span> Scénarios What-If</h3>
+                    <p><strong>Simulation d'hypothèses alternatives</strong> pour explorer différentes pistes d'enquête.</p>
+                    <ul>
+                        <li><strong>Types de scénarios</strong> :
+                            <ul>
+                                <li><em>Culpabilité</em> : Et si ce suspect était coupable ?</li>
+                                <li><em>Présence</em> : Et si cette personne était présente sur les lieux ?</li>
+                                <li><em>Mobile</em> : Et si le mobile était différent ?</li>
+                                <li><em>Chronologie</em> : Et si les événements s'étaient déroulés autrement ?</li>
+                                <li><em>Relation</em> : Et si ces personnes se connaissaient ?</li>
+                            </ul>
+                        </li>
+                        <li><strong>Création de scénario</strong> :
+                            <ul>
+                                <li>Donnez un titre et une description au scénario.</li>
+                                <li>Sélectionnez les entités impactées.</li>
+                                <li>L'IA génère automatiquement les implications.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Analyse d'impact</strong> :
+                            <ul>
+                                <li>Visualisation des modifications sur le graphe.</li>
+                                <li>Score d'impact : combien l'enquête serait affectée.</li>
+                                <li>Liste des implications avec leur type (ajout, modification, question).</li>
+                            </ul>
+                        </li>
+                        <li><strong>Graphe de simulation</strong> : Visualisez le graphe modifié par le scénario.</li>
+                        <li><strong>Comparer</strong> : Analysez plusieurs scénarios côte à côte.</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3><span class="material-icons">warning</span> Détection d'Anomalies</h3>
+                    <p><strong>Identification automatique</strong> de comportements suspects et patterns inhabituels.</p>
+                    <ul>
+                        <li><strong>Types d'anomalies détectées</strong> :
+                            <ul>
+                                <li><em>Temporelles</em> : Incohérences dans la chronologie, alibis impossibles.</li>
+                                <li><em>Relationnelles</em> : Connexions inhabituelles, triangles suspects.</li>
+                                <li><em>Comportementales</em> : Changements soudains de comportement.</li>
+                                <li><em>Structurelles</em> : Nœuds isolés, clusters anormaux dans le graphe.</li>
+                                <li><em>Financières</em> : Flux d'argent suspects, montants inhabituels.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Niveau de sévérité</strong> :
+                            <ul>
+                                <li><em>Critique</em> : Contradiction majeure, preuve falsifiée potentielle.</li>
+                                <li><em>Haute</em> : Incohérence significative à investiguer.</li>
+                                <li><em>Moyenne</em> : Point d'attention méritant vérification.</li>
+                                <li><em>Basse</em> : Observation mineure, contexte à clarifier.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Actions</strong> :
+                            <ul>
+                                <li>Voir les détails de chaque anomalie.</li>
+                                <li>Naviguer vers les entités concernées.</li>
+                                <li>Marquer comme résolue ou faux positif.</li>
+                                <li>Générer une analyse IA de l'anomalie.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Statistiques</strong> : Vue d'ensemble du nombre d'anomalies par type et sévérité.</li>
+                        <li><strong>Badge de notification</strong> : Le menu affiche le nombre d'anomalies non lues.</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
                     <h3><span class="material-icons">filter_alt</span> Recherche Avancée</h3>
                     <p>Système de <strong>filtrage multicritères</strong> pour explorer le graphe.</p>
                     <ul>
@@ -490,6 +559,46 @@
                         <li><strong>Exclusion de nœuds</strong> : Retirez temporairement des entités du graphe filtré.</li>
                         <li><strong>Résultats</strong> : Liste des entités correspondantes avec navigation directe.</li>
                         <li><strong>Réinitialiser</strong> : Restaurez le graphe complet à tout moment.</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3><span class="material-icons">manage_search</span> Recherche Hybride (BM25 + Sémantique)</h3>
+                    <p><strong>Recherche intelligente</strong> combinant analyse lexicale et compréhension sémantique.</p>
+                    <ul>
+                        <li><strong>Deux moteurs combinés</strong> :
+                            <ul>
+                                <li><em>BM25</em> : Recherche par mots-clés (correspondance exacte et variantes).</li>
+                                <li><em>Sémantique (Model2vec)</em> : Recherche par sens (comprend les synonymes et concepts liés).</li>
+                            </ul>
+                        </li>
+                        <li><strong>Curseur de pondération</strong> :
+                            <ul>
+                                <li>0% BM25 / 100% Sémantique : Recherche purement conceptuelle.</li>
+                                <li>50% / 50% : Recherche hybride équilibrée (recommandé).</li>
+                                <li>100% BM25 / 0% Sémantique : Recherche purement lexicale.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Résultats enrichis</strong> :
+                            <ul>
+                                <li>Score global de pertinence (combinaison des deux moteurs).</li>
+                                <li>Détail des scores BM25 et Sémantique pour chaque résultat.</li>
+                                <li>Mots-clés correspondants mis en évidence.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Navigation directe</strong> : Cliquez sur un résultat pour :
+                            <ul>
+                                <li>Focaliser le nœud sur le graphe (entités).</li>
+                                <li>Afficher la preuve correspondante (preuves).</li>
+                                <li>Naviguer vers l'événement dans la timeline (événements).</li>
+                            </ul>
+                        </li>
+                        <li><strong>Cas d'usage</strong> :
+                            <ul>
+                                <li>"téléphone" trouvera aussi "mobile", "appel", "SMS".</li>
+                                <li>"véhicule suspect" trouvera les voitures, motos, camions liés.</li>
+                            </ul>
+                        </li>
                     </ul>
                 </div>
 
@@ -526,7 +635,10 @@
                         <li>Utilisez la <strong>Détection d'écarts</strong> pour repérer les zones d'ombre temporelles.</li>
                         <li>Utilisez les <strong>Inférences</strong> pour découvrir des relations cachées.</li>
                         <li>Filtrez avec la <strong>Recherche avancée</strong> pour explorer le graphe.</li>
+                        <li>Essayez la <strong>Recherche hybride</strong> pour trouver des éléments par sens et non seulement par mots-clés.</li>
                         <li>Utilisez <strong>HRM</strong> pour vérifier les hypothèses et détecter les contradictions.</li>
+                        <li>Créez des <strong>Scénarios What-If</strong> pour explorer des hypothèses alternatives.</li>
+                        <li>Surveillez les <strong>Anomalies</strong> détectées automatiquement (badge dans le menu).</li>
                         <li>Lancez une <strong>Investigation guidée</strong> pour une approche structurée PEACE.</li>
                         <li>Analysez les <strong>Clusters</strong> et la <strong>Centralité</strong> dans Analyse Graphe.</li>
                         <li>Explorez les <strong>Réseaux Sociaux</strong> pour identifier communautés et brokers.</li>
@@ -703,9 +815,9 @@
                             <span class="material-icons">info</span>
                             Visualisation des liens entre entités. Cliquez sur les contextes ci-dessous pour filtrer.
                         </div>
-                        <div class="panel-content" style="display: flex; flex-direction: column; overflow: hidden; min-height: 600px;">
-                            <div id="dashboard-graph-container" style="flex: 1; min-height: 400px; border: 1px solid #e2e8f0;"></div>
-                            <div id="dashboard-metadata-container" style="max-height: 200px; overflow-y: auto; margin-top: 0.5rem;"></div>
+                        <div class="panel-content">
+                            <div id="dashboard-graph-container"></div>
+                            <div id="dashboard-metadata-container"></div>
                         </div>
                     </div>
 
@@ -2626,10 +2738,10 @@
     <script src="/static/js/modules/core.js?v=3" defer></script>
     <script src="/static/js/modules/data-provider.js?v=1" defer></script>
     <script src="/static/js/modules/dashboard.js?v=2" defer></script>
-    <script src="/static/js/modules/entities.js?v=5" defer></script>
-    <script src="/static/js/modules/evidence.js" defer></script>
+    <script src="/static/js/modules/entities.js?v=6" defer></script>
+    <script src="/static/js/modules/evidence.js?v=2" defer></script>
     <script src="/static/js/modules/timeline.js" defer></script>
-    <script src="/static/js/modules/hypotheses.js?v=4" defer></script>
+    <script src="/static/js/modules/hypotheses.js?v=5" defer></script>
     <script src="/static/js/modules/hrm.js" defer></script>
     <script src="/static/js/modules/config.js" defer></script>
     <script src="/static/js/modules/investigation.js" defer></script>
@@ -2638,13 +2750,13 @@
     <script src="/static/js/modules/graph.js?v=6" defer></script>
     <script src="/static/js/modules/n4l.js" defer></script>
     <script src="/static/js/modules/chat.js?v=2" defer></script>
-    <script src="/static/js/modules/cross-case.js?v=13" defer></script>
-    <script src="/static/js/modules/search.js" defer></script>
+    <script src="/static/js/modules/cross-case.js?v=14" defer></script>
+    <script src="/static/js/modules/search.js?v=3" defer></script>
     <script src="/static/js/modules/social-network.js?v=5" defer></script>
     <script src="/static/js/modules/geo-map.js?v=8" defer></script>
     <script src="/static/js/modules/scenarios.js?v=1" defer></script>
     <script src="/static/js/modules/anomalies.js?v=1" defer></script>
-    <script src="/static/js/app.js?v=13" defer></script>
+    <script src="/static/js/app.js?v=14" defer></script>
 
     <!-- Version monolithique (backup)
     <script src="/static/js/app.js" defer></script>

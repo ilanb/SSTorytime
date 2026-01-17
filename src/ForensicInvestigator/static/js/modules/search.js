@@ -450,7 +450,7 @@ const SearchModule = {
                 (BM25: ${Math.round(bm25Weight * 100)}%, Sémantique: ${Math.round(semanticWeight * 100)}%)
             </div>
             ${results.map((result, idx) => `
-                <div class="hybrid-result-item" onclick="app.focusOnHybridResult('${result.id}', '${result.type}')"
+                <div class="hybrid-result-item" onclick="app.focusOnHybridResult('${result.id}', '${result.type}', '${result.name.replace(/'/g, "\\'")}')"
                      style="padding: 0.5rem; margin-bottom: 0.5rem; background: var(--bg-primary); border-radius: 4px; cursor: pointer; border-left: 3px solid ${this.getResultTypeColor(result.type)};">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <strong style="font-size: 0.875rem;">${result.name}</strong>
@@ -490,71 +490,104 @@ const SearchModule = {
         return icons[type] || 'help';
     },
 
-    focusOnHybridResult(id, type) {
+    focusOnHybridResult(id, type, name) {
         // Fermer le panneau de recherche pour voir le graphe
         this.hideSearchPanel();
 
         if (type === 'entity') {
-            // S'assurer que le graphe est affiché
-            document.querySelector('[data-section="graph"]')?.click();
+            // S'assurer que le dashboard (qui contient le graphe) est affiché
+            const dashboardBtn = document.querySelector('[data-view="dashboard"]');
+            if (dashboardBtn && !dashboardBtn.classList.contains('active')) {
+                dashboardBtn.click();
+            }
 
             // Attendre un court instant que le graphe soit rendu
             setTimeout(() => {
-                // Utiliser le graphe N4L s'il est disponible, sinon fallback sur l'ancien graphe
-                const activeGraph = this.n4lGraph || this.graph;
+                // Utiliser le graphe N4L du dashboard s'il est disponible
+                const activeGraph = this.dashboardGraph || this.n4lGraph || this.graph;
                 if (activeGraph) {
                     try {
-                        // Vérifier si le noeud existe dans le graphe
+                        // Les noeuds du graphe N4L utilisent le nom comme ID, pas l'ID technique
+                        // On cherche d'abord par le nom, puis par l'ID technique
                         const nodeIds = activeGraph.body.data.nodes.getIds();
-                        if (nodeIds.includes(id)) {
-                            activeGraph.focus(id, { scale: 1.5, animation: { duration: 500, easingFunction: 'easeInOutQuad' } });
-                            activeGraph.selectNodes([id]);
-                            this.showToast('Entité sélectionnée dans le graphe');
+                        let foundNodeId = null;
+
+                        // Chercher par nom exact
+                        if (name && nodeIds.includes(name)) {
+                            foundNodeId = name;
+                        }
+                        // Chercher par ID technique
+                        else if (nodeIds.includes(id)) {
+                            foundNodeId = id;
+                        }
+                        // Chercher par label (parcourir tous les noeuds)
+                        else if (name) {
+                            const allNodes = activeGraph.body.data.nodes.get();
+                            const matchingNode = allNodes.find(n =>
+                                n.label === name ||
+                                n.label?.toLowerCase() === name?.toLowerCase() ||
+                                n.id === name
+                            );
+                            if (matchingNode) {
+                                foundNodeId = matchingNode.id;
+                            }
+                        }
+
+                        if (foundNodeId) {
+                            // Focus et sélection du noeud
+                            activeGraph.focus(foundNodeId, { scale: 1.5, animation: { duration: 500, easingFunction: 'easeInOutQuad' } });
+                            activeGraph.selectNodes([foundNodeId]);
+
+                            // Mettre le noeud en surbrillance visuelle
+                            this.highlightNodeTemporarily(activeGraph, foundNodeId);
+                            this.showToast(`Entité "${name || id}" sélectionnée`);
                         } else {
-                            // Le noeud n'est pas dans la vue actuelle, recharger le graphe complet
-                            if (typeof this.loadDashboardGraph === 'function') this.loadDashboardGraph();
-                            setTimeout(() => {
-                                const g = this.n4lGraph || this.graph;
-                                if (g) {
-                                    g.focus(id, { scale: 1.5, animation: { duration: 500 } });
-                                    g.selectNodes([id]);
-                                }
-                            }, 500);
-                            this.showToast('Graphe rechargé - Entité sélectionnée');
+                            console.log('[Search] Noeud non trouvé. IDs disponibles:', nodeIds.slice(0, 10), '...');
+                            this.showToast(`Noeud "${name || id}" non trouvé dans le graphe`);
                         }
                     } catch (e) {
                         console.error('Erreur focus graphe:', e);
-                        this.showToast('Entité trouvée: ' + id);
+                        this.showToast('Entité trouvée: ' + (name || id));
                     }
                 } else {
                     this.showToast('Le graphe n\'est pas disponible');
                 }
-            }, 100);
+            }, 200);
         } else if (type === 'evidence') {
             // Open evidence tab
-            document.querySelector('[data-section="evidence"]')?.click();
+            const evidenceBtn = document.querySelector('[data-view="evidence"]');
+            if (evidenceBtn) evidenceBtn.click();
             // Mettre en surbrillance la preuve
             setTimeout(() => {
                 const evidenceCard = document.querySelector(`[data-evidence-id="${id}"]`);
                 if (evidenceCard) {
                     evidenceCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    evidenceCard.style.boxShadow = '0 0 10px var(--primary)';
-                    setTimeout(() => evidenceCard.style.boxShadow = '', 5000);
+                    evidenceCard.style.boxShadow = '0 0 15px var(--primary)';
+                    evidenceCard.style.transform = 'scale(1.02)';
+                    setTimeout(() => {
+                        evidenceCard.style.boxShadow = '';
+                        evidenceCard.style.transform = '';
+                    }, 5000);
                 }
-            }, 100);
+            }, 200);
             this.showToast('Preuve mise en évidence');
         } else if (type === 'event') {
             // Open timeline tab
-            document.querySelector('[data-section="timeline"]')?.click();
+            const timelineBtn = document.querySelector('[data-view="timeline"]');
+            if (timelineBtn) timelineBtn.click();
             // Mettre en surbrillance l'événement
             setTimeout(() => {
                 const eventCard = document.querySelector(`[data-event-id="${id}"]`);
                 if (eventCard) {
                     eventCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    eventCard.style.boxShadow = '0 0 10px var(--warning)';
-                    setTimeout(() => eventCard.style.boxShadow = '', 5000);
+                    eventCard.style.boxShadow = '0 0 15px var(--warning)';
+                    eventCard.style.transform = 'scale(1.02)';
+                    setTimeout(() => {
+                        eventCard.style.boxShadow = '';
+                        eventCard.style.transform = '';
+                    }, 5000);
                 }
-            }, 100);
+            }, 200);
             this.showToast('Événement mis en évidence');
         }
     },
@@ -1003,6 +1036,47 @@ const SearchModule = {
             'vehicle': 'directions_car'
         };
         return icons[type] || 'help_outline';
+    },
+
+    highlightNodeTemporarily(graph, nodeId) {
+        if (!graph || !nodeId) return;
+
+        try {
+            // Sauvegarder la couleur originale du noeud
+            const node = graph.body.data.nodes.get(nodeId);
+            if (!node) return;
+
+            const originalColor = node.color;
+            const originalSize = node.size || 25;
+
+            // Appliquer la surbrillance (violet pulsant)
+            graph.body.data.nodes.update({
+                id: nodeId,
+                color: {
+                    background: '#8b5cf6',
+                    border: '#6d28d9',
+                    highlight: { background: '#a78bfa', border: '#7c3aed' }
+                },
+                size: originalSize * 1.5,
+                borderWidth: 4
+            });
+
+            // Restaurer après 5 secondes
+            setTimeout(() => {
+                try {
+                    graph.body.data.nodes.update({
+                        id: nodeId,
+                        color: originalColor,
+                        size: originalSize,
+                        borderWidth: 2
+                    });
+                } catch (e) {
+                    // Le graphe a peut-être été rechargé
+                }
+            }, 5000);
+        } catch (e) {
+            console.error('Erreur highlight noeud:', e);
+        }
     }
 };
 

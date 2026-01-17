@@ -1,0 +1,534 @@
+/* ForensicInvestigator - Graph Styles */
+
+/* Graph container */
+#graph-container {
+    width: 100%;
+    height: calc(100vh - 280px);
+    min-height: 500px;
+    background: var(--bg-white);
+    border-radius: 8px;
+}
+
+/* Graph control buttons */
+.graph-buttons-container {
+    position: absolute !important;
+    bottom: 15px !important;
+    left: 15px !important;
+    z-index: 9999 !important;
+    display: flex !important;
+    gap: 0.5rem;
+}
+
+.graph-control-btn {
+    display: flex !important;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.5rem 0.85rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+    background: white !important;
+    border: 1px solid #ccc !important;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: #1e3a5f;
+}
+
+.graph-control-btn .material-icons {
+    font-size: 1.1rem;
+}
+
+.graph-control-btn:hover {
+    background: #1e3a5f !important;
+    color: white !important;
+    border-color: #1e3a5f !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(30, 58, 95, 0.3);
+}
+
+/* Fullscreen panel mode */
+.fullscreen-panel {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 9999 !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    background: var(--bg-white) !important;
+}
+
+.fullscreen-panel .panel-content {
+    display: flex !important;
+    flex-direction: row !important;
+    height: calc(100vh - 120px) !important;
+    overflow: hidden !important;
+    gap: 1rem !important;
+    padding: 1rem !important;
+}
+
+.fullscreen-panel #graph-metadata-container {
+    width: 350px !important;
+    max-width: 350px !important;
+    min-width: 300px !important;
+    max-height: 100% !important;
+    overflow-y: auto !important;
+    flex-shrink: 0 !important;
+    margin-bottom: 0 !important;
+    background: var(--bg-light);
+    border-radius: 8px;
+    padding: 0.5rem;
+}
+
+.fullscreen-panel #graph-container {
+    flex: 1 !important;
+    min-height: 0 !important;
+    min-width: 0 !important;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+
+.fullscreen-panel .panel-header {
+    position: sticky;
+    top: 0;
+    background: var(--bg-white);
+    z-index: 10;
+    padding: 1rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.fullscreen-panel .panel-description {
+    display: none !important;
+}
+
+body.has-fullscreen-panel {
+    overflow: hidden;
+}
+
+body.has-fullscreen-panel > *:not(.fullscreen-panel):not(#graph-context-menu):not(#crosscase-context-menu):not(.context-menu):not(.modal):not(#toast-container) {
+    visibility: hidden;
+}
+
+/* Toast always visible in fullscreen */
+body.has-fullscreen-panel #toast-container {
+    visibility: visible !important;
+    z-index: 100002 !important;
+}
+
+/* Ensure context menus and modals are always visible in fullscreen */
+.fullscreen-panel .context-menu,
+#graph-context-menu,
+#crosscase-context-menu {
+    z-index: 10001 !important;
+    visibility: visible !important;
+}
+
+body.has-fullscreen-panel .modal-overlay.active {
+    z-index: 10002 !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+body.has-fullscreen-panel .fullscreen-panel {
+    visibility: visible;
+}
+
+/* N4L Fullscreen panel specific rules */
+.fullscreen-panel#panel-n4l-graph .panel-content {
+    display: flex !important;
+    flex-direction: row !important;
+    height: calc(100vh - 120px) !important;
+    overflow: hidden !important;
+    gap: 1rem !important;
+    padding: 1rem !important;
+}
+
+.fullscreen-panel #n4l-graph-container {
+    flex: 1 !important;
+    min-height: 0 !important;
+    min-width: 0 !important;
+    position: relative !important;
+    height: 100% !important;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-white);
+}
+
+.fullscreen-panel #n4l-metadata-container {
+    width: 350px !important;
+    max-width: 350px !important;
+    min-width: 300px !important;
+    max-height: 100% !important;
+    overflow-y: auto !important;
+    flex-shrink: 0 !important;
+    margin-bottom: 0 !important;
+    background: var(--bg-light);
+    border-radius: 8px;
+    padding: 0.5rem;
+}
+
+/* N4L View layout */
+#view-n4l {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    height: calc(100vh - 180px);
+}
+
+#view-n4l .panel {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#view-n4l .panel .panel-content {
+    flex: 1;
+    overflow: hidden;
+    padding: 0;
+    position: relative;
+}
+
+#n4l-graph-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--bg-white);
+    border-radius: 8px;
+}
+
+#view-n4l #n4l-editor {
+    width: 100%;
+    height: 100%;
+    resize: none;
+    padding: 0.5rem;
+    border: none;
+    font-family: monospace;
+}
+
+/* Dashboard layout */
+#view-dashboard {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 1rem;
+    height: calc(100vh - 180px);
+}
+
+#view-dashboard .panel {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#view-dashboard .panel .panel-content {
+    flex: 1;
+    overflow: auto;
+}
+
+/* Dashboard graph panel - first panel with graph and metadata */
+#view-dashboard .panel:first-child .panel-content {
+    padding: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex: 1;
+    min-height: 0;
+}
+
+/* Dashboard graph container - normal mode */
+#dashboard-graph-container {
+    width: 100%;
+    flex: 1;
+    min-height: 300px;
+    position: relative;
+    background: var(--bg-white);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+/* Force vis.js network to fill the container */
+#dashboard-graph-container > div {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+#dashboard-graph-container canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* Dashboard metadata container - fixed height at bottom */
+#dashboard-metadata-container {
+    height: 180px;
+    max-height: 180px;
+    min-height: 180px;
+    overflow-y: auto;
+    margin-top: 0.5rem;
+    flex-shrink: 0;
+}
+
+/* Dashboard Graph Fullscreen */
+#view-dashboard .panel.fullscreen-panel .panel-content {
+    display: flex !important;
+    flex-direction: row !important;
+    height: calc(100vh - 80px) !important;
+    overflow: hidden !important;
+    gap: 1rem !important;
+    padding: 1rem !important;
+    align-items: stretch !important;
+}
+
+#view-dashboard .panel.fullscreen-panel #dashboard-graph-container {
+    flex: 1 !important;
+    min-height: 0 !important;
+    min-width: 0 !important;
+    position: relative !important;
+    height: 100% !important;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-white);
+}
+
+#view-dashboard .panel.fullscreen-panel #dashboard-metadata-container {
+    width: 350px !important;
+    max-width: 350px !important;
+    min-width: 300px !important;
+    height: 100% !important;
+    max-height: none !important;
+    overflow-y: auto !important;
+    flex-shrink: 0 !important;
+    background: var(--bg-light);
+    border-radius: 8px;
+    padding: 0.5rem;
+    box-sizing: border-box !important;
+}
+
+#view-dashboard .panel.fullscreen-panel #dashboard-metadata-container .n4l-section {
+    margin-bottom: 1rem;
+}
+
+/* Graph Fullscreen Sidebar */
+.graph-fullscreen-sidebar {
+    display: none;
+    width: 350px !important;
+    max-width: 350px !important;
+    min-width: 300px !important;
+    max-height: 100% !important;
+    overflow-y: auto !important;
+    flex-shrink: 0 !important;
+    background: var(--bg-light);
+    border-radius: 8px;
+    padding: 0.5rem;
+}
+
+.fullscreen-panel .graph-fullscreen-sidebar {
+    display: block !important;
+}
+
+.graph-fullscreen-sidebar .n4l-section {
+    margin-bottom: 1rem;
+}
+
+/* Graph focus/blur styles */
+.graph-node-focused {
+    opacity: 1 !important;
+}
+
+.graph-node-blurred {
+    opacity: 0.2;
+}
+
+.graph-edge-focused {
+    opacity: 1 !important;
+}
+
+.graph-edge-blurred {
+    opacity: 0.1;
+}
+
+/* Node focus info panel */
+.node-focus-info {
+    position: absolute;
+    bottom: 60px;
+    left: 15px;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.75rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    max-width: 300px;
+    z-index: 100;
+}
+
+.node-focus-info h4 {
+    margin: 0 0 0.5rem;
+    font-size: 0.9rem;
+    color: var(--primary);
+}
+
+.node-focus-info p {
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+/* ============================================
+   CONTEXT MENU (Right-click on nodes)
+   ============================================ */
+
+.context-menu {
+    position: fixed;
+    background: var(--bg-white);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    min-width: 200px;
+    z-index: 10001;
+    padding: 0.5rem 0;
+    animation: contextMenuFadeIn 0.15s ease-out;
+}
+
+/* Specific ID selector for higher specificity */
+#graph-context-menu,
+#crosscase-context-menu {
+    z-index: 10001 !important;
+}
+
+@keyframes contextMenuFadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.context-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 1rem;
+    color: var(--text-dark);
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color 0.15s;
+    font-size: 0.875rem;
+}
+
+.context-menu-item:hover {
+    background-color: var(--bg-subtle);
+}
+
+.context-menu-item .material-icons {
+    font-size: 1.1rem;
+    color: var(--primary);
+}
+
+.context-menu-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 0.5rem 0;
+}
+
+.context-menu-header {
+    display: block;
+    padding: 0.4rem 1rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--primary);
+    background: linear-gradient(90deg, var(--bg-subtle), transparent);
+}
+
+/* ============================================
+   EXPANSION CONE & PATH STYLES
+   ============================================ */
+
+.cone-node {
+    border: 3px solid var(--primary) !important;
+}
+
+.cone-peripheral {
+    opacity: 0.4;
+}
+
+.path-highlight {
+    border: 3px solid #f59e0b !important;
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+}
+
+.paths-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.path-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.path-item:hover {
+    background: var(--bg-subtle);
+    border-color: var(--primary);
+}
+
+.path-item.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+
+.path-nodes {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.path-node {
+    padding: 0.25rem 0.5rem;
+    background: var(--bg-subtle);
+    border-radius: 4px;
+    font-size: 0.8rem;
+}
+
+.path-item.active .path-node {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.path-arrow {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+.path-item.active .path-arrow {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.path-length {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.path-item.active .path-length {
+    color: rgba(255, 255, 255, 0.8);
+}

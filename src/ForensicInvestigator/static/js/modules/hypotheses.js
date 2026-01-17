@@ -642,6 +642,18 @@ const HypothesesModule = {
     },
 
     showHypothesisComparison(hyp1, hyp2) {
+        // Helper to render evidence list with names
+        const renderEvidenceList = (evidenceIds, type) => {
+            if (!evidenceIds || evidenceIds.length === 0) {
+                return '<span class="no-evidence">Aucune</span>';
+            }
+            return evidenceIds.map(evId => {
+                const evidence = this.currentCase?.evidence?.find(e => e.id === evId);
+                const name = evidence ? evidence.title : evId;
+                return `<span class="evidence-tag ${type}">${name}</span>`;
+            }).join('');
+        };
+
         const content = `
             <div class="modal-explanation">
                 <span class="material-icons">compare_arrows</span>
@@ -656,9 +668,13 @@ const HypothesesModule = {
                         <span>${hyp1.confidence_level}%</span>
                     </div>
                     <p class="comparison-desc">${hyp1.description}</p>
-                    <div class="comparison-evidence">
-                        <strong>Preuves à l'appui:</strong> ${(hyp1.supporting_evidence || []).length}<br>
-                        <strong>Preuves contre:</strong> ${(hyp1.contradicting_evidence || []).length}
+                    <div class="comparison-evidence-section supporting">
+                        <div class="evidence-header"><span class="material-icons">check_circle</span> Preuves à l'appui (${(hyp1.supporting_evidence || []).length})</div>
+                        <div class="evidence-tags">${renderEvidenceList(hyp1.supporting_evidence, 'supporting')}</div>
+                    </div>
+                    <div class="comparison-evidence-section contradicting">
+                        <div class="evidence-header"><span class="material-icons">cancel</span> Preuves contre (${(hyp1.contradicting_evidence || []).length})</div>
+                        <div class="evidence-tags">${renderEvidenceList(hyp1.contradicting_evidence, 'contradicting')}</div>
                     </div>
                 </div>
                 <div class="comparison-vs">VS</div>
@@ -670,15 +686,19 @@ const HypothesesModule = {
                         <span>${hyp2.confidence_level}%</span>
                     </div>
                     <p class="comparison-desc">${hyp2.description}</p>
-                    <div class="comparison-evidence">
-                        <strong>Preuves à l'appui:</strong> ${(hyp2.supporting_evidence || []).length}<br>
-                        <strong>Preuves contre:</strong> ${(hyp2.contradicting_evidence || []).length}
+                    <div class="comparison-evidence-section supporting">
+                        <div class="evidence-header"><span class="material-icons">check_circle</span> Preuves à l'appui (${(hyp2.supporting_evidence || []).length})</div>
+                        <div class="evidence-tags">${renderEvidenceList(hyp2.supporting_evidence, 'supporting')}</div>
+                    </div>
+                    <div class="comparison-evidence-section contradicting">
+                        <div class="evidence-header"><span class="material-icons">cancel</span> Preuves contre (${(hyp2.contradicting_evidence || []).length})</div>
+                        <div class="evidence-tags">${renderEvidenceList(hyp2.contradicting_evidence, 'contradicting')}</div>
                     </div>
                 </div>
             </div>
         `;
 
-        this.showModal('Comparaison des Hypothèses', content);
+        this.showModal('Comparaison des Hypothèses', content, null, false, 'modal-wide');
     },
 
     // ============================================

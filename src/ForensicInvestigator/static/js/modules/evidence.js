@@ -9,7 +9,29 @@ const EvidenceModule = {
         if (!this.currentCase) return;
 
         const container = document.getElementById('evidence-list');
-        const evidence = this.currentCase.evidence || [];
+        let evidence = this.currentCase.evidence || [];
+
+        // Trier par type : Physique > Forensique > Numérique > Documentaire > Autres
+        const typeOrder = {
+            'physique': 0,
+            'physical': 0,
+            'forensique': 1,
+            'forensic': 1,
+            'numerique': 2,
+            'numérique': 2,
+            'digital': 2,
+            'documentaire': 3,
+            'documentary': 3
+        };
+        evidence = evidence.slice().sort((a, b) => {
+            const typeA = (a.type || '').toLowerCase();
+            const typeB = (b.type || '').toLowerCase();
+            const orderA = typeOrder[typeA] !== undefined ? typeOrder[typeA] : 99;
+            const orderB = typeOrder[typeB] !== undefined ? typeOrder[typeB] : 99;
+            if (orderA !== orderB) return orderA - orderB;
+            // Si même type, trier par nom
+            return (a.name || '').localeCompare(b.name || '');
+        });
 
         if (evidence.length === 0) {
             container.innerHTML = `

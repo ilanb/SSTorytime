@@ -306,7 +306,7 @@ const ScenariosModule = {
                         ${scenario.implications.map(impl => `
                             <div class="implication-item ${impl.impact}">
                                 <span class="implication-type-badge ${impl.type}">${this.getImplicationTypeLabel(impl.type)}</span>
-                                <span class="implication-description">${impl.description}</span>
+                                <span class="implication-description">${this.resolveEntityIds(impl.description)}</span>
                                 <span class="implication-confidence">${impl.confidence}%</span>
                             </div>
                         `).join('')}
@@ -774,6 +774,22 @@ const ScenariosModule = {
             'relation_impact': 'Impact relationnel'
         };
         return labels[type] || type;
+    },
+
+    // Resolve entity IDs (ent-xxx-xxx) to entity names in a description string
+    resolveEntityIds(description) {
+        if (!description || !this.currentCase?.entities) return description;
+
+        // Pattern to match entity IDs like 'ent-moreau-002'
+        const entityIdPattern = /'(ent-[a-z]+-\d{3})'/gi;
+
+        return description.replace(entityIdPattern, (match, entityId) => {
+            const entity = this.currentCase.entities.find(e => e.id === entityId);
+            if (entity) {
+                return `'${entity.name}'`;
+            }
+            return match; // Return original if not found
+        });
     }
 };
 

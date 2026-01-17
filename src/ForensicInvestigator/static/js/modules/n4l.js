@@ -1886,16 +1886,51 @@ const N4LModule = {
         if (this.n4lGraph) {
             this.n4lGraph.destroy();
         }
+
+        // Force container to have explicit dimensions before creating the network
+        const containerRect = container.getBoundingClientRect();
+        if (containerRect.height < 50) {
+            // Container has no height yet, wait for layout
+            console.log('[N4L] Container has no height, waiting for layout...');
+            requestAnimationFrame(() => {
+                this.renderN4LGraphInContainer(graphData, containerId);
+            });
+            return;
+        }
+
+        console.log('[N4L] Creating network in container', containerId, 'with dimensions', containerRect.width, 'x', containerRect.height);
         this.n4lGraph = new vis.Network(container, { nodes, edges }, options);
         this.n4lGraphNodes = nodes;
         this.n4lGraphEdges = edges;
         this.n4lGraphNodesData = nodes.get();  // Store array copy for lookups
         this.selectedN4LNode = null;
 
-        // Désactiver la physique après stabilisation pour éviter les mouvements erratiques
+        // Désactiver la physique après stabilisation et ajuster la vue
         this.n4lGraph.once('stabilized', () => {
+            console.log('[N4L] Graph stabilized, fitting...');
             this.n4lGraph.setOptions({ physics: { enabled: false } });
+            // Fit the graph to ensure it's visible
+            this.n4lGraph.fit({ animation: { duration: 300, easingFunction: 'easeInOutQuad' } });
         });
+
+        // Force an immediate fit
+        this.n4lGraph.fit();
+
+        // Also fit after a short delay to handle container dimension issues
+        setTimeout(() => {
+            if (this.n4lGraph) {
+                this.n4lGraph.redraw();
+                this.n4lGraph.fit({ animation: false });
+                console.log('[N4L] Delayed fit() called');
+            }
+        }, 200);
+
+        // And again after a longer delay for safety
+        setTimeout(() => {
+            if (this.n4lGraph) {
+                this.n4lGraph.fit({ animation: false });
+            }
+        }, 500);
 
         // Add click handler
         this.n4lGraph.on('click', (params) => {

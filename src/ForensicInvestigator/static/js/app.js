@@ -281,10 +281,19 @@ class ForensicApp {
         console.log('[Draggable] Using global drag handler');
     }
 
-    showModal(title, content, onConfirm, showConfirmBtn = true) {
+    showModal(title, content, onConfirm, showConfirmBtn = true, modalClass = '') {
+        const modal = document.querySelector('#modal-overlay .modal');
         document.getElementById('modal-title').textContent = title;
         document.getElementById('modal-body').innerHTML = content;
         document.getElementById('modal-overlay').classList.add('active');
+
+        // Remove any previous modal size classes and add new one if specified
+        if (modal) {
+            modal.classList.remove('modal-wide', 'modal-extra-wide');
+            if (modalClass) {
+                modal.classList.add(modalClass);
+            }
+        }
 
         const confirmBtn = document.getElementById('modal-confirm');
         if (confirmBtn) {
@@ -307,7 +316,12 @@ class ForensicApp {
     }
 
     closeModal() {
+        const modal = document.querySelector('#modal-overlay .modal');
         document.getElementById('modal-overlay').classList.remove('active');
+        // Clean up modal size classes
+        if (modal) {
+            modal.classList.remove('modal-wide', 'modal-extra-wide');
+        }
     }
 
     showAnalysisModal(content, title = 'Analyse IA', type = 'graph_analysis', context = '') {

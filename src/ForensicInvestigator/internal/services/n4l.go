@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"forensicinvestigator/internal/models"
@@ -48,6 +49,9 @@ type N4LService struct {
 
 	// Cache des références pour résolution $alias.n
 	aliasItemsCache map[string][]string // Cache alias -> liste d'items extraits
+
+	// Mutex pour protéger les accès concurrents aux maps
+	mu sync.Mutex
 }
 
 // NewN4LService crée une nouvelle instance du service N4L avec support complet
@@ -195,6 +199,10 @@ type HypothesisAttributes struct {
 
 // ParseN4L parse le contenu d'un fichier N4L avec support complet SSTorytime
 func (s *N4LService) ParseN4L(content string) ParsedN4L {
+	// Protéger les accès concurrents aux maps partagées
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	result := ParsedN4L{
 		Notes:           make(map[string][]string),
 		Subjects:        []string{},

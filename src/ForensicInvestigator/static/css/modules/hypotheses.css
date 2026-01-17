@@ -1,0 +1,805 @@
+/* ForensicInvestigator - Hypothesis Cards Styles */
+
+/* ============================================
+   HYPOTHESES VIEW LAYOUT
+   ============================================ */
+
+/* Only apply flex when NOT hidden */
+#view-hypotheses:not(.hidden) {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#view-hypotheses .panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+}
+
+#view-hypotheses .panel-content {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    padding: 1rem;
+}
+
+#hypotheses-list {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+}
+
+#hypotheses-list .hypothesis-card {
+    margin-bottom: 0;
+}
+
+/* Hypothesis cards */
+.hypothesis-card {
+    background: var(--bg-white);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    position: relative;
+    border-left: 4px solid var(--border);
+    transition: all 0.2s ease;
+}
+
+.hypothesis-card.status-pending {
+    border-left-color: #9ca3af;
+}
+
+.hypothesis-card.status-supported {
+    border-left-color: #22c55e;
+}
+
+.hypothesis-card.status-refuted {
+    border-left-color: #ef4444;
+}
+
+.hypothesis-card.status-partial {
+    border-left-color: #f59e0b;
+}
+
+.hypothesis-card.selected-for-compare {
+    box-shadow: 0 0 0 2px var(--primary);
+}
+
+.hypothesis-card.analyzing {
+    opacity: 0.7;
+}
+
+.hypothesis-card.highlighted {
+    box-shadow: 0 0 0 3px var(--primary), 0 4px 12px rgba(37, 99, 235, 0.3);
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.05) 0%, rgba(255, 255, 255, 1) 100%);
+}
+
+@keyframes pulse-highlight {
+    0% { box-shadow: 0 0 0 3px var(--primary); }
+    50% { box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.4); }
+    100% { box-shadow: 0 0 0 3px var(--primary); }
+}
+
+.hypothesis-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.5rem;
+    gap: 0.5rem;
+}
+
+.hypothesis-header-left {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.hypothesis-header-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.hypothesis-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--text-dark);
+}
+
+.hypothesis-status {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+}
+
+.hypothesis-status.pending {
+    background: var(--bg-subtle);
+    color: var(--text-muted);
+}
+
+.hypothesis-status.supported {
+    background: var(--primary);
+    color: white;
+}
+
+.hypothesis-status.refuted {
+    background: var(--primary-light);
+    color: white;
+}
+
+/* Origin badges */
+.hypothesis-origin-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.hypothesis-origin-badge .material-icons {
+    font-size: 0.75rem;
+}
+
+.hypothesis-origin-badge.ai {
+    background: linear-gradient(135deg, #8b5cf6, #6366f1);
+    color: white;
+}
+
+.hypothesis-origin-badge.manual {
+    background: var(--bg-subtle);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+}
+
+/* Status dropdown */
+.hypothesis-status-dropdown {
+    flex-shrink: 0;
+}
+
+.hypothesis-status-select {
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    font-size: 0.75rem;
+    cursor: pointer;
+    background: white;
+}
+
+.hypothesis-status-select.status-pending {
+    background: #f3f4f6;
+    color: #6b7280;
+}
+
+.hypothesis-status-select.status-supported {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.hypothesis-status-select.status-refuted {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.hypothesis-status-select.status-partial {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+/* Confidence */
+.hypothesis-confidence {
+    margin-top: 0.75rem;
+}
+
+.confidence-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: 0.25rem;
+}
+
+.confidence-bar {
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.confidence-fill {
+    height: 100%;
+    background: var(--primary);
+    transition: width 0.3s ease;
+}
+
+.confidence-fill.confidence-high {
+    background: #22c55e;
+}
+
+.confidence-fill.confidence-medium {
+    background: #f59e0b;
+}
+
+.confidence-fill.confidence-low {
+    background: #ef4444;
+}
+
+/* Description */
+.hypothesis-description {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin: 0.5rem 0;
+    line-height: 1.5;
+}
+
+/* Evidence sections */
+.hypothesis-evidence {
+    margin-top: 0.75rem;
+    padding: 0.5rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+}
+
+.hypothesis-evidence.supporting {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+}
+
+.hypothesis-evidence.contradicting {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+}
+
+.hypothesis-evidence .evidence-label {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-weight: 600;
+    margin-bottom: 0.35rem;
+}
+
+.hypothesis-evidence .evidence-label .material-icons {
+    font-size: 1rem;
+}
+
+.hypothesis-evidence.supporting .evidence-label {
+    color: #166534;
+}
+
+.hypothesis-evidence.contradicting .evidence-label {
+    color: #991b1b;
+}
+
+.hypothesis-evidence .evidence-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+
+.hypothesis-evidence .evidence-tag {
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+}
+
+.hypothesis-evidence .evidence-tag.supporting {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.hypothesis-evidence .evidence-tag.contradicting {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.hypothesis-evidence .evidence-tag.clickable {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.hypothesis-evidence .evidence-tag.clickable:hover {
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.hypothesis-evidence .evidence-tag.supporting.clickable:hover {
+    background: #166534;
+    color: white;
+}
+
+.hypothesis-evidence .evidence-tag.contradicting.clickable:hover {
+    background: #991b1b;
+    color: white;
+}
+
+/* Causal Chains */
+.hypothesis-causal-chains {
+    margin-top: 0.75rem;
+    padding: 0.75rem;
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    border-radius: 6px;
+}
+
+.hypothesis-causal-chains .causal-chains-label {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #c2410c;
+    margin-bottom: 0.5rem;
+}
+
+.hypothesis-causal-chains .causal-chains-label .material-icons {
+    font-size: 1rem;
+    color: #f97316;
+}
+
+.hypothesis-causal-chains .causal-chains-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.hypothesis-chain-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.6rem;
+    background: white;
+    border: 1px solid #fed7aa;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.hypothesis-chain-item:hover {
+    background: #ffedd5;
+    border-color: #f97316;
+    transform: translateX(4px);
+}
+
+.hypothesis-chain-item .chain-relevance {
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 0.15rem 0.35rem;
+    border-radius: 4px;
+    min-width: 32px;
+    text-align: center;
+}
+
+.hypothesis-chain-item .chain-relevance.high {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.hypothesis-chain-item .chain-relevance.medium {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.hypothesis-chain-item .chain-preview {
+    font-size: 0.75rem;
+    color: var(--text-dark);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Questions */
+.hypothesis-questions {
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+    padding: 0.5rem;
+    background: var(--bg-subtle);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--primary);
+    transition: all 0.2s ease;
+}
+
+.hypothesis-questions:hover {
+    background: var(--primary);
+    color: white;
+}
+
+.hypothesis-questions strong {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: var(--primary);
+    margin-bottom: 0.35rem;
+}
+
+.hypothesis-questions strong .material-icons {
+    font-size: 1rem;
+}
+
+.hypothesis-questions ul {
+    margin: 0;
+    padding-left: 1.25rem;
+}
+
+.hypothesis-questions li {
+    margin-bottom: 0.25rem;
+    color: var(--text-dark);
+}
+
+/* Questions list in modal */
+.questions-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.question-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background: var(--bg-light);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.question-item:hover {
+    background: var(--bg-subtle);
+    border-color: var(--primary);
+}
+
+.question-number {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background: var(--primary);
+    color: white;
+    border-radius: 50%;
+    font-size: 0.75rem;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.question-text {
+    flex: 1;
+    color: var(--text-dark);
+    line-height: 1.5;
+}
+
+/* Actions */
+.hypothesis-actions {
+    display: flex;
+    gap: 0.25rem;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
+    flex-wrap: wrap;
+}
+
+.hypothesis-actions .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+
+.hypothesis-actions .btn .material-icons {
+    font-size: 0.9rem;
+}
+
+.hypothesis-actions .btn-danger {
+    color: #dc2626;
+}
+
+.hypothesis-actions .btn-danger:hover {
+    background: #fee2e2;
+}
+
+/* Analysis loading */
+.analysis-loading {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    background: var(--bg-subtle);
+    border-radius: 6px;
+    margin-top: 0.75rem;
+    font-size: 0.85rem;
+    color: var(--primary);
+}
+
+/* Filter menu */
+#hypothesis-filter-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 100;
+    min-width: 200px;
+    padding: 0.5rem;
+}
+
+#hypothesis-filter-menu.active {
+    display: block;
+}
+
+.filter-section {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.filter-section:last-child {
+    border-bottom: none;
+}
+
+.filter-section-title {
+    font-weight: 600;
+    font-size: 0.75rem;
+    color: var(--primary);
+    text-transform: uppercase;
+    margin-bottom: 0.35rem;
+    display: block;
+}
+
+/* Evidence manager modal */
+.evidence-manager {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+}
+
+.evidence-manager .evidence-section h4 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.95rem;
+}
+
+.evidence-manager .evidence-checkboxes {
+    max-height: 250px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.5rem;
+}
+
+.evidence-manager .evidence-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.2s;
+    font-size: 0.85rem;
+}
+
+.evidence-manager .evidence-checkbox:hover {
+    background: var(--bg-subtle);
+}
+
+.evidence-manager .evidence-checkbox.selected {
+    background: var(--bg-light);
+}
+
+.evidence-manager .evidence-checkbox input {
+    accent-color: var(--primary);
+}
+
+/* Hypothesis comparison */
+.hypothesis-comparison {
+    display: flex;
+    gap: 1rem;
+    align-items: stretch;
+}
+
+.hypothesis-comparison .comparison-column {
+    flex: 1;
+    padding: 1rem;
+    background: var(--bg-subtle);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+
+.hypothesis-comparison .comparison-column h3 {
+    margin: 0 0 0.75rem;
+    font-size: 1rem;
+    color: var(--primary);
+}
+
+.hypothesis-comparison .comparison-status {
+    display: inline-block;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.hypothesis-comparison .comparison-status.status-pending {
+    background: #f3f4f6;
+    color: #6b7280;
+}
+
+.hypothesis-comparison .comparison-status.status-supported {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.hypothesis-comparison .comparison-status.status-refuted {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.hypothesis-comparison .comparison-status.status-partial {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.hypothesis-comparison .comparison-confidence {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.hypothesis-comparison .comparison-confidence .confidence-bar {
+    flex: 1;
+    height: 10px !important;
+    background: var(--border) !important;
+    border-radius: 5px !important;
+    overflow: hidden !important;
+    display: block !important;
+    padding: 0 !important;
+}
+
+.hypothesis-comparison .comparison-confidence .confidence-bar .confidence-fill {
+    height: 100% !important;
+    border-radius: 5px;
+    transition: width 0.3s ease;
+    display: block;
+}
+
+.hypothesis-comparison .comparison-confidence .confidence-bar .confidence-fill.confidence-high {
+    background: #22c55e !important;
+}
+
+.hypothesis-comparison .comparison-confidence .confidence-bar .confidence-fill.confidence-medium {
+    background: #f59e0b !important;
+}
+
+.hypothesis-comparison .comparison-confidence .confidence-bar .confidence-fill.confidence-low {
+    background: #ef4444 !important;
+}
+
+.hypothesis-comparison .comparison-confidence > span {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--primary);
+    min-width: 45px;
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.hypothesis-comparison .comparison-desc {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 0.75rem;
+    line-height: 1.5;
+}
+
+.hypothesis-comparison .comparison-evidence {
+    font-size: 0.8rem;
+    color: var(--text-dark);
+    line-height: 1.6;
+}
+
+.hypothesis-comparison .comparison-evidence strong {
+    color: var(--text-dark);
+}
+
+.hypothesis-comparison .comparison-vs {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 1.5rem;
+    color: var(--primary);
+    padding: 0 1rem;
+    min-width: 60px;
+}
+
+/* Evidence sections in comparison */
+.hypothesis-comparison .comparison-evidence-section {
+    margin-top: 0.75rem;
+    padding: 0.75rem;
+    border-radius: 6px;
+}
+
+.hypothesis-comparison .comparison-evidence-section.supporting {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+}
+
+.hypothesis-comparison .comparison-evidence-section.contradicting {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+}
+
+.hypothesis-comparison .comparison-evidence-section .evidence-header {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.hypothesis-comparison .comparison-evidence-section.supporting .evidence-header {
+    color: #166534;
+}
+
+.hypothesis-comparison .comparison-evidence-section.supporting .evidence-header .material-icons {
+    font-size: 1rem;
+    color: #22c55e;
+}
+
+.hypothesis-comparison .comparison-evidence-section.contradicting .evidence-header {
+    color: #991b1b;
+}
+
+.hypothesis-comparison .comparison-evidence-section.contradicting .evidence-header .material-icons {
+    font-size: 1rem;
+    color: #ef4444;
+}
+
+.hypothesis-comparison .comparison-evidence-section .evidence-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.hypothesis-comparison .comparison-evidence-section .evidence-tag {
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.hypothesis-comparison .comparison-evidence-section .evidence-tag.supporting {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.hypothesis-comparison .comparison-evidence-section .evidence-tag.contradicting {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.hypothesis-comparison .comparison-evidence-section .no-evidence {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+/* Confidence value display */
+#confidence-value {
+    display: inline-block;
+    margin-left: 0.5rem;
+    font-weight: 600;
+    color: var(--primary);
+}

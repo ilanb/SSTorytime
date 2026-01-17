@@ -1,0 +1,431 @@
+/* ForensicInvestigator - Evidence Cards Styles */
+
+/* ============================================
+   EVIDENCE VIEW LAYOUT
+   ============================================ */
+
+/* Only apply flex when NOT hidden */
+#view-evidence:not(.hidden) {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#view-evidence .panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+}
+
+#view-evidence .panel-content,
+#view-evidence #evidence-list {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 1rem;
+    align-content: start;
+    padding: 1rem;
+}
+
+/* ============================================
+   EVIDENCE CARDS
+   ============================================ */
+
+.evidence-card {
+    background: var(--bg-light);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--primary);
+    border-radius: 0 8px 8px 0;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.evidence-title {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text-dark);
+    margin-bottom: 0.25rem;
+}
+
+.evidence-type {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-weight: 500;
+    text-transform: capitalize;
+    display: inline-block;
+}
+
+/* Physique - Bleu */
+.evidence-type.physique,
+.evidence-type.physical {
+    background: #3b82f6;
+    color: white;
+}
+
+/* Testimoniale - Vert */
+.evidence-type.testimoniale,
+.evidence-type.testimonial {
+    background: #22c55e;
+    color: white;
+}
+
+/* Documentaire - Orange */
+.evidence-type.documentaire,
+.evidence-type.documentary {
+    background: #f59e0b;
+    color: #1a1a2e;
+}
+
+/* Numérique - Violet */
+.evidence-type.numerique,
+.evidence-type.numérique,
+.evidence-type.digital {
+    background: #8b5cf6;
+    color: white;
+}
+
+/* Forensique - Rouge */
+.evidence-type.forensique,
+.evidence-type.forensic {
+    background: #ef4444;
+    color: white;
+}
+
+/* Autres / Défaut - Gris */
+.evidence-type.autre,
+.evidence-type.other {
+    background: #6b7280;
+    color: white;
+}
+
+.evidence-reliability {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+}
+
+.reliability-bar {
+    flex: 1;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.reliability-fill {
+    height: 100%;
+    background: var(--primary);
+    transition: width 0.3s ease;
+}
+
+/* Reliability color classes */
+.reliability-high .reliability-fill {
+    background: #22c55e;
+}
+
+.reliability-medium .reliability-fill {
+    background: #f59e0b;
+}
+
+.reliability-low .reliability-fill {
+    background: #ef4444;
+}
+
+/* Evidence filter dropdown */
+.evidence-filter-container {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.evidence-filter-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.evidence-filter-btn.active {
+    background: var(--primary);
+    color: white;
+}
+
+/* Filter dropdown (generic) */
+.filter-dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.filter-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background: var(--bg-white);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    padding: 0.5rem;
+    min-width: 180px;
+    z-index: 100;
+    display: none;
+}
+
+.filter-menu.active {
+    display: block;
+}
+
+.filter-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 0.875rem;
+}
+
+.filter-item:hover {
+    background: var(--bg-subtle);
+}
+
+.filter-item input[type="checkbox"] {
+    accent-color: var(--primary);
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+.filter-item.filter-all {
+    font-weight: 600;
+    color: var(--primary);
+}
+
+.filter-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 0.25rem 0;
+}
+
+/* Evidence card improvements */
+.evidence-card {
+    position: relative;
+}
+
+.evidence-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.5rem;
+}
+
+.evidence-header-left {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.evidence-type-icon {
+    border-radius: 8px;
+    color: #070429;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Edit evidence modal form */
+.edit-evidence-form .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.edit-evidence-form .entity-checkboxes {
+    max-height: 150px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.5rem;
+}
+
+.edit-evidence-form .entity-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.edit-evidence-form .entity-checkbox:hover {
+    background: var(--bg-subtle);
+}
+
+/* ============================================
+   EVIDENCE CARD LOCATION & DESCRIPTION
+   ============================================ */
+
+.evidence-location {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 0.5rem;
+}
+
+.evidence-location .material-icons {
+    font-size: 0.9rem;
+}
+
+.evidence-description {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-top: 0.5rem;
+    line-height: 1.5;
+}
+
+/* ============================================
+   EVIDENCE CARD RELIABILITY INDICATORS
+   ============================================ */
+
+/* Border color based on reliability */
+.evidence-card.reliability-high {
+    border-left-color: #22c55e;
+}
+
+.evidence-card.reliability-medium {
+    border-left-color: #f59e0b;
+}
+
+.evidence-card.reliability-low {
+    border-left-color: #ef4444;
+}
+
+/* Reliability badge */
+.reliability-badge {
+    font-size: 0.7rem;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    font-weight: 600;
+}
+
+.reliability-badge.high {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.reliability-badge.medium {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.reliability-badge.low {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+/* ============================================
+   EVIDENCE CARD ACTIONS
+   ============================================ */
+
+.evidence-actions {
+    display: flex;
+    gap: 0.25rem;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
+}
+
+.evidence-actions .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+
+.evidence-actions .btn .material-icons {
+    font-size: 0.9rem;
+}
+
+.evidence-actions .btn-danger {
+    color: #dc2626;
+}
+
+.evidence-actions .btn-danger:hover {
+    background: #fee2e2;
+}
+
+/* ============================================
+   EVIDENCE LINKS MODAL
+   ============================================ */
+
+.evidence-links-modal .links-section {
+    margin-bottom: 1rem;
+}
+
+.evidence-links-modal .links-section h4 {
+    font-size: 0.85rem;
+    color: var(--text-dark);
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.evidence-links-modal .links-section h4 .material-icons {
+    font-size: 1rem;
+    color: var(--primary);
+}
+
+.evidence-links-modal .link-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    background: var(--bg-subtle);
+    border-radius: 6px;
+    margin-bottom: 0.35rem;
+    font-size: 0.85rem;
+}
+
+.evidence-links-modal .link-item .material-icons {
+    font-size: 1rem;
+    color: var(--text-muted);
+}
+
+/* ============================================
+   PANEL INFO BOX FOR EVIDENCE VIEW
+   ============================================ */
+
+.panel-info {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(99, 102, 241, 0.04) 100%);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.panel-info .material-icons {
+    color: var(--primary);
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+
+.panel-info p {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.panel-info strong {
+    color: var(--text-dark);
+    font-weight: 600;
+}

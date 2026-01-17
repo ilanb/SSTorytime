@@ -1,0 +1,119 @@
+/* ForensicInvestigator - Panels Styles */
+
+/* Panels */
+.panel {
+    background: var(--bg-white);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: visible;
+    transition: all 0.3s ease;
+    min-width: 0;
+}
+
+.panel-header {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-light);
+}
+
+.panel-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-dark);
+}
+
+.panel-description {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    padding: 0.75rem 1rem;
+    background: var(--bg-subtle);
+    border-bottom: 1px solid var(--border);
+    line-height: 1.5;
+}
+
+.panel-description .material-icons {
+    font-size: 1rem;
+    vertical-align: middle;
+    margin-right: 0.25rem;
+    color: var(--primary);
+}
+
+.panel-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+}
+
+.panel-full {
+    grid-column: span 2;
+}
+
+/* Panel collapsible */
+.panel-collapsed {
+    min-width: 48px !important;
+    max-width: 48px !important;
+    flex: 0 0 48px !important;
+}
+
+.panel-collapsed .panel-content,
+.panel-collapsed .panel-description {
+    display: none !important;
+}
+
+.panel-collapsed .panel-header {
+    flex-direction: column;
+    align-items: center;
+    padding: 0.75rem 0.5rem;
+    height: 100%;
+}
+
+.panel-collapsed .panel-title {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    white-space: nowrap;
+    margin-top: 0.5rem;
+}
+
+.panel-collapsed .panel-header > div {
+    display: flex;
+    flex-direction: column;
+}
+
+.panel-collapsed .panel-header .btn:not(.btn-icon) {
+    display: none;
+}
+
+/* Panel section divider (for integrated alerts) */
+.panel-section-divider {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 1rem 0 0.75rem 0;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+}
+
+.panel-section-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+}
+
+/* N4L specific - when one panel is collapsed, the other expands */
+#view-n4l {
+    display: flex;
+    gap: 1rem;
+}
+
+#view-n4l > .panel:not(.panel-collapsed) {
+    flex: 1;
+}

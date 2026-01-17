@@ -1,0 +1,582 @@
+/* ForensicInvestigator - Investigation Mode Styles */
+
+/* ============================================
+   INVESTIGATION VIEW LAYOUT
+   ============================================ */
+
+/* Two-column layout for investigation view */
+#view-investigation:not(.hidden) {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    overflow: hidden;
+}
+
+#view-investigation .panel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+}
+
+#view-investigation .panel-content {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    padding: 1rem;
+}
+
+/* Responsive: stack panels on smaller screens */
+@media (max-width: 1024px) {
+    #view-investigation:not(.hidden) {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ============================================
+   INVESTIGATION STEPS LIST
+   ============================================ */
+
+.investigation-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+/* Individual step card */
+.investigation-step {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    background: var(--bg-white);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.investigation-step:hover {
+    border-color: var(--primary);
+    background: var(--bg-light);
+}
+
+.investigation-step.active {
+    border-color: var(--primary);
+    background: var(--bg-subtle);
+    box-shadow: 0 0 0 2px rgba(30, 58, 95, 0.1);
+}
+
+/* Step status colors */
+.investigation-step.completed {
+    border-left: 3px solid #059669;
+}
+
+.investigation-step.in_progress {
+    border-left: 3px solid #f59e0b;
+}
+
+.investigation-step.pending {
+    border-left: 3px solid var(--border);
+}
+
+/* Step icon */
+.investigation-step-icon {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-subtle);
+    border-radius: 50%;
+    color: var(--primary);
+    flex-shrink: 0;
+}
+
+.investigation-step-icon .material-icons {
+    font-size: 1.25rem;
+}
+
+.investigation-step.completed .investigation-step-icon {
+    background: #d1fae5;
+    color: #059669;
+}
+
+.investigation-step.in_progress .investigation-step-icon {
+    background: #fef3c7;
+    color: #d97706;
+}
+
+/* Step content */
+.investigation-step-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.investigation-step-name {
+    font-weight: 600;
+    color: var(--text-dark);
+    margin-bottom: 0.25rem;
+}
+
+.investigation-step-description {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+/* Step status badge */
+.investigation-step-status {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    background: var(--bg-subtle);
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.investigation-step-status .material-icons {
+    font-size: 1rem;
+}
+
+.investigation-step.completed .investigation-step-status {
+    background: #d1fae5;
+    color: #059669;
+}
+
+.investigation-step.in_progress .investigation-step-status {
+    background: #fef3c7;
+    color: #d97706;
+}
+
+/* ============================================
+   INVESTIGATION CURRENT STEP DETAIL
+   ============================================ */
+
+.investigation-step-detail {
+    padding: 1rem;
+}
+
+.investigation-step-detail h3 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.1rem;
+    color: var(--primary);
+    margin-bottom: 1rem;
+}
+
+.investigation-step-detail h3 .material-icons {
+    font-size: 1.5rem;
+}
+
+/* Investigation questions */
+.investigation-questions {
+    margin-top: 1rem;
+}
+
+.investigation-question {
+    background: var(--bg-light);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.investigation-question-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.investigation-question-header .material-icons {
+    color: var(--primary);
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+
+.investigation-question-text {
+    font-weight: 500;
+    color: var(--text-dark);
+}
+
+.investigation-question-answer {
+    margin-left: 2rem;
+    padding-top: 0.5rem;
+    border-top: 1px dashed var(--border);
+    font-size: 0.875rem;
+    color: var(--text);
+}
+
+/* Investigation suggestions */
+.investigation-suggestions {
+    margin-top: 1rem;
+}
+
+.investigation-suggestion {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    background: var(--bg-white);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.investigation-suggestion:hover {
+    border-color: var(--primary);
+    background: var(--bg-light);
+}
+
+.investigation-suggestion .material-icons {
+    color: #f59e0b;
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+
+.investigation-suggestion-text {
+    font-size: 0.875rem;
+    color: var(--text);
+}
+
+/* Investigation analysis results */
+.investigation-analysis {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(99, 102, 241, 0.04) 100%);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    border-radius: 8px;
+}
+
+.investigation-analysis-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    color: var(--primary);
+    margin-bottom: 0.75rem;
+}
+
+.investigation-analysis-header .material-icons {
+    font-size: 1.25rem;
+}
+
+.investigation-analysis-content {
+    font-size: 0.875rem;
+    color: var(--text);
+    line-height: 1.6;
+}
+
+/* Investigation info banner */
+.investigation-info {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(59, 130, 246, 0.04) 100%);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.investigation-info .material-icons {
+    color: #3b82f6;
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+
+.investigation-info p,
+.investigation-info span {
+    font-size: 0.875rem;
+    color: var(--text);
+    line-height: 1.5;
+    margin: 0;
+}
+
+.investigation-info strong {
+    font-weight: 600;
+}
+
+/* ============================================
+   INVESTIGATION PROGRESS
+   ============================================ */
+
+.investigation-progress {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    background: var(--bg-light);
+    border-radius: 8px;
+    margin-bottom: 1rem;
+}
+
+.investigation-progress-bar {
+    flex: 1;
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.investigation-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary), #3b82f6);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.investigation-progress-text {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--primary);
+    white-space: nowrap;
+}
+
+/* ============================================
+   INVESTIGATION EMPTY STATE
+   ============================================ */
+
+.investigation-steps .empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+}
+
+.investigation-steps .empty-state-icon {
+    font-size: 3rem;
+    color: var(--text-muted);
+    opacity: 0.4;
+    margin-bottom: 1rem;
+}
+
+.investigation-steps .empty-state-description {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+/* ============================================
+   INVESTIGATION INSIGHTS & RECOMMENDATIONS
+   ============================================ */
+
+/* Insight item */
+.investigation-insight {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(59, 130, 246, 0.04) 100%);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+}
+
+.investigation-insight .material-icons {
+    color: #3b82f6;
+    font-size: 1.25rem;
+    flex-shrink: 0;
+    margin-top: 0.1rem;
+}
+
+.investigation-insight-text {
+    font-size: 0.875rem;
+    color: var(--text-dark);
+    line-height: 1.5;
+}
+
+/* Recommendation item */
+.investigation-recommendation {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(245, 158, 11, 0.04) 100%);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+}
+
+.investigation-recommendation .material-icons {
+    color: #f59e0b;
+    font-size: 1.25rem;
+    flex-shrink: 0;
+    margin-top: 0.1rem;
+}
+
+.investigation-recommendation-text {
+    font-size: 0.875rem;
+    color: var(--text-dark);
+    line-height: 1.5;
+}
+
+/* Generic insight-item used in graph-analysis */
+.insight-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: var(--bg-light);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--text-dark);
+    line-height: 1.5;
+}
+
+.insight-item .material-icons {
+    color: var(--primary);
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+
+/* Panel description style */
+.panel-description {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    background: var(--bg-light);
+    border-bottom: 1px solid var(--border);
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.panel-description .material-icons {
+    font-size: 1rem;
+    color: var(--primary);
+    flex-shrink: 0;
+}
+
+/* Investigation findings */
+.investigation-findings {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: var(--bg-light);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.investigation-findings h4 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--primary);
+    margin: 0 0 0.75rem 0;
+}
+
+.investigation-findings h4 .material-icons {
+    font-size: 1.25rem;
+}
+
+.investigation-findings ul {
+    margin: 0;
+    padding-left: 1.5rem;
+}
+
+.investigation-findings li {
+    font-size: 0.875rem;
+    color: var(--primary);
+    margin-bottom: 0.25rem;
+    line-height: 1.5;
+}
+
+/* ============================================
+   INVESTIGATION QUESTIONS
+   ============================================ */
+
+.investigation-questions {
+    margin-top: 1.5rem;
+    padding: 1rem;
+    background: var(--bg-light);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.investigation-questions h4 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-dark);
+    margin: 0 0 0.75rem 0;
+}
+
+.investigation-questions h4 .material-icons {
+    font-size: 1.25rem;
+    color: var(--primary);
+}
+
+.investigation-questions ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.investigation-questions li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--text);
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.5rem;
+    background: var(--bg-white);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    line-height: 1.5;
+    transition: all 0.2s ease;
+}
+
+.investigation-questions li:last-child {
+    margin-bottom: 0;
+}
+
+.investigation-questions li:hover {
+    border-color: var(--primary);
+    background: rgba(30, 58, 95, 0.02);
+}
+
+.investigation-questions li::before {
+    content: 'help_outline';
+    font-family: 'Material Icons';
+    font-size: 1rem;
+    color: var(--primary);
+    flex-shrink: 0;
+    margin-top: 0.1rem;
+}
+
+/* ============================================
+   INVESTIGATION STEP DETAIL HEADER
+   ============================================ */
+
+.investigation-step-detail p {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    margin: 0 0 1rem 0;
+    line-height: 1.5;
+}
+
+/* Step actions buttons container */
+#investigation-step-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+#investigation-step-actions .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+#investigation-step-actions .btn .material-icons {
+    font-size: 1rem;
+}

@@ -21,6 +21,25 @@ const EntitiesModule = {
             return true;
         });
 
+        // Trier par rôle : Victime > Suspect > Témoin > Autres
+        const roleOrder = {
+            'victime': 0,
+            'victim': 0,
+            'suspect': 1,
+            'temoin': 2,
+            'témoin': 2,
+            'witness': 2
+        };
+        entities.sort((a, b) => {
+            const roleA = (a.role || '').toLowerCase();
+            const roleB = (b.role || '').toLowerCase();
+            const orderA = roleOrder[roleA] !== undefined ? roleOrder[roleA] : 99;
+            const orderB = roleOrder[roleB] !== undefined ? roleOrder[roleB] : 99;
+            if (orderA !== orderB) return orderA - orderB;
+            // Si même rôle, trier par nom
+            return (a.name || '').localeCompare(b.name || '');
+        });
+
         if (entities.length === 0) {
             container.innerHTML = `
                 <div class="empty-state">
