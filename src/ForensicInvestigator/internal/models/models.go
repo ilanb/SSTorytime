@@ -181,10 +181,14 @@ type AnalysisResponse struct {
 type CrossCaseMatchType string
 
 const (
-	MatchEntity   CrossCaseMatchType = "entity"
-	MatchLocation CrossCaseMatchType = "location"
-	MatchModus    CrossCaseMatchType = "modus"
-	MatchTemporal CrossCaseMatchType = "temporal"
+	MatchEntity    CrossCaseMatchType = "entity"
+	MatchLocation  CrossCaseMatchType = "location"
+	MatchModus     CrossCaseMatchType = "modus"
+	MatchTemporal  CrossCaseMatchType = "temporal"
+	MatchRelation  CrossCaseMatchType = "relation"  // Relations similaires entre entités
+	MatchEvidence  CrossCaseMatchType = "evidence"  // Preuves similaires
+	MatchPattern   CrossCaseMatchType = "pattern"   // Patterns d'événements similaires
+	MatchAttribute CrossCaseMatchType = "attribute" // Attributs N4L similaires
 )
 
 // CrossCaseMatch représente une correspondance entre deux affaires

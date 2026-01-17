@@ -2038,9 +2038,9 @@ func (a *AnomalyService) detectCrossCorrelations(caseData *models.Case, existing
 				CaseID:      caseData.ID,
 				Type:        models.AnomalyPattern, // Type composite
 				Severity:    severity,
-				Title:       "Convergence d'anomalies multiples",
-				Description: fmt.Sprintf("'%s' présente %d types d'anomalies différents (%s) - Score de risque: %.0f%%",
-					entityName, len(typeSet), strings.Join(typeNames, ", "), riskScore*100),
+				Title:       "Entité à profil suspect",
+				Description: fmt.Sprintf("'%s' est impliqué(e) dans %d anomalies de %d catégories différentes (%s). Cette concentration d'irrégularités autour d'une même personne mérite investigation.",
+					entityName, len(entityAnomalies), len(typeSet), strings.Join(typeNames, ", ")),
 				DetectedAt: time.Now(),
 				EntityIDs:  []string{entityID},
 				Confidence: int(math.Min(60+float64(len(typeSet))*10+riskScore*20, 95)),
@@ -2051,6 +2051,7 @@ func (a *AnomalyService) detectCrossCorrelations(caseData *models.Case, existing
 					"anomaly_types":     typeNames,
 					"risk_score":        riskScore,
 					"detection_method":  "cross_correlation_entity",
+					"explanation":       "Quand une même personne apparaît dans plusieurs types d'anomalies (chronologie, communication, comportement...), cela peut indiquer un rôle central dans les événements suspects.",
 				},
 			})
 		}

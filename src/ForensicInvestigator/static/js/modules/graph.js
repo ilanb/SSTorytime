@@ -295,11 +295,14 @@ const GraphModule = {
             organisation: { background: '#f97316', border: '#ea580c' }  // Orange
         };
 
-        if (node.role && roleColors[node.role]) {
-            return roleColors[node.role];
+        const role = node.role?.toLowerCase();
+        const type = node.type?.toLowerCase();
+
+        if (role && roleColors[role]) {
+            return roleColors[role];
         }
-        if (node.type && typeColors[node.type]) {
-            return typeColors[node.type];
+        if (type && typeColors[type]) {
+            return typeColors[type];
         }
         return { background: '#64748b', border: '#475569' }; // Slate default
     },
@@ -2507,34 +2510,6 @@ Analyse demandée:
                         <span class="material-icons">compress</span>
                         <span>Compact</span>
                     </button>
-                </div>
-            </div>
-
-            <!-- Légende des formes et couleurs -->
-            <div class="n4l-section">
-                <div class="n4l-section-header n4l-collapsible" onclick="app.toggleN4LSection(this)">
-                    <span class="material-icons">palette</span>
-                    <span>Légende</span>
-                    <span class="material-icons n4l-expand-icon">expand_more</span>
-                </div>
-                <div class="n4l-section-content n4l-collapsed">
-                    <div class="graph-legend-grid">
-                        <div class="legend-group">
-                            <div class="legend-group-title">Par rôle</div>
-                            <div class="legend-item"><span class="legend-shape star" style="background: #dc2626;"></span> Victime</div>
-                            <div class="legend-item"><span class="legend-shape triangle" style="--shape-color: #f59e0b;"></span> Suspect</div>
-                            <div class="legend-item"><span class="legend-shape square" style="background: #3b82f6;"></span> Témoin</div>
-                            <div class="legend-item"><span class="legend-shape hexagon" style="background: #10b981;"></span> Enquêteur</div>
-                        </div>
-                        <div class="legend-group">
-                            <div class="legend-group-title">Par type</div>
-                            <div class="legend-item"><span class="legend-shape dot" style="background: #6366f1;"></span> Personne</div>
-                            <div class="legend-item"><span class="legend-shape square" style="background: #14b8a6;"></span> Lieu</div>
-                            <div class="legend-item"><span class="legend-shape diamond" style="background: #8b5cf6;"></span> Objet</div>
-                            <div class="legend-item"><span class="legend-shape star" style="background: #ec4899;"></span> Preuve</div>
-                            <div class="legend-item"><span class="legend-shape triangle-down" style="--shape-color: #06b6d4;"></span> Événement</div>
-                        </div>
-                    </div>
                 </div>
             </div>
         `;

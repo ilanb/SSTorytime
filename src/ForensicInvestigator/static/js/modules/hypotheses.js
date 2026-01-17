@@ -992,9 +992,9 @@ const HypothesesModule = {
                         `).join('')}
                     </div>
                     <div class="chain-actions">
-                        <button class="btn btn-primary" onclick="app.showView('n4l'); app.highlightCausalChain(${chainIndex}); app.closeModal();">
+                        <button class="btn btn-primary" onclick="app.switchView('dashboard'); app.closeModal(); setTimeout(() => app.highlightCausalChain && app.highlightCausalChain(${chainIndex}), 300);">
                             <span class="material-icons">visibility</span>
-                            Voir sur le graphe N4L
+                            Voir sur le graphe
                         </button>
                     </div>
                 </div>

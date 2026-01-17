@@ -35,7 +35,108 @@ const EntitiesModule = {
         const entityMap = {};
         entities.forEach(ent => {
             entityMap[ent.id] = ent.name;
+            entityMap[ent.name] = ent.name; // Also map by name for N4L edges
         });
+
+        // Get relations from N4L graph if available
+        // If N4L not yet parsed but content exists, parse it now
+        if (!this.lastN4LParse && this.currentCase.n4l_content) {
+            try {
+                const response = await fetch('/api/n4l/parse', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: this.currentCase.n4l_content })
+                });
+                if (response.ok) {
+                    this.lastN4LParse = await response.json();
+                }
+            } catch (e) {
+                console.warn('[Entities] Could not parse N4L for relations:', e);
+            }
+        }
+        const n4lEdges = this.lastN4LParse?.graph?.edges || [];
+        const n4lNodes = this.lastN4LParse?.graph?.nodes || [];
+        console.log('[Entities] N4L data:', {
+            hasN4L: !!this.lastN4LParse,
+            nodesCount: n4lNodes.length,
+            edgesCount: n4lEdges.length,
+            sampleNode: n4lNodes[0]
+        });
+        const entityRelationsMap = {};
+        n4lEdges.forEach(edge => {
+            // Add outgoing relations
+            if (!entityRelationsMap[edge.from]) {
+                entityRelationsMap[edge.from] = [];
+            }
+            entityRelationsMap[edge.from].push({
+                label: edge.label || 'lié à',
+                target: edge.to
+            });
+        });
+
+        // Helper function to get events for an entity
+        const getEntityEvents = (entity) => {
+            const events = [];
+            const entityNameLower = entity.name.toLowerCase();
+
+            // From case timeline
+            (this.currentCase.timeline || []).forEach(evt => {
+                if (evt.entities && evt.entities.includes(entity.id)) {
+                    events.push({ date: evt.timestamp, title: evt.title });
+                }
+            });
+
+            // From N4L parsed timeline (primary source for events)
+            const n4lTimeline = this.lastN4LParse?.timeline || [];
+            n4lTimeline.forEach(evt => {
+                // Check if entity is explicitly listed in entities array
+                const evtEntities = evt.entities || [];
+                const hasEntity = evtEntities.some(e =>
+                    e.toLowerCase() === entityNameLower ||
+                    e.toLowerCase().includes(entityNameLower) ||
+                    entityNameLower.includes(e.toLowerCase())
+                );
+
+                // Also check if entity name appears in title or description
+                const titleMatch = evt.title && evt.title.toLowerCase().includes(entityNameLower);
+                const descMatch = evt.description && evt.description.toLowerCase().includes(entityNameLower);
+
+                if (hasEntity || titleMatch || descMatch) {
+                    events.push({
+                        date: evt.date || evt.timestamp || '',
+                        title: evt.title || evt.description || ''
+                    });
+                }
+            });
+
+            // From N4L sequences (chronological events)
+            const n4lSequences = this.lastN4LParse?.sequences || [];
+            n4lSequences.forEach(seq => {
+                const seqEvents = seq.events || [];
+                seqEvents.forEach(evt => {
+                    // Check implique field
+                    const implique = evt.implique || evt['impliqué'] || '';
+                    const hasEntity = implique.toLowerCase().includes(entityNameLower) ||
+                                     (evt.description && evt.description.toLowerCase().includes(entityNameLower));
+
+                    if (hasEntity) {
+                        events.push({
+                            date: evt.date || '',
+                            title: evt.description || evt.title || ''
+                        });
+                    }
+                });
+            });
+
+            // Deduplicate events by title
+            const seen = new Set();
+            return events.filter(evt => {
+                const key = evt.title.toLowerCase();
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+        };
 
         container.innerHTML = entities.map(e => {
             let attributesHtml = '';
@@ -47,14 +148,39 @@ const EntitiesModule = {
             }
 
             let relationsHtml = '';
-            if (e.relations && e.relations.length > 0) {
-                const rels = e.relations
-                    .map(r => {
-                        const targetName = entityMap[r.to_id] || r.to_id;
-                        return `<div class="rel-item"><span class="material-icons" style="font-size: 0.75rem;">arrow_forward</span> ${r.label} <strong>${targetName}</strong></div>`;
-                    })
-                    .join('');
+            // First check entity's own relations
+            let relations = e.relations || [];
+            // Then add relations from N4L graph
+            const n4lRels = entityRelationsMap[e.name] || entityRelationsMap[e.id] || [];
+
+            if (relations.length > 0 || n4lRels.length > 0) {
+                let rels = '';
+                // Entity's own relations
+                if (relations.length > 0) {
+                    rels += relations
+                        .map(r => {
+                            const targetName = entityMap[r.to_id] || r.to_id;
+                            return `<div class="rel-item"><span class="material-icons" style="font-size: 0.75rem;">arrow_forward</span> ${r.label} <strong>${targetName}</strong></div>`;
+                        })
+                        .join('');
+                }
+                // N4L graph relations
+                if (n4lRels.length > 0) {
+                    rels += n4lRels
+                        .map(r => `<div class="rel-item"><span class="material-icons" style="font-size: 0.75rem;">arrow_forward</span> ${r.label} <strong>${r.target}</strong></div>`)
+                        .join('');
+                }
                 relationsHtml = `<div class="entity-relations"><div class="rel-title">Relations:</div>${rels}</div>`;
+            }
+
+            // Get events for this entity
+            const entityEvents = getEntityEvents(e);
+            let eventsHtml = '';
+            if (entityEvents.length > 0) {
+                const evts = entityEvents.slice(0, 5)
+                    .map(evt => `<div class="event-item"><span class="material-icons" style="font-size: 0.75rem;">event</span> ${evt.date ? `<span class="event-date">${evt.date}</span> ` : ''}${evt.title}</div>`)
+                    .join('');
+                eventsHtml = `<div class="entity-events"><div class="event-title">Événements (${entityEvents.length}):</div>${evts}${entityEvents.length > 5 ? `<div class="event-more">+${entityEvents.length - 5} autres...</div>` : ''}</div>`;
             }
 
             return `
@@ -71,6 +197,7 @@ const EntitiesModule = {
                     ${e.description ? `<p class="entity-description">${e.description}</p>` : ''}
                     ${attributesHtml}
                     ${relationsHtml}
+                    ${eventsHtml}
                     <div class="card-actions entity-actions">
                         <button class="btn btn-ghost btn-sm" onclick="app.analyzeEntity('${e.id}')" data-tooltip="Analyser avec l'IA">
                             <span class="material-icons" style="font-size: 1rem;">psychology</span>
@@ -866,13 +993,32 @@ const EntitiesModule = {
         if (entities.length < 2) return;
 
         const entityMap = {};
-        this.currentCase.entities.forEach(e => { entityMap[e.id] = e.name; });
+        this.currentCase.entities.forEach(e => {
+            entityMap[e.id] = e.name;
+            entityMap[e.name] = e.name;
+        });
+
+        // Get N4L relations
+        const n4lEdges = this.lastN4LParse?.graph?.edges || [];
+        const n4lRelationsMap = {};
+        n4lEdges.forEach(edge => {
+            if (!n4lRelationsMap[edge.from]) n4lRelationsMap[edge.from] = [];
+            n4lRelationsMap[edge.from].push({ label: edge.label || 'lié à', target: edge.to });
+        });
 
         const getConnections = (entity) => {
             const connections = new Set();
+            // From entity's own relations
             if (entity.relations) {
                 entity.relations.forEach(r => connections.add(r.to_id));
             }
+            // From N4L graph
+            const n4lRels = n4lRelationsMap[entity.name] || [];
+            n4lRels.forEach(r => connections.add(r.target));
+            // Reverse relations
+            n4lEdges.forEach(edge => {
+                if (edge.to === entity.name) connections.add(edge.from);
+            });
             this.currentCase.entities.forEach(e => {
                 if (e.relations) {
                     e.relations.forEach(r => {
@@ -883,26 +1029,100 @@ const EntitiesModule = {
             return connections;
         };
 
+        const getEntityRelations = (entity) => {
+            const relations = [];
+            // From entity's own relations
+            if (entity.relations) {
+                entity.relations.forEach(r => {
+                    relations.push({ label: r.label, target: entityMap[r.to_id] || r.to_id });
+                });
+            }
+            // From N4L graph
+            const n4lRels = n4lRelationsMap[entity.name] || [];
+            n4lRels.forEach(r => relations.push(r));
+            return relations;
+        };
+
+        const getEvents = (entity) => {
+            const events = [];
+            const entityNameLower = entity.name.toLowerCase();
+
+            // From case timeline
+            (this.currentCase.timeline || []).forEach(e => {
+                if (e.entities && e.entities.includes(entity.id)) {
+                    events.push({ date: e.timestamp, title: e.title });
+                }
+            });
+
+            // From N4L parsed timeline (primary source for events)
+            const n4lTimeline = this.lastN4LParse?.timeline || [];
+            n4lTimeline.forEach(evt => {
+                // Check if entity is explicitly listed in entities array
+                const evtEntities = evt.entities || [];
+                const hasEntity = evtEntities.some(e =>
+                    e.toLowerCase() === entityNameLower ||
+                    e.toLowerCase().includes(entityNameLower) ||
+                    entityNameLower.includes(e.toLowerCase())
+                );
+
+                // Also check if entity name appears in title or description
+                const titleMatch = evt.title && evt.title.toLowerCase().includes(entityNameLower);
+                const descMatch = evt.description && evt.description.toLowerCase().includes(entityNameLower);
+
+                if (hasEntity || titleMatch || descMatch) {
+                    events.push({
+                        date: evt.date || evt.timestamp || '',
+                        title: evt.title || evt.description || ''
+                    });
+                }
+            });
+
+            // From N4L sequences (chronological events)
+            const n4lSequences = this.lastN4LParse?.sequences || [];
+            n4lSequences.forEach(seq => {
+                const seqEvents = seq.events || [];
+                seqEvents.forEach(evt => {
+                    // Check implique field
+                    const implique = evt.implique || evt['impliqué'] || '';
+                    const hasEntity = implique.toLowerCase().includes(entityNameLower) ||
+                                     (evt.description && evt.description.toLowerCase().includes(entityNameLower));
+
+                    if (hasEntity) {
+                        events.push({
+                            date: evt.date || '',
+                            title: evt.description || evt.title || ''
+                        });
+                    }
+                });
+            });
+
+            // Deduplicate events by title
+            const seen = new Set();
+            return events.filter(evt => {
+                const key = evt.title.toLowerCase();
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+        };
+
         const connectionSets = entities.map(e => getConnections(e));
         const commonConnections = [...connectionSets[0]].filter(id =>
             connectionSets.slice(1).every(set => set.has(id))
         );
 
-        const getEvents = (entityId) => {
-            return (this.currentCase.timeline || []).filter(e =>
-                e.entities && e.entities.includes(entityId)
-            );
-        };
-
-        const eventSets = entityIds.map(id => new Set(getEvents(id).map(e => e.id)));
-        const commonEventIds = [...eventSets[0]].filter(id =>
-            eventSets.slice(1).every(set => set.has(id))
-        );
-        const commonEvents = (this.currentCase.timeline || []).filter(e =>
-            commonEventIds.includes(e.id)
+        const eventSets = entityIds.map(id => {
+            const entity = entities.find(e => e.id === id);
+            return new Set(getEvents(entity).map(e => e.title));
+        });
+        const commonEventTitles = [...eventSets[0]].filter(title =>
+            eventSets.slice(1).every(set => set.has(title))
         );
 
-        const entitiesHtml = entities.map(e => `
+        const entitiesHtml = entities.map(e => {
+            const relations = getEntityRelations(e);
+            const events = getEvents(e);
+            return `
             <div class="compare-entity-col">
                 <div class="compare-entity-header">
                     <span class="entity-badge ${e.role}">${e.role}</span>
@@ -919,20 +1139,20 @@ const EntitiesModule = {
                         </div>
                     ` : ''}
                     <div class="compare-relations">
-                        <h5>Relations (${(e.relations || []).length})</h5>
-                        ${(e.relations || []).map(r =>
-                            `<div class="rel">${r.label} → ${entityMap[r.to_id] || r.to_id}</div>`
+                        <h5>Relations (${relations.length})</h5>
+                        ${relations.map(r =>
+                            `<div class="rel">${r.label} → ${r.target}</div>`
                         ).join('') || '<div class="empty">Aucune</div>'}
                     </div>
                     <div class="compare-events">
-                        <h5>Événements (${getEvents(e.id).length})</h5>
-                        ${getEvents(e.id).slice(0, 5).map(ev =>
-                            `<div class="event">${new Date(ev.timestamp).toLocaleDateString('fr-FR')} - ${ev.title}</div>`
+                        <h5>Événements (${events.length})</h5>
+                        ${events.slice(0, 5).map(ev =>
+                            `<div class="event">${ev.date || ''} - ${ev.title}</div>`
                         ).join('') || '<div class="empty">Aucun</div>'}
                     </div>
                 </div>
             </div>
-        `).join('');
+        `}).join('');
 
         const commonHtml = `
             <div class="compare-common-section">
@@ -945,12 +1165,9 @@ const EntitiesModule = {
                         ).join('') || '<div class="empty">Aucune connexion commune</div>'}
                     </div>
                     <div class="common-item">
-                        <h5>Événements partagés (${commonEvents.length})</h5>
-                        ${commonEvents.map(e =>
-                            `<div class="common-event">
-                                <span class="event-date">${new Date(e.timestamp).toLocaleDateString('fr-FR')}</span>
-                                ${e.title}
-                            </div>`
+                        <h5>Événements partagés (${commonEventTitles.length})</h5>
+                        ${commonEventTitles.map(title =>
+                            `<div class="common-event">${title}</div>`
                         ).join('') || '<div class="empty">Aucun événement commun</div>'}
                     </div>
                 </div>

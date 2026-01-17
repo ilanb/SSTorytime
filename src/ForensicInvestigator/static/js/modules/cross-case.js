@@ -32,6 +32,54 @@ const CrossCaseModule = {
 
         // Initialize context menu
         this.initCrossCaseContextMenu();
+
+        // Initialize panel tabs
+        this.initCrossCaseTabs();
+    },
+
+    // ============================================
+    // Initialize Cross-Case Panel Tabs
+    // ============================================
+    initCrossCaseTabs() {
+        const tabsContainer = document.getElementById('cross-case-tabs');
+        if (!tabsContainer) return;
+
+        tabsContainer.querySelectorAll('.panel-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabName = tab.dataset.tab;
+
+                // Update active tab
+                tabsContainer.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+
+                // Update active content
+                const panel = tabsContainer.closest('.panel');
+                panel.querySelectorAll('.panel-tab-content').forEach(content => {
+                    content.classList.toggle('active', content.dataset.tab === tabName);
+                });
+
+                // Show/hide matches filters based on active tab
+                const matchesFilters = document.getElementById('matches-filters');
+                if (matchesFilters) {
+                    matchesFilters.style.display = tabName === 'matches' ? 'flex' : 'none';
+                }
+            });
+        });
+    },
+
+    // ============================================
+    // Update Tab Counts
+    // ============================================
+    updateTabCounts() {
+        const matchesCount = document.getElementById('tab-matches-count');
+        const suggestionsCount = document.getElementById('tab-suggestions-count');
+
+        if (matchesCount) {
+            matchesCount.textContent = this.crossCaseMatches?.length || 0;
+        }
+        if (suggestionsCount) {
+            suggestionsCount.textContent = this.crossCaseAlerts?.length || 0;
+        }
     },
 
     // ============================================
@@ -444,10 +492,8 @@ const CrossCaseModule = {
             this.renderCrossCaseSummary(result);
             this.updateFilterCounts(this.crossCaseMatches);
             this.renderCrossCaseMatches(this.crossCaseMatches);
-
-            if (this.crossCaseAlerts.length > 0) {
-                this.renderCrossCaseAlerts(this.crossCaseAlerts);
-            }
+            this.renderCrossCaseAlerts(this.crossCaseAlerts);
+            this.updateTabCounts();
 
             // Afficher automatiquement le graphe si des correspondances sont trouvées
             if (this.crossCaseMatches.length > 0) {
@@ -762,14 +808,20 @@ const CrossCaseModule = {
             await this.toggleCrossCaseGraph();
         }
 
-        // Highlight the target node
+        // Highlight the target node and its connections
         setTimeout(() => {
-            if (this.crossCaseGraph) {
-                this.crossCaseGraph.selectNodes([targetCaseId]);
-                this.crossCaseGraph.focus(targetCaseId, {
-                    scale: 1.2,
-                    animation: { duration: 500, easingFunction: 'easeInOutQuad' }
-                });
+            if (this.crossCaseGraph && this.crossCaseNodes && this.crossCaseEdges) {
+                // Highlight node and its relations (dim others)
+                this.highlightCrossCaseNode(targetCaseId);
+
+                // Center on the target node without animation to avoid erratic movement
+                const nodePosition = this.crossCaseGraph.getPositions([targetCaseId])[targetCaseId];
+                if (nodePosition) {
+                    this.crossCaseGraph.moveTo({
+                        position: { x: nodePosition.x, y: nodePosition.y },
+                        animation: false
+                    });
+                }
             }
         }, 300);
     },
@@ -943,26 +995,172 @@ const CrossCaseModule = {
     // Render Cross Case Alerts
     // ============================================
     renderCrossCaseAlerts(alerts) {
-        const section = document.getElementById('alerts-section');
         const container = document.getElementById('cross-case-alerts');
+        if (!container) return;
 
         if (!alerts || alerts.length === 0) {
-            // Hide alerts section when empty
-            if (section) section.style.display = 'none';
-            if (container) container.style.display = 'none';
+            container.innerHTML = `
+                <div class="empty-state">
+                    <span class="material-icons empty-state-icon">psychology</span>
+                    <p class="empty-state-description">Aucune suggestion pour le moment</p>
+                </div>
+            `;
             return;
         }
 
-        // Show alerts section
-        if (section) section.style.display = 'flex';
-        if (container) container.style.display = 'block';
+        // Categorize and deduplicate alerts
+        const categorized = {
+            entity: { icon: 'person', label: 'Entités identiques', color: '#3b82f6', alerts: [] },
+            relation: { icon: 'hub', label: 'Relations similaires', color: '#14b8a6', alerts: [] },
+            pattern: { icon: 'timeline', label: 'Patterns communs', color: '#ec4899', alerts: [] },
+            connection: { icon: 'link', label: 'Fortes connexions', color: '#f59e0b', alerts: [] }
+        };
 
-        container.innerHTML = alerts.map(alert => `
-            <div class="cross-case-alert cross-case-alert-compact">
-                <span class="material-icons">priority_high</span>
-                <span>${alert}</span>
+        const seen = new Set();
+        alerts.forEach(alert => {
+            // Deduplicate by normalizing
+            const normalized = alert.replace(/[''](.+?)['']/, "'$1'").trim();
+            if (seen.has(normalized)) return;
+            seen.add(normalized);
+
+            // Categorize by tags [entity], [relation], [pattern], [connection]
+            if (alert.includes('[entity]') || alert.includes('Entité identique')) {
+                categorized.entity.alerts.push(alert);
+            } else if (alert.includes('[relation]') || alert.includes('Relation')) {
+                categorized.relation.alerts.push(alert);
+            } else if (alert.includes('[pattern]') || alert.includes('Pattern')) {
+                categorized.pattern.alerts.push(alert);
+            } else if (alert.includes('[connection]') || alert.includes('connexion')) {
+                categorized.connection.alerts.push(alert);
+            } else {
+                categorized.entity.alerts.push(alert);
+            }
+        });
+
+        // Group patterns by case name
+        const patternsByCaseName = {};
+        categorized.pattern.alerts.forEach(alert => {
+            const match = alert.match(/avec [''](.+?)['']/);
+            if (match) {
+                const caseName = match[1];
+                patternsByCaseName[caseName] = (patternsByCaseName[caseName] || 0) + 1;
+            }
+        });
+
+        // Replace individual pattern alerts with grouped ones
+        if (Object.keys(patternsByCaseName).length > 0) {
+            categorized.pattern.alerts = Object.entries(patternsByCaseName).map(([caseName, count]) =>
+                `[pattern] ${count} pattern${count > 1 ? 's' : ''} d'événements similaire${count > 1 ? 's' : ''} avec '${caseName}'`
+            );
+        }
+
+        // Build HTML with collapsible categories
+        let html = `
+            <div class="alerts-header">
+                <span class="alerts-count">${seen.size} suggestion${seen.size > 1 ? 's' : ''}</span>
+                <div class="alerts-filters">
+                    <button class="alert-filter-btn active" data-filter="all" title="Tout afficher">
+                        <span class="material-icons">visibility</span>
+                    </button>
+                    ${Object.entries(categorized).filter(([_, cat]) => cat.alerts.length > 0).map(([key, cat]) => `
+                        <button class="alert-filter-btn" data-filter="${key}" title="${cat.label}" style="--filter-color: ${cat.color}">
+                            <span class="material-icons">${cat.icon}</span>
+                            <span class="filter-count">${cat.alerts.length}</span>
+                        </button>
+                    `).join('')}
+                </div>
             </div>
-        `).join('');
+            <div class="alerts-content">
+        `;
+
+        Object.entries(categorized).forEach(([key, cat]) => {
+            if (cat.alerts.length === 0) return;
+
+            html += `
+                <div class="alert-category" data-category="${key}">
+                    <div class="alert-category-header" style="--cat-color: ${cat.color}">
+                        <span class="material-icons">${cat.icon}</span>
+                        <span class="category-label">${cat.label}</span>
+                        <span class="category-count">${cat.alerts.length}</span>
+                    </div>
+                    <div class="alert-category-items">
+                        ${cat.alerts.slice(0, 5).map(alert => `
+                            <div class="cross-case-alert" style="--alert-color: ${cat.color}">
+                                <span class="alert-text">${this.formatAlertText(alert)}</span>
+                            </div>
+                        `).join('')}
+                        ${cat.alerts.length > 5 ? `
+                            <div class="alert-more" onclick="app.expandAlertCategory('${key}')">
+                                +${cat.alerts.length - 5} autres...
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        });
+
+        html += '</div>';
+        container.innerHTML = html;
+
+        // Initialize filter buttons
+        this.initAlertFilters();
+    },
+
+    formatAlertText(alert) {
+        // Remove tags for cleaner display (they're shown via icons)
+        return alert
+            .replace(/\[(entity|relation|pattern|connection)\]\s*/g, '')
+            .replace(/[⚠️🔗📊🎯]/g, '')
+            .replace(/Forte correspondance:/g, '')
+            .replace(/Entité identique détectée:/g, '')
+            .trim();
+    },
+
+    initAlertFilters() {
+        const container = document.getElementById('cross-case-alerts');
+        if (!container) return;
+
+        container.querySelectorAll('.alert-filter-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const filter = btn.dataset.filter;
+
+                // Update active state
+                container.querySelectorAll('.alert-filter-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+
+                // Show/hide categories
+                container.querySelectorAll('.alert-category').forEach(cat => {
+                    if (filter === 'all' || cat.dataset.category === filter) {
+                        cat.style.display = 'block';
+                    } else {
+                        cat.style.display = 'none';
+                    }
+                });
+            });
+        });
+    },
+
+    expandAlertCategory(categoryKey) {
+        // Could show a modal with all alerts of this category
+        const cat = this.crossCaseAlerts?.filter(a => {
+            if (categoryKey === 'entity') return a.includes('[entity]') || a.includes('Entité identique');
+            if (categoryKey === 'relation') return a.includes('[relation]') || a.includes('Relation');
+            if (categoryKey === 'pattern') return a.includes('[pattern]') || a.includes('Pattern');
+            if (categoryKey === 'connection') return a.includes('[connection]') || a.includes('connexion');
+            return false;
+        }) || [];
+
+        if (cat.length === 0) return;
+
+        const content = `
+            <div class="alerts-expanded-list">
+                ${cat.map(alert => `
+                    <div class="alert-expanded-item">${this.formatAlertText(alert)}</div>
+                `).join('')}
+            </div>
+        `;
+
+        this.showModal('Toutes les suggestions', content, null, false);
     },
 
     // ============================================
@@ -1113,7 +1311,16 @@ const CrossCaseModule = {
         const container = document.getElementById('cross-case-graph-container');
 
         const nodes = new vis.DataSet(graphData.nodes.map(n => this.formatCrossCaseNode(n)));
-        const edges = new vis.DataSet(graphData.edges.map(e => this.formatCrossCaseEdge(e)));
+
+        // Group edges by connection pair to curve them differently
+        const edgePairCount = {};
+        const formattedEdges = graphData.edges.map(e => {
+            const pairKey = [e.from, e.to].sort().join('|');
+            edgePairCount[pairKey] = (edgePairCount[pairKey] || 0);
+            const index = edgePairCount[pairKey]++;
+            return this.formatCrossCaseEdge(e, index);
+        });
+        const edges = new vis.DataSet(formattedEdges);
 
         const options = this.getCrossCaseGraphOptions();
 
@@ -1170,7 +1377,16 @@ const CrossCaseModule = {
         const container = document.getElementById('cross-case-graph-container');
 
         const nodes = new vis.DataSet(filteredNodes.map(n => this.formatCrossCaseNode(n)));
-        const edges = new vis.DataSet(filteredEdges.map(e => this.formatCrossCaseEdge(e)));
+
+        // Group edges by connection pair to curve them differently
+        const edgePairCount = {};
+        const formattedEdges = filteredEdges.map(e => {
+            const pairKey = [e.from, e.to].sort().join('|');
+            edgePairCount[pairKey] = (edgePairCount[pairKey] || 0);
+            const index = edgePairCount[pairKey]++;
+            return this.formatCrossCaseEdge(e, index);
+        });
+        const edges = new vis.DataSet(formattedEdges);
 
         const options = this.getCrossCaseGraphOptions();
 
@@ -1234,15 +1450,27 @@ const CrossCaseModule = {
     // ============================================
     // Format Edge for vis.js
     // ============================================
-    formatCrossCaseEdge(e) {
+    formatCrossCaseEdge(e, index = 0) {
         return {
             from: e.from,
             to: e.to,
-            label: e.label,
+            label: '', // Hide labels by default for cleaner view
+            title: e.label, // Show label on hover
             type: e.type, // Keep type for filtering
-            arrows: 'to',
-            color: this.getMatchTypeEdgeColor(e.type),
-            font: { size: 10 }
+            arrows: { to: { enabled: true, scaleFactor: 0.5 } },
+            color: {
+                color: this.getMatchTypeEdgeColor(e.type),
+                opacity: 0.6,
+                hover: this.getMatchTypeEdgeColor(e.type),
+                highlight: this.getMatchTypeEdgeColor(e.type)
+            },
+            width: 1.5,
+            smooth: {
+                enabled: true,
+                type: 'curvedCW',
+                roundness: 0.2 + (index * 0.15) // Curve edges to avoid overlap
+            },
+            hoverWidth: 2
         };
     },
 
@@ -1251,17 +1479,41 @@ const CrossCaseModule = {
     // ============================================
     getCrossCaseGraphOptions() {
         return {
-            layout: { improvedLayout: true },
+            layout: {
+                improvedLayout: true,
+                hierarchical: false
+            },
             physics: {
                 enabled: true,
+                stabilization: {
+                    enabled: true,
+                    iterations: 200,
+                    fit: true
+                },
                 barnesHut: {
-                    gravitationalConstant: -3000,
-                    springLength: 200
+                    gravitationalConstant: -5000,
+                    centralGravity: 0.3,
+                    springLength: 250,
+                    springConstant: 0.02,
+                    damping: 0.4,
+                    avoidOverlap: 0.5
                 }
             },
             interaction: {
                 hover: true,
-                tooltipDelay: 200
+                tooltipDelay: 100,
+                hideEdgesOnDrag: true,
+                hideEdgesOnZoom: true
+            },
+            edges: {
+                smooth: {
+                    enabled: true,
+                    type: 'dynamic'
+                },
+                selectionWidth: 2
+            },
+            nodes: {
+                margin: 10
             }
         };
     },
@@ -1274,7 +1526,11 @@ const CrossCaseModule = {
             'entity': 'person',
             'location': 'place',
             'modus': 'fingerprint',
-            'temporal': 'schedule'
+            'temporal': 'schedule',
+            'relation': 'hub',
+            'evidence': 'search',
+            'pattern': 'timeline',
+            'attribute': 'label'
         };
         return icons[type] || 'link';
     },
@@ -1284,7 +1540,11 @@ const CrossCaseModule = {
             'entity': 'Entité similaire',
             'location': 'Lieu commun',
             'modus': 'Modus operandi',
-            'temporal': 'Chevauchement temporel'
+            'temporal': 'Chevauchement temporel',
+            'relation': 'Relation similaire',
+            'evidence': 'Preuve similaire',
+            'pattern': 'Pattern d\'événements',
+            'attribute': 'Attribut commun'
         };
         return labels[type] || 'Correspondance';
     },
@@ -1301,7 +1561,11 @@ const CrossCaseModule = {
             'entity': '#3b82f6',
             'location': '#22c55e',
             'modus': '#f97316',
-            'temporal': '#a855f7'
+            'temporal': '#a855f7',
+            'relation': '#14b8a6',
+            'evidence': '#eab308',
+            'pattern': '#ec4899',
+            'attribute': '#8b5cf6'
         };
         return colors[type] || '#6b7280';
     },
@@ -1415,21 +1679,29 @@ const CrossCaseModule = {
         const node = this.crossCaseNodes.get(nodeId);
         if (!node) return;
 
-        // Get all relations for this node
-        const relations = [];
+        // Get all relations for this node, grouped by target case
+        const relationsByCase = {};
         this.crossCaseEdges.forEach(edge => {
             if (edge.from === nodeId || edge.to === nodeId) {
                 const otherNodeId = edge.from === nodeId ? edge.to : edge.from;
                 const otherNode = this.crossCaseNodes.get(otherNodeId);
                 if (otherNode) {
-                    relations.push({
-                        targetNode: otherNode,
-                        label: edge.label || 'Connexion',
-                        direction: edge.from === nodeId ? 'sortant' : 'entrant'
+                    if (!relationsByCase[otherNodeId]) {
+                        relationsByCase[otherNodeId] = {
+                            targetNode: otherNode,
+                            connections: []
+                        };
+                    }
+                    relationsByCase[otherNodeId].connections.push({
+                        label: edge.title || edge.label || 'Connexion',
+                        type: edge.type
                     });
                 }
             }
         });
+
+        const caseCount = Object.keys(relationsByCase).length;
+        const totalConnections = Object.values(relationsByCase).reduce((sum, c) => sum + c.connections.length, 0);
 
         // Remove existing popup
         this.hideCrossCaseNodePopup();
@@ -1449,19 +1721,28 @@ const CrossCaseModule = {
             <div class="popup-content">
                 <div class="popup-stats">
                     <span class="material-icons">link</span>
-                    <span>${relations.length} relation${relations.length > 1 ? 's' : ''}</span>
+                    <span>${totalConnections} correspondance${totalConnections > 1 ? 's' : ''} avec ${caseCount} affaire${caseCount > 1 ? 's' : ''}</span>
                 </div>
-                ${relations.length > 0 ? `
-                    <ul class="popup-relations-list">
-                        ${relations.map(r => `
-                            <li class="popup-relation-item">
-                                <span class="relation-icon material-icons">${r.direction === 'sortant' ? 'arrow_forward' : 'arrow_back'}</span>
-                                <span class="relation-label">${r.label}</span>
-                                <span class="relation-target">${r.targetNode.label}</span>
-                            </li>
+                ${caseCount > 0 ? `
+                    <div class="popup-cases-list">
+                        ${Object.values(relationsByCase).map(caseData => `
+                            <div class="popup-case-group">
+                                <div class="popup-case-header">
+                                    <span class="material-icons">folder_open</span>
+                                    <strong>${caseData.targetNode.label}</strong>
+                                </div>
+                                <ul class="popup-connections-list">
+                                    ${caseData.connections.map(conn => `
+                                        <li class="popup-connection-item">
+                                            <span class="connection-icon material-icons">${this.getMatchTypeIcon(conn.type)}</span>
+                                            <span class="connection-label">${conn.label}</span>
+                                        </li>
+                                    `).join('')}
+                                </ul>
+                            </div>
                         `).join('')}
-                    </ul>
-                ` : '<p class="no-relations">Aucune relation</p>'}
+                    </div>
+                ` : '<p class="no-relations">Aucune connexion</p>'}
             </div>
         `;
 

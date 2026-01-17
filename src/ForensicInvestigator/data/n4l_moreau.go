@@ -210,8 +210,8 @@ Bibliothèque du Manoir (propriété de:N) Victor Moreau
 // Relations Jardin
 Jardin du Manoir (donne accès à:+C) Bibliothèque du Manoir
 
-@portillon Portillon du jardin (type) lieu
-    " (type) Accès secondaire
+@portillon Portillon du jardin (type) objet
+    " (description) Accès secondaire au jardin du manoir
     " (sécurité) Fermé à clé
     " (clé) Détenue par Robert Duval
     " (état_29_08) Fermé à 18h par Robert Duval

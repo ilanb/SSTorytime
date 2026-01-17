@@ -383,7 +383,7 @@ const AnomaliesModule = {
 
         // Générer le contenu par méthode de détection
         const methodBreakdownHtml = Object.entries(groupedByMethod).map(([method, anomalies]) => `
-            <div class="detection-method-item">
+            <div class="detection-method-item" data-tooltip="${this.getMethodTooltip(method)}">
                 <span class="method-badge-summary">${this.getDetectionMethodBadge(method)}</span>
                 <span class="method-count">${anomalies.length}</span>
             </div>
@@ -417,21 +417,28 @@ const AnomaliesModule = {
                 ${zScoreCount > 0 || bayesianAdjustedCount > 0 ? `
                     <div class="algorithm-stats">
                         <h4><span class="material-icons">analytics</span> Analyse Statistique</h4>
+                        <div style="background: #f0f9ff; border-left: 4px solid #7c3aed; padding: 12px 16px; margin-bottom: 16px; border-radius: 6px; display: flex; align-items: flex-start; gap: 10px;">
+                            <span class="material-icons" style="font-size: 18px; color: #7c3aed; flex-shrink: 0;">info</span>
+                            <span style="font-size: 0.85rem; color: #475569; line-height: 1.5;">Ces métriques mesurent l'écart statistique par rapport au comportement normal. Un Z-Score élevé indique une anomalie significative.</span>
+                        </div>
                         <div class="stats-grid-summary">
                             ${zScoreCount > 0 ? `
                                 <div class="stat-item">
                                     <span class="stat-value">${avgZScore.toFixed(2)}</span>
                                     <span class="stat-label">Z-Score Moyen</span>
+                                    <span style="display: block; font-size: 0.7rem; color: #64748b; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e2e8f0; line-height: 1.4;">Les anomalies s'écartent de ${avgZScore.toFixed(1)} écarts-types de la normale</span>
                                 </div>
                                 <div class="stat-item ${highZScoreCount > 0 ? 'highlight' : ''}">
                                     <span class="stat-value">${highZScoreCount}</span>
                                     <span class="stat-label">Z-Score > 3σ</span>
+                                    <span style="display: block; font-size: 0.7rem; color: #64748b; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e2e8f0; line-height: 1.4;">Anomalies très rares (&lt;0.3% de probabilité normale)</span>
                                 </div>
                             ` : ''}
                             ${bayesianAdjustedCount > 0 ? `
                                 <div class="stat-item">
                                     <span class="stat-value">${bayesianAdjustedCount}</span>
                                     <span class="stat-label">Ajust. Bayésien</span>
+                                    <span style="display: block; font-size: 0.7rem; color: #64748b; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e2e8f0; line-height: 1.4;">Confiance affinée selon le contexte de l'affaire</span>
                                 </div>
                             ` : ''}
                         </div>
@@ -441,6 +448,10 @@ const AnomaliesModule = {
                 ${Object.keys(groupedByMethod).length > 1 ? `
                     <div class="detection-methods-summary">
                         <h4><span class="material-icons">science</span> Méthodes de Détection</h4>
+                        <div style="background: #f0f9ff; border-left: 4px solid #0ea5e9; padding: 12px 16px; margin-bottom: 16px; border-radius: 6px; display: flex; align-items: flex-start; gap: 10px;">
+                            <span class="material-icons" style="font-size: 18px; color: #0ea5e9; flex-shrink: 0;">info</span>
+                            <span style="font-size: 0.85rem; color: #475569; line-height: 1.5;">Différents algorithmes spécialisés sont combinés pour maximiser la détection d'anomalies.</span>
+                        </div>
                         <div class="methods-grid">
                             ${methodBreakdownHtml}
                         </div>
@@ -555,6 +566,12 @@ const AnomaliesModule = {
 
                 <div class="anomaly-description-box">
                     <p>${anomaly.description}</p>
+                    ${details.explanation ? `
+                        <div class="anomaly-explanation-box">
+                            <span class="material-icons">lightbulb</span>
+                            <p>${details.explanation}</p>
+                        </div>
+                    ` : ''}
                 </div>
 
                 <div class="anomaly-metrics">
@@ -1076,10 +1093,16 @@ const AnomaliesModule = {
             'cusum': '<span class="material-icons">stacked_line_chart</span> CUSUM',
             'rupture_detection': '<span class="material-icons">flash_on</span> Rupture',
             'cross_correlation': '<span class="material-icons">sync_alt</span> Corrélation',
+            'cross_correlation_entity': '<span class="material-icons">sync_alt</span> Corrél. Entités',
             'bayesian': '<span class="material-icons">casino</span> Bayésien',
             'pattern_analysis': '<span class="material-icons">search</span> Pattern',
             'statistical': '<span class="material-icons">analytics</span> Statistique',
-            'heuristic': '<span class="material-icons">lightbulb</span> Heuristique'
+            'heuristic': '<span class="material-icons">lightbulb</span> Heuristique',
+            'adaptive_travel_time': '<span class="material-icons">directions_car</span> Temps Trajet',
+            'periodic_analysis': '<span class="material-icons">event_repeat</span> Périodicité',
+            'entity_rhythm_change': '<span class="material-icons">speed</span> Rythme Entité',
+            'temporal_clustering': '<span class="material-icons">bubble_chart</span> Clustering Temporel',
+            'causal_pattern': '<span class="material-icons">route</span> Pattern Causal'
         };
         return badges[method] || (method ? `<span class="material-icons">science</span> ${method}` : '');
     },
@@ -1095,10 +1118,16 @@ const AnomaliesModule = {
             'cusum': 'Détection de rupture CUSUM (Cumulative Sum) pour les changements de tendance',
             'rupture_detection': 'Détection automatique de points de rupture dans les séries temporelles',
             'cross_correlation': 'Corrélation croisée entre différents types d\'anomalies',
+            'cross_correlation_entity': 'Détecte les corrélations inhabituelles entre les activités de différentes entités',
             'bayesian': 'Ajustement bayésien de la confiance avec probabilités a priori',
             'pattern_analysis': 'Analyse de patterns comportementaux récurrents',
             'statistical': 'Méthodes statistiques générales',
-            'heuristic': 'Règles heuristiques basées sur l\'expertise métier'
+            'heuristic': 'Règles heuristiques basées sur l\'expertise métier',
+            'adaptive_travel_time': 'Analyse les temps de déplacement pour détecter des incohérences géographiques impossibles',
+            'periodic_analysis': 'Détecte les patterns périodiques (quotidiens, hebdomadaires) et leurs déviations',
+            'entity_rhythm_change': 'Identifie les changements soudains dans le rythme d\'activité d\'une entité',
+            'temporal_clustering': 'Regroupe les événements temporellement proches pour identifier des clusters suspects',
+            'causal_pattern': 'Analyse les séquences causales pour détecter des enchaînements anormaux'
         };
         return tooltips[method] || `Méthode de détection: ${method}`;
     },
@@ -1148,6 +1177,25 @@ const AnomaliesModule = {
         const criticalCount = chainAnomalies.filter(a => a.severity === 'critical').length;
         const highCount = chainAnomalies.filter(a => a.severity === 'high').length;
 
+        // Group anomalies by type to show one description with multiple chain buttons
+        const groupedAnomalies = {};
+        chainAnomalies.forEach(anomaly => {
+            if (!groupedAnomalies[anomaly.type]) {
+                groupedAnomalies[anomaly.type] = {
+                    type: anomaly.type,
+                    severity: anomaly.severity,
+                    title: anomaly.title,
+                    chains: []
+                };
+            }
+            groupedAnomalies[anomaly.type].chains.push({
+                chain: anomaly.chain,
+                chainIndex: anomaly.chainIndex
+            });
+        });
+
+        const groupedList = Object.values(groupedAnomalies);
+
         targetContainer.innerHTML = `
             <div class="causal-chain-anomalies-panel ${criticalCount > 0 ? 'critical' : highCount > 0 ? 'warning' : 'info'}">
                 <div class="panel-header" onclick="app.toggleCausalChainAnomalies()">
@@ -1157,20 +1205,25 @@ const AnomaliesModule = {
                     <span class="material-icons expand-icon">expand_more</span>
                 </div>
                 <div class="panel-content" id="causal-chain-anomalies-content" style="display: none;">
-                    ${chainAnomalies.map(anomaly => `
-                        <div class="chain-anomaly-item ${anomaly.severity}">
+                    ${groupedList.map(group => `
+                        <div class="chain-anomaly-item ${group.severity}">
                             <div class="anomaly-header">
-                                <span class="anomaly-type-icon">${this.getChainAnomalyIcon(anomaly.type)}</span>
-                                <span class="anomaly-title">${anomaly.title}</span>
-                                <span class="severity-badge ${anomaly.severity}">${this.getSeverityLabel(anomaly.severity)}</span>
+                                <span class="anomaly-type-icon">${this.getChainAnomalyIcon(group.type)}</span>
+                                <span class="anomaly-title">${group.title}</span>
+                                <span class="severity-badge ${group.severity}">${this.getSeverityLabel(group.severity)}</span>
+                                ${group.chains.length > 1 ? `<span class="anomaly-count">×${group.chains.length}</span>` : ''}
                             </div>
-                            <p class="anomaly-description">${anomaly.description}</p>
-                            ${anomaly.chain ? `
-                                <div class="anomaly-chain-preview" onclick="app.showView('n4l'); app.highlightCausalChain(${anomaly.chainIndex});">
-                                    <span class="material-icons">visibility</span>
-                                    <span>Voir la chaîne: ${anomaly.chain.context || 'Chaîne ' + (anomaly.chainIndex + 1)}</span>
-                                </div>
-                            ` : ''}
+                            <p class="anomaly-description">${group.chains.length > 1
+                                ? `${group.chains.length} chaînes contiennent des entités en double, suggérant une logique circulaire.`
+                                : `La chaîne contient des entités en double, suggérant une logique circulaire.`}</p>
+                            <div class="anomaly-chains-buttons">
+                                ${group.chains.map((c, i) => `
+                                    <div class="anomaly-chain-preview" onclick="app.switchView('dashboard'); setTimeout(() => app.highlightCausalChain && app.highlightCausalChain(${c.chainIndex}), 300);">
+                                        <span class="material-icons">visibility</span>
+                                        <span>Chaîne ${i + 1}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
                         </div>
                     `).join('')}
                 </div>
@@ -1208,18 +1261,24 @@ const AnomaliesModule = {
                 });
             }
 
-            // 2. Detect circular references
-            const stepEntities = steps.map(s => (s.entity || s.label || '').toLowerCase());
-            const uniqueEntities = new Set(stepEntities);
-            if (uniqueEntities.size < stepEntities.length) {
-                anomalies.push({
-                    type: 'circular_reference',
-                    severity: 'high',
-                    title: 'Référence circulaire',
-                    description: `La chaîne "${chain.context || 'Chaîne ' + (index + 1)}" contient des entités en double, suggérant une logique circulaire.`,
-                    chain,
-                    chainIndex: index
-                });
+            // 2. Detect circular references (only if we have actual duplicates, not empty values)
+            const stepEntities = steps.map(s => (s.entity || s.label || s.text || '')).filter(e => e.trim() !== '');
+            const stepEntitiesLower = stepEntities.map(e => e.toLowerCase());
+            const uniqueEntities = new Set(stepEntitiesLower);
+            // Only flag as circular if there are actual duplicates (not just empty strings)
+            if (stepEntities.length > 1 && uniqueEntities.size < stepEntitiesLower.length) {
+                // Find the actual duplicates
+                const duplicates = stepEntitiesLower.filter((item, idx) => stepEntitiesLower.indexOf(item) !== idx);
+                if (duplicates.length > 0) {
+                    anomalies.push({
+                        type: 'circular_reference',
+                        severity: 'high',
+                        title: 'Référence circulaire',
+                        description: `La chaîne "${chain.context || 'Chaîne ' + (index + 1)}" contient des éléments en double: "${[...new Set(duplicates)].join('", "')}"`,
+                        chain,
+                        chainIndex: index
+                    });
+                }
             }
 
             // 3. Detect unknown entities in chain

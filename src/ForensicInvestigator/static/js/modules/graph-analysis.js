@@ -2526,8 +2526,9 @@ En 5-6 phrases, donne une synthèse des implications pour l'enquête: qui sont l
         const container = document.getElementById('dirac-results');
         if (!container) return;
 
-        const targetLabel = this.graphNodeMap[data.target] || data.target;
-        const sourceLabel = this.graphNodeMap[data.source] || data.source;
+        // Use labels from API response first, then fallback to graphNodeMap
+        const targetLabel = data.target_label || this.graphNodeMap[data.target] || data.target;
+        const sourceLabel = data.source_label || this.graphNodeMap[data.source] || data.source;
 
         let html = `
             <div class="dirac-summary">
@@ -2552,7 +2553,8 @@ En 5-6 phrases, donne une synthèse des implications pour l'enquête: qui sont l
                     <div class="paths-list">
             `;
             data.forward_paths.forEach((path, idx) => {
-                const pathNodes = path.nodes?.map(n => this.graphNodeMap[n] || n).join(' → ') || '';
+                // Use labels from API, fallback to graphNodeMap, then raw nodes
+                const pathNodes = path.labels?.join(' → ') || path.nodes?.map(n => this.graphNodeMap[n] || n).join(' → ') || '';
                 html += `
                     <div class="path-item">
                         <div class="path-header">
@@ -2574,7 +2576,8 @@ En 5-6 phrases, donne une synthèse des implications pour l'enquête: qui sont l
                     <div class="paths-list">
             `;
             data.backward_paths.forEach((path, idx) => {
-                const pathNodes = path.nodes?.map(n => this.graphNodeMap[n] || n).join(' → ') || '';
+                // Use labels from API, fallback to graphNodeMap, then raw nodes
+                const pathNodes = path.labels?.join(' → ') || path.nodes?.map(n => this.graphNodeMap[n] || n).join(' → ') || '';
                 html += `
                     <div class="path-item">
                         <div class="path-header">

@@ -1007,8 +1007,20 @@
 
                     <div class="panel">
                         <div class="panel-header">
-                            <span class="panel-title">Correspondances Détectées</span>
-                            <div class="cross-case-filter-container" style="display: flex; gap: 0.5rem; align-items: center;">
+                            <!-- Tabs pour Correspondances / Suggestions IA -->
+                            <div class="panel-tabs" id="cross-case-tabs">
+                                <button class="panel-tab" data-tab="matches">
+                                    <span class="material-icons">link</span>
+                                    <span>Correspondances</span>
+                                    <span class="tab-count" id="tab-matches-count">0</span>
+                                </button>
+                                <button class="panel-tab active" data-tab="suggestions">
+                                    <span class="material-icons">psychology</span>
+                                    <span>Suggestions IA</span>
+                                    <span class="tab-count" id="tab-suggestions-count">0</span>
+                                </button>
+                            </div>
+                            <div class="cross-case-filter-container" id="matches-filters" style="display: none; gap: 0.5rem; align-items: center;">
                                 <!-- Recherche textuelle -->
                                 <div class="search-input-wrapper" style="position: relative;">
                                     <span class="material-icons" style="position: absolute; left: 8px; top: 50%; transform: translateY(-50%); font-size: 18px; color: var(--text-secondary);">search</span>
@@ -1053,22 +1065,32 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="panel-description">
-                            <span class="material-icons">info</span>
-                            Liste des correspondances trouvées entre affaires. Cliquez sur une correspondance pour voir les détails et les liens.
-                        </div>
-                        <div class="panel-content" id="cross-case-matches">
-                            <div class="empty-state">
-                                <span class="material-icons empty-state-icon">search</span>
-                                <p class="empty-state-description">Aucune correspondance trouvée pour le moment</p>
+                        <!-- Tab Content: Correspondances -->
+                        <div class="panel-tab-content" id="tab-content-matches" data-tab="matches">
+                            <div class="panel-description">
+                                <span class="material-icons">info</span>
+                                Liste des correspondances trouvées entre affaires. Cliquez sur une correspondance pour voir les détails.
+                            </div>
+                            <div class="panel-content" id="cross-case-matches">
+                                <div class="empty-state">
+                                    <span class="material-icons empty-state-icon">search</span>
+                                    <p class="empty-state-description">Aucune correspondance trouvée pour le moment</p>
+                                </div>
                             </div>
                         </div>
-                        <!-- Alertes IA intégrées -->
-                        <div class="panel-section-divider" id="alerts-section" style="display: none;">
-                            <span class="material-icons">psychology</span>
-                            <span>Suggestions IA</span>
+                        <!-- Tab Content: Suggestions IA -->
+                        <div class="panel-tab-content active" id="tab-content-suggestions" data-tab="suggestions">
+                            <div class="panel-description">
+                                <span class="material-icons">info</span>
+                                Recommandations automatiques basées sur l'analyse des connexions inter-affaires.
+                            </div>
+                            <div class="panel-content" id="cross-case-alerts">
+                                <div class="empty-state">
+                                    <span class="material-icons empty-state-icon">psychology</span>
+                                    <p class="empty-state-description">Aucune suggestion pour le moment</p>
+                                </div>
+                            </div>
                         </div>
-                        <div class="panel-content" id="cross-case-alerts" style="display: none;"></div>
                     </div>
 
                     <div class="panel">
