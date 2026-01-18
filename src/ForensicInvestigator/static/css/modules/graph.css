@@ -173,8 +173,8 @@ body.has-fullscreen-panel .fullscreen-panel {
 
 /* N4L View layout */
 #view-n4l {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    display: flex;
+    flex-direction: column;
     gap: 1rem;
     height: calc(100vh - 180px);
 }

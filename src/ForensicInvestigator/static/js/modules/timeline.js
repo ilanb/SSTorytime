@@ -943,12 +943,9 @@ const TimelineModule = {
     async showEventOnGraph(eventId) {
         if (!this.currentCase) return;
 
-        // Fonction pour normaliser les IDs (tirets et underscores sont équivalents)
-        const normalizeId = (id) => id ? id.replace(/-/g, '_') : '';
-
         const event = this.currentCase.timeline.find(e => e.id === eventId);
-        if (!event || !event.entities || event.entities.length === 0) {
-            this.showToast('Cet événement n\'a pas d\'entités liées');
+        if (!event) {
+            this.showToast('Événement non trouvé');
             return;
         }
 
@@ -974,78 +971,143 @@ const TimelineModule = {
             return;
         }
 
-        // Créer une map des entités ID -> nom
-        const entityIdToName = {};
-        (this.currentCase.entities || []).forEach(e => {
-            entityIdToName[e.id] = e.name;
-            entityIdToName[normalizeId(e.id)] = e.name;
+        // Chercher le nœud de l'événement par son titre
+        // Les nœuds N4L d'événements ont le format: "DD/MM/YYYY HH:MM Titre de l'événement"
+        const allNodesData = this.n4lGraphNodes.get();
+        const eventTitle = event.title;
+        const eventTitleLower = eventTitle.toLowerCase();
+        let matchedNodeId = null;
+
+        // Filtrer les nœuds d'événements (ceux qui commencent par une date DD/MM/YYYY)
+        const eventNodes = allNodesData.filter(n => {
+            const label = n.label || n.id || '';
+            return /^\d{2}\/\d{2}\/\d{4}/.test(label);
         });
 
-        // Trouver les nœuds correspondants aux entités de l'événement
-        const allNodeIds = this.n4lGraphNodes.getIds();
-        const matchedNodeIds = [];
+        console.log('[Timeline] showEventOnGraph - Searching for event:', eventTitle);
+        console.log('[Timeline] showEventOnGraph - Event nodes:', eventNodes.map(n => n.label || n.id));
 
-        for (const entityId of event.entities) {
-            const normalizedEntityId = normalizeId(entityId);
-            // Obtenir le nom de l'entité à partir de son ID
-            const entityName = entityIdToName[entityId] || entityIdToName[normalizedEntityId];
+        // Chercher le nœud d'événement par son titre
+        for (const node of eventNodes) {
+            const nodeLabel = node.label || '';
+            const nodeLabelLower = nodeLabel.toLowerCase();
 
-            // Chercher le nœud par nom d'entité (car les nœuds N4L utilisent les noms)
-            for (const nodeId of allNodeIds) {
-                const node = this.n4lGraphNodes.get(nodeId);
+            // Le label du nœud contient le titre de l'événement
+            if (nodeLabelLower.includes(eventTitleLower)) {
+                matchedNodeId = node.id;
+                console.log('[Timeline] MATCH event node contains title:', eventTitle, '-> node:', node.id);
+                break;
+            }
 
-                // Le graphe N4L utilise les noms comme IDs
-                if (entityName && (nodeId === entityName || node.label === entityName)) {
-                    matchedNodeIds.push(nodeId);
-                    break;
-                }
-                // Fallback: chercher aussi par ID technique
-                if (nodeId === entityId || normalizeId(nodeId) === normalizedEntityId) {
-                    matchedNodeIds.push(nodeId);
-                    break;
-                }
+            // Le titre de l'événement contient une partie significative du label (après la date/heure)
+            // Format: "DD/MM/YYYY HH:MM Titre..." - on extrait le titre après la date
+            const titlePart = nodeLabel.replace(/^\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2}\s*/, '').toLowerCase();
+            if (titlePart && eventTitleLower.includes(titlePart)) {
+                matchedNodeId = node.id;
+                console.log('[Timeline] MATCH title contains node title part:', eventTitle, '-> node:', node.id);
+                break;
+            }
+
+            // Recherche par mots-clés significatifs du titre
+            const titleWords = eventTitleLower.split(/\s+/).filter(w => w.length >= 4);
+            const matchCount = titleWords.filter(w => nodeLabelLower.includes(w)).length;
+            if (matchCount >= 2 || (matchCount === 1 && titleWords.length === 1)) {
+                matchedNodeId = node.id;
+                console.log('[Timeline] MATCH by keywords:', eventTitle, '-> node:', node.id, 'matched:', matchCount, '/', titleWords.length);
+                break;
             }
         }
 
-        if (matchedNodeIds.length === 0) {
-            this.showToast('Aucune entité trouvée sur le graphe');
+        if (!matchedNodeId) {
+            this.showToast('Événement non trouvé sur le graphe');
             return;
         }
 
-        // Masquer les nœuds non sélectionnés, mettre en évidence les sélectionnés
-        const allNodes = this.n4lGraphNodes.get();
-        const nodeUpdates = allNodes.map(node => {
-            const isHighlighted = matchedNodeIds.includes(node.id);
-            return {
-                id: node.id,
-                hidden: !isHighlighted,
-                borderWidth: isHighlighted ? 4 : 1,
-                color: isHighlighted ? {
-                    border: '#f59e0b',
-                    background: node.color?.background || '#6366f1'
-                } : undefined
-            };
+        console.log('[Timeline] Matched event node ID:', matchedNodeId);
+
+        // Trouver tous les nœuds connectés à l'événement via les arêtes
+        const allEdges = this.n4lGraphEdges.get();
+        const connectedNodeIds = new Set();
+        connectedNodeIds.add(matchedNodeId); // L'événement lui-même
+
+        allEdges.forEach(edge => {
+            if (edge.from === matchedNodeId) {
+                connectedNodeIds.add(edge.to);
+            } else if (edge.to === matchedNodeId) {
+                connectedNodeIds.add(edge.from);
+            }
+        });
+
+        console.log('[Timeline] Connected nodes:', Array.from(connectedNodeIds));
+
+        // Mettre en évidence le nœud de l'événement ET les nœuds connectés
+        const nodeUpdates = allNodesData.map(node => {
+            const isEventNode = node.id === matchedNodeId;
+            const isConnected = connectedNodeIds.has(node.id);
+
+            if (isEventNode) {
+                // Nœud de l'événement - mise en évidence principale (orange)
+                return {
+                    id: node.id,
+                    hidden: false,
+                    borderWidth: 5,
+                    size: 40,
+                    color: {
+                        border: '#f59e0b',
+                        background: '#fef3c7'
+                    },
+                    font: { color: '#92400e', size: 14 },
+                    opacity: 1
+                };
+            } else if (isConnected) {
+                // Nœuds connectés - mise en évidence secondaire (bleu)
+                return {
+                    id: node.id,
+                    hidden: false,
+                    borderWidth: 3,
+                    size: node.size || 30,
+                    color: {
+                        border: '#3b82f6',
+                        background: '#dbeafe'
+                    },
+                    font: { color: '#1e40af', size: 12 },
+                    opacity: 1
+                };
+            } else {
+                // Autres nœuds - atténués
+                return {
+                    id: node.id,
+                    hidden: false,
+                    borderWidth: 2,
+                    size: node.size || 25,
+                    color: node.originalColor || { background: '#e2e8f0', border: '#cbd5e0' },
+                    font: { color: '#1a1a2e', size: 12 },
+                    opacity: 0.3
+                };
+            }
         });
         this.n4lGraphNodes.update(nodeUpdates);
 
-        // Masquer les arêtes qui ne connectent pas les nœuds sélectionnés
-        const allEdges = this.n4lGraphEdges.get();
+        // Mettre en évidence les arêtes connectées au nœud de l'événement
         const edgeUpdates = allEdges.map(edge => {
-            const isConnected = matchedNodeIds.includes(edge.from) && matchedNodeIds.includes(edge.to);
+            const isConnected = edge.from === matchedNodeId || edge.to === matchedNodeId;
             return {
                 id: edge.id,
-                hidden: !isConnected
+                hidden: false,
+                color: isConnected ? { color: '#f59e0b' } : { color: 'rgba(200,200,200,0.2)' },
+                width: isConnected ? 3 : 1
             };
         });
         this.n4lGraphEdges.update(edgeUpdates);
 
-        // Centrer la vue sur les nœuds sélectionnés
+        // Centrer la vue sur le nœud de l'événement et le sélectionner visuellement
+        this.n4lGraph.selectNodes([matchedNodeId]);
         this.n4lGraph.fit({
-            nodes: matchedNodeIds,
+            nodes: [matchedNodeId],
             animation: { duration: 500, easingFunction: 'easeInOutQuad' }
         });
 
-        this.showToast(`Événement: ${event.title} (${matchedNodeIds.length} entités)`);
+        this.showToast(`Événement: ${event.title}`);
     },
 
     // ============================================
