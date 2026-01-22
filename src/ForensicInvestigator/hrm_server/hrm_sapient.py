@@ -49,7 +49,7 @@ class HRMConfig:
     use_gpu: bool = True
 
     # vLLM settings (OpenAI-compatible API)
-    vllm_url: str = "http://86.204.69.30:8001"
+    vllm_url: str = "http://86.204.69.30:8001/v1"
     vllm_model: str = "Qwen/Qwen2.5-7B-Instruct"
 
     # Reasoning settings
@@ -64,39 +64,43 @@ class HRMConfig:
 class VLLMClient:
     """Client for vLLM API (OpenAI-compatible)."""
 
-    def __init__(self, base_url: str = "http://86.204.69.30:8001", model: str = "Qwen/Qwen2.5-7B-Instruct"):
+    def __init__(self, base_url: str = "http://86.204.69.30:8001/v1", model: str = "Qwen/Qwen2.5-7B-Instruct"):
         self.base_url = base_url
         self.model = model
 
     def is_available(self) -> bool:
         """Check if vLLM is available."""
         try:
-            resp = requests.get(f"{self.base_url}/v1/models", timeout=5)
+            resp = requests.get(f"{self.base_url}/models", timeout=5)
             return resp.status_code == 200
         except:
             return False
 
-    def generate(self, prompt: str, stream: bool = False) -> str:
+    def generate(self, prompt: str, stream: bool = False, max_tokens: int = 8192) -> str:
         """Generate a response from vLLM."""
         try:
+            logger.info(f"vLLM request to {self.base_url}/completions with model {self.model}")
             resp = requests.post(
-                f"{self.base_url}/v1/completions",
+                f"{self.base_url}/completions",
                 json={
                     "model": self.model,
                     "prompt": prompt,
-                    "max_tokens": 8192,
-                    "temperature": 0.7,
+                    "max_tokens": max_tokens,
+                    "temperature": 0.4,
                     "stream": stream
                 },
-                timeout=180
+                timeout=600  # 10 minutes per vLLM request
             )
             if resp.status_code == 200:
                 data = resp.json()
                 if data.get("choices") and len(data["choices"]) > 0:
-                    return data["choices"][0].get("text", "")
+                    text = data["choices"][0].get("text", "")
+                    logger.info(f"vLLM response length: {len(text)} chars")
+                    return text
+                logger.warning("vLLM returned empty choices")
                 return ""
             else:
-                logger.error(f"vLLM error: {resp.status_code}")
+                logger.error(f"vLLM error: {resp.status_code} - {resp.text[:200]}")
                 return ""
         except Exception as e:
             logger.error(f"vLLM connection error: {e}")
@@ -323,32 +327,122 @@ Génère la conclusion finale en JSON avec:
 JSON:"""
 
         response = self.vllm.generate(prompt)
+        logger.info(f"Synthesis response length: {len(response)} chars")
 
+        synthesis = None
+
+        # Clean the response first - remove markdown artifacts
+        clean_response = response.strip()
+
+        # Remove markdown code blocks
+        import re
+        # Pattern to match ```json ... ``` or ``` ... ```
+        code_block_pattern = r'```(?:json)?\s*([\s\S]*?)```'
+        code_blocks = re.findall(code_block_pattern, clean_response)
+        if code_blocks:
+            # Use the first code block content
+            clean_response = code_blocks[0].strip()
+        else:
+            # Remove simple prefixes/suffixes
+            for prefix in ["```json", "```", "JSON:", "json:"]:
+                if clean_response.startswith(prefix):
+                    clean_response = clean_response[len(prefix):].strip()
+            for suffix in ["```"]:
+                if clean_response.endswith(suffix):
+                    clean_response = clean_response[:-len(suffix)].strip()
+
+        # Try to parse the cleaned JSON
         try:
-            json_start = response.find('{')
-            json_end = response.rfind('}') + 1
+            json_start = clean_response.find('{')
+            json_end = clean_response.rfind('}') + 1
             if json_start >= 0 and json_end > json_start:
-                synthesis = json.loads(response[json_start:json_end])
-            else:
-                synthesis = {
-                    "conclusion": response[:1000] if response else "Conclusion non disponible",
-                    "confidence": avg_confidence,
-                    "key_findings": [],
-                    "alternative_conclusions": [],
-                    "warnings": ["Réponse non structurée"],
-                    "recommendations": []
-                }
-        except json.JSONDecodeError:
-            synthesis = {
-                "conclusion": response[:1000] if response else "Conclusion non disponible",
-                "confidence": avg_confidence,
-                "key_findings": [],
-                "alternative_conclusions": [],
-                "warnings": ["Réponse non structurée"],
-                "recommendations": []
-            }
+                json_str = clean_response[json_start:json_end]
+                synthesis = json.loads(json_str)
+                logger.info("Synthesis JSON parsed successfully")
+        except json.JSONDecodeError as e:
+            logger.warning(f"Synthesis JSON parse failed: {e}")
+            synthesis = None
 
-        return synthesis
+        # If parsing succeeded, ensure conclusion is properly formatted
+        if synthesis and isinstance(synthesis.get("conclusion"), str):
+            # Clean up the conclusion text
+            conclusion = synthesis["conclusion"]
+            # Remove any remaining JSON artifacts
+            if conclusion.startswith("{") or conclusion.startswith("```"):
+                try:
+                    inner_json = json.loads(conclusion) if conclusion.startswith("{") else None
+                    if inner_json and isinstance(inner_json.get("conclusion"), str):
+                        synthesis["conclusion"] = inner_json["conclusion"]
+                except:
+                    pass
+
+            # Ensure alternative_conclusions is a list of strings
+            if synthesis.get("alternative_conclusions"):
+                alt_list = []
+                for alt in synthesis["alternative_conclusions"][:3]:
+                    if isinstance(alt, str):
+                        alt_list.append(alt)
+                    elif isinstance(alt, dict):
+                        alt_list.append(alt.get("conclusion", alt.get("text", str(alt))))
+                synthesis["alternative_conclusions"] = alt_list
+
+            # Ensure warnings is a list of strings
+            if synthesis.get("warnings"):
+                warning_list = []
+                for w in synthesis["warnings"][:5]:
+                    if isinstance(w, str):
+                        warning_list.append(w)
+                synthesis["warnings"] = warning_list
+
+            return synthesis
+
+        # If parsing failed, build synthesis from text
+        conclusion_text = clean_response[:2000] if clean_response else "Conclusion non disponible"
+
+        # Try to extract structured data even from partial parse
+        alt_conclusions = []
+        warnings = []
+        key_findings = []
+        recommendations = []
+
+        if synthesis:
+            if synthesis.get("conclusion"):
+                conc = synthesis["conclusion"]
+                if isinstance(conc, str):
+                    conclusion_text = conc
+                elif isinstance(conc, dict):
+                    conclusion_text = conc.get("text", str(conc))
+
+            if synthesis.get("alternative_conclusions"):
+                for alt in synthesis["alternative_conclusions"][:3]:
+                    if isinstance(alt, str):
+                        alt_conclusions.append(alt)
+                    elif isinstance(alt, dict):
+                        alt_conclusions.append(alt.get("conclusion", alt.get("text", str(alt))))
+
+            if synthesis.get("warnings"):
+                for w in synthesis["warnings"][:5]:
+                    if isinstance(w, str):
+                        warnings.append(w)
+
+            if synthesis.get("key_findings"):
+                for kf in synthesis["key_findings"][:10]:
+                    if isinstance(kf, str):
+                        key_findings.append(kf)
+
+            if synthesis.get("recommendations"):
+                for rec in synthesis["recommendations"][:5]:
+                    if isinstance(rec, str):
+                        recommendations.append(rec)
+
+        return {
+            "conclusion": conclusion_text,
+            "confidence": synthesis.get("confidence", avg_confidence) if synthesis else avg_confidence,
+            "key_findings": key_findings,
+            "alternative_conclusions": alt_conclusions,
+            "warnings": warnings if warnings else ["Réponse formatée depuis le texte brut"],
+            "recommendations": recommendations
+        }
 
     def reason(
         self,

@@ -20,7 +20,7 @@ func NewHRMService(baseURL string) *HRMService {
 	return &HRMService{
 		BaseURL: baseURL,
 		HTTPClient: &http.Client{
-			Timeout: 600 * time.Second, // 10 minutes pour le raisonnement hiérarchique avec LLM
+			Timeout: 3600 * time.Second, // 1 heure pour le raisonnement hiérarchique complet (6+ requêtes vLLM de 3 min chacune)
 		},
 	}
 }
@@ -174,6 +174,47 @@ func (s *HRMService) Reason(req ReasoningRequest) (*ReasoningResponse, error) {
 	}
 
 	return &result, nil
+}
+
+// ReasonStream performs reasoning analysis with streaming response
+func (s *HRMService) ReasonStream(req ReasoningRequest, w http.ResponseWriter, flusher http.Flusher) error {
+	body, err := json.Marshal(req)
+	if err != nil {
+		return fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	resp, err := s.HTTPClient.Post(
+		s.BaseURL+"/reason/stream",
+		"application/json",
+		bytes.NewBuffer(body),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to call HRM API: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("HRM API error: %s - %s", resp.Status, string(bodyBytes))
+	}
+
+	// Stream the response
+	buf := make([]byte, 4096)
+	for {
+		n, err := resp.Body.Read(buf)
+		if n > 0 {
+			w.Write(buf[:n])
+			flusher.Flush()
+		}
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("error reading stream: %w", err)
+		}
+	}
+
+	return nil
 }
 
 // VerifyHypothesis verifies a hypothesis against evidence

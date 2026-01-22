@@ -74,6 +74,7 @@ func main() {
 	// Routes HRM (Hypothetical Reasoning Model)
 	http.HandleFunc("/api/hrm/status", handler.HandleHRMStatus)
 	http.HandleFunc("/api/hrm/reason", handler.HandleHRMReason)
+	http.HandleFunc("/api/hrm/reason/stream", handler.HandleHRMReasonStream)
 	http.HandleFunc("/api/hrm/verify-hypothesis", handler.HandleHRMVerifyHypothesis)
 	http.HandleFunc("/api/hrm/contradictions", handler.HandleHRMContradictions)
 	http.HandleFunc("/api/hrm/cross-case", handler.HandleHRMCrossCase)

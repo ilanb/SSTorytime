@@ -293,7 +293,10 @@ const CrossCaseModule = {
     // ============================================
     initCrossCaseContextMenu() {
         const menu = document.getElementById('crosscase-context-menu');
-        if (!menu) return;
+        if (!menu) {
+            console.warn('Cross-case context menu not found');
+            return;
+        }
 
         // Hide menu on click outside
         document.addEventListener('click', (e) => {
@@ -302,14 +305,34 @@ const CrossCaseModule = {
             }
         });
 
-        // Handle menu actions
-        menu.querySelectorAll('.context-menu-item').forEach(item => {
+        // Handle menu actions - use event delegation for reliability
+        const items = menu.querySelectorAll('.context-menu-item');
+        console.log('Cross-case context menu: attaching listeners to', items.length, 'items');
+
+        items.forEach(item => {
             item.addEventListener('click', (e) => {
                 e.preventDefault();
+                e.stopPropagation();
                 const action = item.dataset.action;
+                console.log('Cross-case context action:', action, 'node:', this.crossCaseContextNode);
                 this.handleCrossCaseContextAction(action);
                 menu.style.display = 'none';
             });
+        });
+
+        // Also use event delegation as backup
+        menu.addEventListener('click', (e) => {
+            const item = e.target.closest('.context-menu-item');
+            if (item) {
+                e.preventDefault();
+                e.stopPropagation();
+                const action = item.dataset.action;
+                if (action) {
+                    console.log('Cross-case context action (delegated):', action, 'node:', this.crossCaseContextNode);
+                    this.handleCrossCaseContextAction(action);
+                    menu.style.display = 'none';
+                }
+            }
         });
     },
 
@@ -390,51 +413,312 @@ const CrossCaseModule = {
             return;
         }
 
-        // Show comparison in graph and highlight
-        this.showCrossCaseGraphWithHighlight(caseId2);
+        // Get target case name
+        const targetNode = this.crossCaseGraphData?.nodes?.find(n => n.id === caseId2);
+        const targetName = targetNode?.label || relevantMatches[0]?.other_case_name || caseId2;
 
-        this.showToast(`${relevantMatches.length} correspondance(s) avec ${relevantMatches[0]?.other_case_name || caseId2}`, 'success');
+        // Group matches by type
+        const matchesByType = {};
+        relevantMatches.forEach(m => {
+            const type = m.match_type || 'unknown';
+            if (!matchesByType[type]) matchesByType[type] = [];
+            matchesByType[type].push(m);
+        });
+
+        const types = Object.entries(matchesByType);
+
+        // Build comparison modal content with tabs
+        const content = `
+            <div class="cross-case-comparison">
+                <div class="comparison-header">
+                    <div class="comparison-case current">
+                        <span class="material-icons">folder</span>
+                        <strong>${this.currentCase?.name || 'Affaire courante'}</strong>
+                    </div>
+                    <div class="comparison-arrow">
+                        <span class="material-icons">compare_arrows</span>
+                    </div>
+                    <div class="comparison-case target">
+                        <span class="material-icons">folder_open</span>
+                        <strong>${targetName}</strong>
+                    </div>
+                </div>
+
+                <div class="comparison-summary">
+                    <div class="summary-stat">
+                        <span class="stat-value">${relevantMatches.length}</span>
+                        <span class="stat-label">Correspondances</span>
+                    </div>
+                    <div class="summary-stat">
+                        <span class="stat-value">${types.length}</span>
+                        <span class="stat-label">Types de liens</span>
+                    </div>
+                </div>
+
+                <div class="comparison-tabs">
+                    ${types.map(([type, matches], index) => `
+                        <button class="comparison-tab ${index === 0 ? 'active' : ''}" data-tab="${type}">
+                            <span class="material-icons">${this.getMatchTypeIcon(type)}</span>
+                            <span class="tab-label">${this.getMatchTypeLabel(type)}</span>
+                            <span class="tab-count">${matches.length}</span>
+                        </button>
+                    `).join('')}
+                </div>
+
+                <div class="comparison-tab-contents">
+                    ${types.map(([type, matches], index) => `
+                        <div class="comparison-tab-content ${index === 0 ? 'active' : ''}" data-tab="${type}">
+                            <div class="match-items-list">
+                                ${matches.map(m => `
+                                    <div class="match-item">
+                                        <div class="match-entities">
+                                            <span class="entity current">${m.current_element || m.entity_name || m.current_value || 'Élément'}</span>
+                                            <span class="material-icons">arrow_forward</span>
+                                            <span class="entity target">${m.other_element || m.matched_entity_name || m.other_value || 'Élément'}</span>
+                                        </div>
+                                        ${m.confidence ? `
+                                            <div class="match-score">
+                                                <div class="score-bar">
+                                                    <div class="score-fill" style="width: ${m.confidence}%"></div>
+                                                </div>
+                                                <span class="score-value">${m.confidence}%</span>
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+
+                <div class="comparison-actions">
+                    <button class="btn btn-secondary" onclick="app.highlightNodeConnections('${caseId2}'); app.closeModal();">
+                        <span class="material-icons">hub</span>
+                        Voir sur le graphe
+                    </button>
+                    <button class="btn btn-primary" onclick="app.analyzeCrossLink('${caseId2}');">
+                        <span class="material-icons">psychology</span>
+                        Analyser avec IA
+                    </button>
+                </div>
+            </div>
+        `;
+
+        this.showModal(`Comparaison: ${this.currentCase?.name} ↔ ${targetName}`, content, null, false, 'modal-wide');
+
+        // Add tab switching functionality
+        setTimeout(() => {
+            document.querySelectorAll('.comparison-tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const tabName = tab.dataset.tab;
+                    document.querySelectorAll('.comparison-tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.comparison-tab-content').forEach(c => c.classList.remove('active'));
+                    tab.classList.add('active');
+                    document.querySelector(`.comparison-tab-content[data-tab="${tabName}"]`)?.classList.add('active');
+                });
+            });
+        }, 100);
     },
 
     highlightNodeConnections(nodeId) {
-        if (!this.crossCaseGraph) return;
+        if (!this.crossCaseGraph || !this.crossCaseNodes || !this.crossCaseEdges) return;
 
         const connectedEdges = this.crossCaseGraph.getConnectedEdges(nodeId);
         const connectedNodes = this.crossCaseGraph.getConnectedNodes(nodeId);
         connectedNodes.push(nodeId);
 
-        // Highlight connected nodes and edges
-        this.crossCaseGraph.selectNodes(connectedNodes);
-        this.crossCaseGraph.selectEdges(connectedEdges);
+        // Update node colors to highlight connected ones
+        const allNodes = this.crossCaseNodes.get();
+        const updatedNodes = allNodes.map(node => {
+            if (connectedNodes.includes(node.id)) {
+                return {
+                    ...node,
+                    color: node.id === nodeId ? {
+                        background: '#f59e0b',
+                        border: '#d97706',
+                        highlight: { background: '#fbbf24', border: '#f59e0b' }
+                    } : {
+                        background: '#22c55e',
+                        border: '#16a34a',
+                        highlight: { background: '#4ade80', border: '#22c55e' }
+                    },
+                    font: { ...node.font, color: '#ffffff' }
+                };
+            } else {
+                return {
+                    ...node,
+                    color: {
+                        background: 'rgba(30, 58, 95, 0.3)',
+                        border: 'rgba(15, 41, 66, 0.3)'
+                    },
+                    font: { ...node.font, color: 'rgba(255,255,255,0.4)' }
+                };
+            }
+        });
+        this.crossCaseNodes.update(updatedNodes);
 
-        this.showToast(`${connectedNodes.length - 1} connexion(s) trouvée(s)`, 'info');
+        // Update edge colors
+        const allEdges = this.crossCaseEdges.get();
+        const updatedEdges = allEdges.map(edge => {
+            if (connectedEdges.includes(edge.id)) {
+                return {
+                    ...edge,
+                    color: { color: '#22c55e', opacity: 1, highlight: '#22c55e' },
+                    width: 3
+                };
+            } else {
+                return {
+                    ...edge,
+                    color: { color: 'rgba(100,100,100,0.2)', opacity: 0.2 },
+                    width: 1
+                };
+            }
+        });
+        this.crossCaseEdges.update(updatedEdges);
+
+        // Focus on the node
+        this.crossCaseGraph.focus(nodeId, {
+            scale: 1.2,
+            animation: { duration: 500, easingFunction: 'easeInOutQuad' }
+        });
+
+        this.showToast(`${connectedNodes.length - 1} connexion(s) mise(s) en surbrillance`, 'success');
     },
 
     async analyzeCrossLink(nodeId) {
         if (!this.currentCase) return;
 
-        this.showToast('Analyse IA du lien en cours...', 'info');
+        // Trouver le nom de l'affaire cible
+        const targetNode = this.crossCaseGraphData?.nodes?.find(n => n.id === nodeId);
+        const targetName = targetNode?.label || nodeId;
+
+        // Trouver les correspondances avec cette affaire
+        const relevantMatches = this.crossCaseMatches.filter(m =>
+            m.case_id === nodeId || m.other_case_id === nodeId
+        );
+
+        if (relevantMatches.length === 0) {
+            this.showToast('Aucune correspondance trouvée avec cette affaire', 'warning');
+            return;
+        }
+
+        const modalTitle = `Analyse: ${this.currentCase.name} ↔ ${targetName}`;
+        const modalContext = `${relevantMatches.length} correspondance(s)`;
+
+        // Afficher une modal avec streaming UI (utilise la modal d'analyse avec bouton Noter)
+        const initialContent = `
+<div class="cross-case-analysis-result">
+    <div class="analysis-streaming">
+        <div class="streaming-header">
+            <span class="material-icons spinning">psychology</span>
+            <span>Analyse IA en cours...</span>
+        </div>
+        <div class="streaming-meta">
+            <span class="material-icons">compare_arrows</span>
+            <span>${this.currentCase.name} ↔ ${targetName}</span>
+            <span class="match-count">${relevantMatches.length} correspondance(s)</span>
+        </div>
+    </div>
+</div>
+<div class="streaming-content markdown-content"></div>
+        `;
+        this.showAnalysisModal(initialContent, modalTitle, 'cross_case_link', modalContext);
+
+        const analysisContent = document.getElementById('analysis-content');
+        const streamingContent = analysisContent?.querySelector('.streaming-content');
+
+        // Masquer le bouton Noter pendant le streaming
+        const noteBtn = document.getElementById('btn-save-to-notebook');
+        if (noteBtn) noteBtn.style.display = 'none';
+
+        if (!streamingContent) {
+            console.error('Streaming content element not found');
+            return;
+        }
 
         try {
-            const response = await fetch('/api/cross-case/analyze', {
+            const response = await fetch('/api/cross-case/analyze/stream', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     case_id: this.currentCase.id,
-                    target_case_id: nodeId,
-                    matches: this.crossCaseMatches.filter(m =>
-                        m.case_id === nodeId || m.other_case_id === nodeId
-                    )
+                    matches: relevantMatches
                 })
             });
 
-            if (response.ok) {
-                await response.json();
-                this.showToast('Analyse terminée - voir les alertes', 'success');
+            let fullResponse = '';
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n');
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const data = JSON.parse(line.slice(6));
+                            if (data.error) {
+                                streamingContent.innerHTML = `
+                                    <div class="analysis-error">
+                                        <span class="material-icons">error</span>
+                                        <p><strong>Erreur</strong></p>
+                                        <p>${data.error}</p>
+                                    </div>
+                                `;
+                                // Remove streaming header
+                                const header = analysisContent?.querySelector('.analysis-streaming');
+                                if (header) header.remove();
+                                return;
+                            }
+                            if (data.chunk) {
+                                fullResponse += data.chunk;
+                                streamingContent.innerHTML = marked.parse(fullResponse) + '<span class="streaming-cursor">▊</span>';
+                                // Auto-scroll
+                                streamingContent.scrollTop = streamingContent.scrollHeight;
+                            }
+                            if (data.done) {
+                                // Remove streaming header and cursor, show Noter button
+                                const header = analysisContent?.querySelector('.analysis-streaming');
+                                if (header) header.remove();
+                                streamingContent.innerHTML = marked.parse(fullResponse);
+                                if (noteBtn) noteBtn.style.display = '';
+                            }
+                        } catch (e) {
+                            // Ignore JSON parse errors for incomplete chunks
+                        }
+                    }
+                }
             }
+
+            // Final cleanup - show Noter button
+            const header = analysisContent?.querySelector('.analysis-streaming');
+            if (header) header.remove();
+            if (fullResponse) {
+                streamingContent.innerHTML = marked.parse(fullResponse);
+            }
+            if (noteBtn) noteBtn.style.display = '';
+
         } catch (error) {
             console.error('Error analyzing link:', error);
-            this.showToast('Erreur lors de l\'analyse', 'error');
+
+            // Afficher l'erreur dans la modal
+            streamingContent.innerHTML = `
+                <div class="analysis-error">
+                    <span class="material-icons" style="color: #ef4444; font-size: 3rem;">error</span>
+                    <p style="margin-top: 1rem;"><strong>Erreur lors de l'analyse</strong></p>
+                    <p class="text-muted">${error.message || 'Service IA non disponible'}</p>
+                    <p class="text-muted" style="font-size: 0.8rem; margin-top: 1rem;">
+                        Vérifiez que le service Ollama est actif et accessible.
+                    </p>
+                </div>
+            `;
+            // Remove streaming header on error
+            const header = analysisContent?.querySelector('.analysis-streaming');
+            if (header) header.remove();
         }
     },
 

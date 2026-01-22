@@ -892,88 +892,86 @@ func (s *OllamaService) AnalyzeCrossCase(currentCase *models.Case, relatedCases 
 // AnalyzeCrossCaseStream analyse les connexions inter-affaires avec l'IA en streaming
 func (s *OllamaService) AnalyzeCrossCaseStream(currentCase *models.Case, relatedCases map[string]*models.Case, matches []models.CrossCaseMatch, callback StreamCallback) error {
 	var sb strings.Builder
-	sb.WriteString("IMPORTANT: Tu DOIS répondre UNIQUEMENT en FRANÇAIS.\n\n")
+	sb.WriteString("IMPORTANT: Répondre UNIQUEMENT en FRANÇAIS. Être CONCIS, ANALYTIQUE et PROFESSIONNEL.\n")
+	sb.WriteString("NE PAS utiliser d'emojis. Utiliser un style rapport d'enquête.\n\n")
 
-	// Instructions de rigueur analytique
-	sb.WriteString("## RÈGLES D'ANALYSE STRICTES\n\n")
-	sb.WriteString("Tu es un analyste criminalistique RIGOUREUX. Tu dois:\n")
-	sb.WriteString("- **NE JAMAIS EXTRAPOLER** au-delà des données fournies\n")
-	sb.WriteString("- **DISTINGUER CLAIREMENT** les faits vérifiés des hypothèses\n")
-	sb.WriteString("- **PRIVILÉGIER les relations DIRECTES** et documentées\n")
-	sb.WriteString("- **IGNORER les correspondances faibles** (confiance < 70%) sauf mention explicite\n")
-	sb.WriteString("- **NE PAS INVENTER** de liens qui ne sont pas dans les données\n")
-	sb.WriteString("- **ÊTRE SCEPTIQUE**: une similarité de nom n'implique PAS une connexion réelle\n")
-	sb.WriteString("- **QUALIFIER chaque affirmation** avec son niveau de certitude (certain/probable/possible/spéculatif)\n\n")
-
-	// Affaire courante
-	sb.WriteString(fmt.Sprintf("## Affaire principale: %s\n", currentCase.Name))
-	sb.WriteString(fmt.Sprintf("**Type**: %s\n", currentCase.Type))
-	sb.WriteString(fmt.Sprintf("**Description**: %s\n\n", currentCase.Description))
-
-	// Entités de l'affaire courante
-	if len(currentCase.Entities) > 0 {
-		sb.WriteString("**Entités principales**:\n")
-		for _, e := range currentCase.Entities {
-			sb.WriteString(fmt.Sprintf("- %s (%s, %s)\n", e.Name, e.Type, e.Role))
-		}
-		sb.WriteString("\n")
+	// Contexte
+	sb.WriteString(fmt.Sprintf("# ANALYSE INTER-AFFAIRES\n\n"))
+	sb.WriteString(fmt.Sprintf("**Affaire principale**: %s (%s)\n", currentCase.Name, currentCase.Type))
+	if currentCase.Description != "" {
+		sb.WriteString(fmt.Sprintf("**Contexte**: %s\n\n", currentCase.Description))
 	}
 
-	// Correspondances trouvées
-	sb.WriteString("## Correspondances détectées par le système\n\n")
-	sb.WriteString("**ATTENTION**: Ces correspondances sont générées automatiquement par comparaison de chaînes.\n")
-	sb.WriteString("Une confiance < 80% indique souvent un FAUX POSITIF (noms similaires mais personnes différentes).\n\n")
+	// Filtrer les correspondances fiables (≥70%)
+	var reliableMatches []models.CrossCaseMatch
+	var highConfidenceCount int
+	for _, m := range matches {
+		if m.Confidence >= 70 {
+			reliableMatches = append(reliableMatches, m)
+			if m.Confidence >= 85 {
+				highConfidenceCount++
+			}
+		}
+	}
 
 	// Grouper par affaire liée
 	matchesByCase := make(map[string][]models.CrossCaseMatch)
-	for _, m := range matches {
+	for _, m := range reliableMatches {
 		matchesByCase[m.OtherCaseID] = append(matchesByCase[m.OtherCaseID], m)
 	}
 
-	for caseID, caseMatches := range matchesByCase {
-		if relatedCase, ok := relatedCases[caseID]; ok {
-			sb.WriteString(fmt.Sprintf("### Affaire liée: %s\n", relatedCase.Name))
-			sb.WriteString(fmt.Sprintf("**Type**: %s\n", relatedCase.Type))
-			sb.WriteString("**Correspondances (à vérifier)**:\n")
-			for _, m := range caseMatches {
-				reliability := "FAIBLE"
-				if m.Confidence >= 90 {
-					reliability = "FORTE"
-				} else if m.Confidence >= 70 {
-					reliability = "MOYENNE"
+	// Résumé des correspondances (format condensé)
+	sb.WriteString("## CORRESPONDANCES DETECTÉES\n\n")
+	sb.WriteString(fmt.Sprintf("Total: %d correspondances (dont %d à haute confiance ≥85%%)\n\n", len(reliableMatches), highConfidenceCount))
+
+	if len(reliableMatches) == 0 {
+		sb.WriteString("Aucune correspondance fiable détectée.\n\n")
+	} else {
+		for caseID, caseMatches := range matchesByCase {
+			if relatedCase, ok := relatedCases[caseID]; ok {
+				sb.WriteString(fmt.Sprintf("### Affaire liée: %s (%s)\n", relatedCase.Name, relatedCase.Type))
+				for _, m := range caseMatches {
+					level := "[MOYEN]"
+					if m.Confidence >= 90 {
+						level = "[FORT]"
+					} else if m.Confidence >= 85 {
+						level = "[ÉLEVÉ]"
+					}
+					sb.WriteString(fmt.Sprintf("- %s %s: %s (%d%%)\n", level, m.MatchType, m.Description, m.Confidence))
 				}
-				sb.WriteString(fmt.Sprintf("- [%s] %s (confiance: %d%% - fiabilité: %s)\n", m.MatchType, m.Description, m.Confidence, reliability))
+				sb.WriteString("\n")
 			}
-			sb.WriteString("\n")
 		}
 	}
 
-	sb.WriteString("## Analyse demandée\n\n")
-	sb.WriteString("Fournis une analyse PRUDENTE et FACTUELLE:\n\n")
+	// Instructions d'analyse améliorées
+	sb.WriteString("## ANALYSE DEMANDÉE\n\n")
+	sb.WriteString("Rédige un **rapport d'analyse concis** (250 mots max) avec ces sections:\n\n")
 
-	sb.WriteString("1. **Correspondances fiables** (confiance ≥ 80% uniquement):\n")
-	sb.WriteString("   - Liste UNIQUEMENT les correspondances à haute confiance\n")
-	sb.WriteString("   - Pour chacune, indique si c'est la MÊME personne/lieu ou juste un nom similaire\n\n")
+	sb.WriteString("### CONNEXIONS AVÉRÉES\n")
+	sb.WriteString("Identifie les correspondances ≥85% qui représentent des liens RÉELS (même personne, même lieu, même organisation).\n")
+	sb.WriteString("Pour chaque lien, explique POURQUOI il est significatif pour l'enquête.\n\n")
 
-	sb.WriteString("2. **Évaluation critique des liens**:\n")
-	sb.WriteString("   - Y a-t-il des preuves DIRECTES d'un lien entre ces affaires?\n")
-	sb.WriteString("   - Une coïncidence temporelle n'est PAS une preuve de lien\n")
-	sb.WriteString("   - Un nom similaire n'est PAS une preuve d'identité commune\n\n")
+	sb.WriteString("### ALERTES ET RISQUES\n")
+	sb.WriteString("Signale les correspondances suspectes qui méritent une investigation prioritaire.\n")
+	sb.WriteString("Identifie les patterns criminels potentiels (blanchiment, réseau, récidive).\n\n")
 
-	sb.WriteString("3. **Faux positifs probables**:\n")
-	sb.WriteString("   - Identifie les correspondances qui semblent être des erreurs du système\n")
-	sb.WriteString("   - Explique pourquoi certaines correspondances sont probablement non pertinentes\n\n")
+	sb.WriteString("### FAUX POSITIFS\n")
+	sb.WriteString("Liste brièvement les correspondances qui sont probablement des coïncidences.\n\n")
 
-	sb.WriteString("4. **Pistes à vérifier** (si liens plausibles):\n")
-	sb.WriteString("   - UNIQUEMENT si des correspondances fiables existent\n")
-	sb.WriteString("   - Quelles vérifications concrètes permettraient de confirmer/infirmer le lien?\n\n")
+	sb.WriteString("### VERDICT FINAL\n")
+	sb.WriteString("Conclusion en UNE phrase avec un des statuts suivants:\n")
+	sb.WriteString("- **LIEN CONFIRMÉ** (preuves directes multiples)\n")
+	sb.WriteString("- **LIEN PROBABLE** (indices convergents)\n")
+	sb.WriteString("- **LIEN À VÉRIFIER** (pistes prometteuses)\n")
+	sb.WriteString("- **LIEN IMPROBABLE** (correspondances fortuites)\n\n")
 
-	sb.WriteString("5. **Conclusion**:\n")
-	sb.WriteString("   - LIEN CONFIRMÉ: preuves directes d'une connexion réelle\n")
-	sb.WriteString("   - LIEN PROBABLE: indices forts mais vérification nécessaire\n")
-	sb.WriteString("   - LIEN POSSIBLE: quelques indices, enquête approfondie requise\n")
-	sb.WriteString("   - PAS DE LIEN: correspondances probablement fortuites\n")
-	sb.WriteString("   - Niveau de priorité (1-5) JUSTIFIÉ par les faits\n")
+	sb.WriteString("---\n")
+	sb.WriteString("RÈGLES STRICTES:\n")
+	sb.WriteString("- Style rapport professionnel, pas de bavardage\n")
+	sb.WriteString("- Ne pas répéter les pourcentages déjà fournis\n")
+	sb.WriteString("- Analyser le SENS des connexions, pas juste les lister\n")
+	sb.WriteString("- Être SCEPTIQUE: similarité de nom ≠ même personne\n")
 
 	return s.GenerateStream(sb.String(), callback)
 }

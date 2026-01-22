@@ -605,11 +605,13 @@ const HypothesesModule = {
             const contradictingChecked = Array.from(document.querySelectorAll('input[name="contradicting"]:checked')).map(cb => cb.value);
 
             try {
-                await this.apiCall(`/api/hypotheses/update?case_id=${this.currentCase.id}`, 'PUT', {
-                    id: hypothesisId,
+                // Envoyer l'hypothèse complète avec les preuves mises à jour
+                const updatedHypothesis = {
+                    ...hypothesis,
                     supporting_evidence: supportingChecked,
                     contradicting_evidence: contradictingChecked
-                });
+                };
+                await this.apiCall(`/api/hypotheses/update?case_id=${this.currentCase.id}`, 'PUT', updatedHypothesis);
                 await this.selectCase(this.currentCase.id);
             } catch (error) {
                 console.error('Error updating evidence links:', error);

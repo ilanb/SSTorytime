@@ -104,10 +104,18 @@ for pyfile in /tmp/*.py; do
     fi
 done
 
+echo "[REMOTE] Configuration de l'environnement HRM..."
+# Activer le mode vLLM (Sapient) pour HRM
+sudo mkdir -p ${APP_DIR}/config
+echo 'USE_SAPIENT=true' | sudo tee ${APP_DIR}/config/hrm.env > /dev/null
+echo 'VLLM_URL=http://86.204.69.30:8001/v1' | sudo tee -a ${APP_DIR}/config/hrm.env > /dev/null
+echo 'VLLM_MODEL=Qwen/Qwen2.5-7B-Instruct' | sudo tee -a ${APP_DIR}/config/hrm.env > /dev/null
+
 echo "[REMOTE] Correction des permissions..."
 sudo chown -R forensic:forensic ${APP_DIR}
 sudo chmod -R 755 ${APP_DIR}/static
 sudo chmod 600 ${APP_DIR}/config/environment 2>/dev/null || true
+sudo chmod 600 ${APP_DIR}/config/hrm.env 2>/dev/null || true
 
 echo "[REMOTE] Nettoyage des fichiers temporaires..."
 rm -rf /tmp/ForensicInvestigator-linux /tmp/forensic_static /tmp/*.py 2>/dev/null || true

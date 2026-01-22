@@ -7,11 +7,11 @@ cd "$SCRIPT_DIR"
 # Engine mode:
 # - USE_SAPIENT=false (default): Fast algorithmic engine (instantaneous)
 # - USE_SAPIENT=true: vLLM-powered reasoning (slower but more sophisticated)
-export USE_SAPIENT="${USE_SAPIENT:-false}"
+export USE_SAPIENT="${USE_SAPIENT:-true}"
 
 # Configuration vLLM (only used if USE_SAPIENT=true)
-export VLLM_URL="${VLLM_URL:-http://86.204.69.30:8001}"
-export VLLM_MODEL="${VLLM_MODEL:-Qwen/Qwen2.5-7B-Instruct}"
+export VLLM_URL="${VLLM_URL:-http://86.204.69.30:8000}"
+export VLLM_MODEL="${VLLM_MODEL:-openai/gpt-oss-20b}"
 
 # Check for virtual environment
 if [ ! -d "venv" ]; then

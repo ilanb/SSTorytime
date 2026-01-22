@@ -1954,6 +1954,81 @@ func (h *Handler) HandleHRMReason(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(result)
 }
 
+// HandleHRMReasonStream effectue un raisonnement HRM avec streaming
+func (h *Handler) HandleHRMReasonStream(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Méthode non autorisée", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Headers pour le streaming SSE
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming non supporté", http.StatusInternalServerError)
+		return
+	}
+
+	var req struct {
+		CaseID        string `json:"case_id"`
+		Question      string `json:"question"`
+		ReasoningType string `json:"reasoning_type"`
+		MaxDepth      int    `json:"max_depth"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		fmt.Fprintf(w, "data: {\"phase\": \"error\", \"error\": \"%s\"}\n\n", err.Error())
+		flusher.Flush()
+		return
+	}
+
+	if req.CaseID == "" || req.Question == "" {
+		fmt.Fprintf(w, "data: {\"phase\": \"error\", \"error\": \"case_id et question requis\"}\n\n")
+		flusher.Flush()
+		return
+	}
+
+	// Récupérer l'affaire
+	c, err := h.cases.GetCase(req.CaseID)
+	if err != nil {
+		fmt.Fprintf(w, "data: {\"phase\": \"error\", \"error\": \"Affaire non trouvée\"}\n\n")
+		flusher.Flush()
+		return
+	}
+
+	// Construire les preuves
+	var evidence []services.Evidence
+	for _, ev := range c.Evidence {
+		evidence = append(evidence, services.Evidence{
+			ID:          ev.ID,
+			Type:        string(ev.Type),
+			Description: ev.Description,
+			Confidence:  0.7,
+		})
+	}
+
+	if req.MaxDepth == 0 {
+		req.MaxDepth = 3
+	}
+
+	// Appeler le service HRM en streaming
+	err = h.hrm.ReasonStream(services.ReasoningRequest{
+		Context:       h.buildCaseContext(c),
+		Question:      req.Question,
+		Evidence:      evidence,
+		ReasoningType: req.ReasoningType,
+		MaxDepth:      req.MaxDepth,
+	}, w, flusher)
+
+	if err != nil {
+		fmt.Fprintf(w, "data: {\"phase\": \"error\", \"error\": \"%s\"}\n\n", err.Error())
+		flusher.Flush()
+	}
+}
+
 // HandleHRMVerifyHypothesis vérifie une hypothèse avec HRM
 func (h *Handler) HandleHRMVerifyHypothesis(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {

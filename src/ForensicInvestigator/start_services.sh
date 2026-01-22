@@ -4,6 +4,9 @@
 
 set -e
 
+# Activer le mode vLLM pour HRM (raisonnement LLM avancé)
+export USE_SAPIENT=true
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PID_DIR="$SCRIPT_DIR/.pids"
 LOG_DIR="$SCRIPT_DIR/logs"
@@ -86,8 +89,8 @@ echo -e "\n${GREEN}========================================${NC}"
 echo -e "${GREEN}  Services démarrés avec succès !       ${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo -e "\n  📊 Application:     http://localhost:8082"
-echo -e "  🧠 HRM Server:      http://localhost:8081"
+echo -e "  🧠 HRM Server:      http://localhost:8081 (USE_SAPIENT=true)"
 echo -e "  🔍 Embedding:       http://localhost:8085"
-echo -e "  🤖 vLLM (distant):  http://86.204.69.30:8001"
+echo -e "  🤖 vLLM (distant):  http://86.204.69.30:8001/v1 (Qwen/Qwen2.5-7B-Instruct)"
 echo -e "\n  Pour arrêter: ./stop_services.sh"
 echo -e "  Pour les logs: tail -f $LOG_DIR/*.log"

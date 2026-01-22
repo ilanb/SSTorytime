@@ -109,7 +109,7 @@ body.has-fullscreen-panel {
     overflow: hidden;
 }
 
-body.has-fullscreen-panel > *:not(.fullscreen-panel):not(#graph-context-menu):not(#crosscase-context-menu):not(.context-menu):not(.modal):not(#toast-container) {
+body.has-fullscreen-panel > *:not(.fullscreen-panel):not(#graph-context-menu):not(#crosscase-context-menu):not(.context-menu):not(.modal):not(.modal-overlay):not(#toast-container):not(#social-network-panel):not(.social-network-panel):not(#analysis-modal) {
     visibility: hidden;
 }
 
@@ -127,10 +127,19 @@ body.has-fullscreen-panel #toast-container {
     visibility: visible !important;
 }
 
-body.has-fullscreen-panel .modal-overlay.active {
+/* Only ACTIVE modals visible in fullscreen */
+body.has-fullscreen-panel .modal-overlay.active,
+body.has-fullscreen-panel #analysis-modal.active {
     z-index: 10002 !important;
     visibility: visible !important;
     opacity: 1 !important;
+}
+
+/* Social network panel always visible in fullscreen */
+body.has-fullscreen-panel #social-network-panel,
+body.has-fullscreen-panel .social-network-panel {
+    visibility: visible !important;
+    z-index: 10000 !important;
 }
 
 body.has-fullscreen-panel .fullscreen-panel {

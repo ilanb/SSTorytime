@@ -120,20 +120,35 @@ const CoreModule = {
         });
     },
 
-    showModal(title, content, onConfirm) {
+    showModal(title, content, onConfirm, showConfirm = true, modalClass = '') {
+        const modal = document.querySelector('#modal-overlay .modal');
         document.getElementById('modal-title').textContent = title;
         document.getElementById('modal-body').innerHTML = content;
         document.getElementById('modal-overlay').classList.add('active');
 
+        // Handle modal width classes
+        modal.classList.remove('modal-wide', 'modal-extra-wide');
+        if (modalClass) {
+            modal.classList.add(modalClass);
+        }
+
         const confirmBtn = document.getElementById('modal-confirm');
-        confirmBtn.onclick = () => {
-            if (onConfirm) onConfirm();
-            this.closeModal();
-        };
+        if (confirmBtn) {
+            confirmBtn.style.display = showConfirm ? '' : 'none';
+            confirmBtn.onclick = () => {
+                if (onConfirm) onConfirm();
+                this.closeModal();
+            };
+        }
     },
 
     closeModal() {
+        const modal = document.querySelector('#modal-overlay .modal');
         document.getElementById('modal-overlay').classList.remove('active');
+        // Reset modal classes
+        if (modal) {
+            modal.classList.remove('modal-wide', 'modal-extra-wide');
+        }
     },
 
     showAnalysisModal(content, title = 'Analyse IA', type = 'graph_analysis', context = '') {

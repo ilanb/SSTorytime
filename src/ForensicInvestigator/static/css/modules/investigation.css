@@ -437,9 +437,6 @@
 
 /* Panel description style */
 .panel-description {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.5rem;
     padding: 0.75rem 1rem;
     background: var(--bg-light);
     border-bottom: 1px solid var(--border);

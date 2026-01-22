@@ -113,16 +113,11 @@ const HRMModule = {
         btn.innerHTML = '<span class="material-icons spinning">psychology</span> Analyse...';
         btn.disabled = true;
 
-        const resultsContainer = document.getElementById('hrm-results');
-        resultsContainer.innerHTML = `
-            <div class="analysis-loading">
-                <span class="material-icons spinning">psychology</span>
-                <p>Raisonnement en cours...</p>
-            </div>
-        `;
+        // Ouvrir la modal de streaming
+        this.openHRMStreamingModal(question, reasoningType);
 
         try {
-            const response = await fetch('/api/hrm/reason', {
+            const response = await fetch('/api/hrm/reason/stream', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -135,20 +130,264 @@ const HRMModule = {
 
             if (!response.ok) throw new Error('Erreur lors du raisonnement');
 
-            const result = await response.json();
-            this.renderHRMReasoningResult(result, question);
+            // Lire le stream
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let finalResult = null;
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n');
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const data = JSON.parse(line.slice(6));
+                            this.updateHRMStreamingModal(data);
+
+                            if (data.phase === 'complete' && data.result) {
+                                finalResult = data.result;
+                            }
+                        } catch (e) {
+                            // Ignorer les lignes mal formatées
+                        }
+                    }
+                }
+            }
+
+            // Aussi mettre à jour le conteneur de résultats en arrière-plan
+            if (finalResult) {
+                this.renderHRMReasoningResult(finalResult, question);
+            }
         } catch (error) {
             console.error('Error performing HRM reasoning:', error);
-            resultsContainer.innerHTML = `
-                <div class="error-state">
-                    <span class="material-icons">error</span>
-                    <p>Erreur: ${error.message}</p>
-                    <p class="hint">Vérifiez que le serveur HRM est en cours d'exécution.</p>
-                </div>
-            `;
+            this.updateHRMStreamingModal({
+                phase: 'error',
+                error: error.message,
+                message: `Erreur: ${error.message}`
+            });
         } finally {
             btn.innerHTML = originalContent;
             btn.disabled = false;
+        }
+    },
+
+    // ============================================
+    // HRM Streaming Modal
+    // ============================================
+    openHRMStreamingModal(question, reasoningType) {
+        const reasoningTypeLabels = {
+            'deductive': 'Déductif',
+            'inductive': 'Inductif',
+            'abductive': 'Abductif',
+            'analogical': 'Analogique'
+        };
+
+        const modalHtml = `
+            <div class="hrm-streaming-modal-overlay" id="hrm-streaming-modal">
+                <div class="hrm-streaming-modal">
+                    <div class="hrm-streaming-header">
+                        <div class="hrm-streaming-title">
+                            <span class="material-icons spinning">psychology</span>
+                            <h3>Raisonnement HRM en cours</h3>
+                        </div>
+                        <button class="btn-close-modal" onclick="app.closeHRMStreamingModal()">
+                            <span class="material-icons">close</span>
+                        </button>
+                    </div>
+                    <div class="hrm-streaming-question">
+                        <span class="material-icons">help_outline</span>
+                        <div>
+                            <strong>Question:</strong> ${question}<br>
+                            <small>Type: ${reasoningTypeLabels[reasoningType] || reasoningType}</small>
+                        </div>
+                    </div>
+                    <div class="hrm-streaming-progress">
+                        <div class="progress-phase" id="hrm-phase-planning">
+                            <span class="phase-icon"><span class="material-icons">pending</span></span>
+                            <span class="phase-label">Planification</span>
+                        </div>
+                        <div class="progress-phase" id="hrm-phase-execution">
+                            <span class="phase-icon"><span class="material-icons">pending</span></span>
+                            <span class="phase-label">Exécution</span>
+                        </div>
+                        <div class="progress-phase" id="hrm-phase-synthesis">
+                            <span class="phase-icon"><span class="material-icons">pending</span></span>
+                            <span class="phase-label">Synthèse</span>
+                        </div>
+                    </div>
+                    <div class="hrm-streaming-status" id="hrm-streaming-status">
+                        <span class="material-icons spinning">hourglass_empty</span>
+                        Initialisation...
+                    </div>
+                    <div class="hrm-streaming-content" id="hrm-streaming-content">
+                        <div class="hrm-streaming-steps" id="hrm-streaming-steps"></div>
+                    </div>
+                    <div class="hrm-streaming-result" id="hrm-streaming-result" style="display: none;"></div>
+                </div>
+            </div>
+        `;
+
+        // Supprimer l'ancien modal s'il existe
+        const existingModal = document.getElementById('hrm-streaming-modal');
+        if (existingModal) existingModal.remove();
+
+        // Ajouter le nouveau modal
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+    },
+
+    closeHRMStreamingModal() {
+        const modal = document.getElementById('hrm-streaming-modal');
+        if (modal) {
+            modal.classList.add('closing');
+            setTimeout(() => modal.remove(), 300);
+        }
+    },
+
+    updateHRMStreamingModal(data) {
+        const statusEl = document.getElementById('hrm-streaming-status');
+        const stepsEl = document.getElementById('hrm-streaming-steps');
+        const resultEl = document.getElementById('hrm-streaming-result');
+        const headerIcon = document.querySelector('.hrm-streaming-title .material-icons');
+
+        if (!statusEl) return;
+
+        // Mettre à jour le statut
+        statusEl.innerHTML = `<span class="material-icons ${data.phase !== 'complete' && data.phase !== 'error' ? 'spinning' : ''}">
+            ${data.phase === 'complete' ? 'check_circle' : data.phase === 'error' ? 'error' : 'hourglass_empty'}
+        </span> ${data.message || ''}`;
+
+        // Mettre à jour les phases
+        const phases = {
+            'planning': 'hrm-phase-planning',
+            'planning_complete': 'hrm-phase-planning',
+            'step_start': 'hrm-phase-execution',
+            'step_complete': 'hrm-phase-execution',
+            'synthesis': 'hrm-phase-synthesis',
+            'complete': 'hrm-phase-synthesis'
+        };
+
+        // Marquer la phase en cours
+        if (phases[data.phase]) {
+            const phaseEl = document.getElementById(phases[data.phase]);
+            if (phaseEl) {
+                phaseEl.classList.add('active');
+                const icon = phaseEl.querySelector('.material-icons');
+                if (data.phase.includes('complete') || data.phase === 'complete') {
+                    icon.textContent = 'check_circle';
+                    phaseEl.classList.remove('active');
+                    phaseEl.classList.add('completed');
+                } else {
+                    icon.textContent = 'sync';
+                    icon.classList.add('spinning');
+                }
+            }
+        }
+
+        // Afficher les étapes de raisonnement
+        if (data.phase === 'step_complete' && data.result) {
+            const stepHtml = `
+                <div class="hrm-step-card">
+                    <div class="step-header">
+                        <span class="step-number">${data.result.step_number}</span>
+                        <span class="step-premise">${data.result.premise}</span>
+                        <span class="step-confidence ${data.result.confidence > 0.7 ? 'high' : data.result.confidence > 0.4 ? 'medium' : 'low'}">
+                            ${Math.round(data.result.confidence * 100)}%
+                        </span>
+                    </div>
+                    <div class="step-inference">${data.result.inference}</div>
+                </div>
+            `;
+            stepsEl.insertAdjacentHTML('beforeend', stepHtml);
+        }
+
+        // Afficher le résultat final
+        if (data.phase === 'complete' && data.result) {
+            headerIcon.classList.remove('spinning');
+            headerIcon.textContent = 'check_circle';
+
+            const confidenceClass = data.result.confidence > 0.7 ? 'high' : data.result.confidence > 0.4 ? 'medium' : 'low';
+            const confidencePercent = Math.round(data.result.confidence * 100);
+
+            // Key findings
+            let keyFindingsHtml = '';
+            if (data.result.key_findings && data.result.key_findings.length > 0) {
+                keyFindingsHtml = `
+                    <div class="hrm-key-findings">
+                        <h5><span class="material-icons">verified</span> Découvertes Clés</h5>
+                        <ul>${data.result.key_findings.map(kf => `<li>${kf}</li>`).join('')}</ul>
+                    </div>
+                `;
+            }
+
+            // Recommendations
+            let recommendationsHtml = '';
+            if (data.result.recommendations && data.result.recommendations.length > 0) {
+                recommendationsHtml = `
+                    <div class="hrm-recommendations">
+                        <h5><span class="material-icons">recommend</span> Recommandations</h5>
+                        <ul>${data.result.recommendations.map(r => `<li>${r}</li>`).join('')}</ul>
+                    </div>
+                `;
+            }
+
+            // Warnings
+            let warningsHtml = '';
+            if (data.result.warnings && data.result.warnings.length > 0) {
+                warningsHtml = `
+                    <div class="hrm-warnings">
+                        <h5><span class="material-icons">warning</span> Avertissements</h5>
+                        <ul>${data.result.warnings.map(w => `<li>${w}</li>`).join('')}</ul>
+                    </div>
+                `;
+            }
+
+            // Alternative conclusions - handle both string and object formats
+            let alternativesHtml = '';
+            if (data.result.alternative_conclusions && data.result.alternative_conclusions.length > 0) {
+                alternativesHtml = `
+                    <div class="hrm-alternatives">
+                        <h5><span class="material-icons">alt_route</span> Conclusions Alternatives</h5>
+                        <ul>${data.result.alternative_conclusions.map(a => {
+                            const text = typeof a === 'string' ? a : (a.conclusion || a.text || JSON.stringify(a));
+                            const conf = typeof a === 'object' ? (a.confidence || 0.4) : 0.4;
+                            return `<li><span class="alt-confidence">${Math.round(conf * 100)}%</span> ${text}</li>`;
+                        }).join('')}</ul>
+                    </div>
+                `;
+            }
+
+            resultEl.innerHTML = `
+                <div class="hrm-final-result">
+                    <div class="result-header">
+                        <span class="material-icons">lightbulb</span>
+                        <h4>Conclusion</h4>
+                        <span class="confidence-badge ${confidenceClass}">${confidencePercent}%</span>
+                    </div>
+                    <div class="result-conclusion">${data.result.conclusion}</div>
+                    ${keyFindingsHtml}
+                    ${recommendationsHtml}
+                    ${alternativesHtml}
+                    ${warningsHtml}
+                </div>
+            `;
+            resultEl.style.display = 'block';
+        }
+
+        // Afficher les erreurs
+        if (data.phase === 'error') {
+            headerIcon.classList.remove('spinning');
+            headerIcon.textContent = 'error';
+            resultEl.innerHTML = `
+                <div class="hrm-error-result">
+                    <span class="material-icons">error</span>
+                    <p>${data.error || 'Une erreur est survenue'}</p>
+                </div>
+            `;
+            resultEl.style.display = 'block';
         }
     },
 
