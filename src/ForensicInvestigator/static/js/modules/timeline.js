@@ -962,7 +962,12 @@ const TimelineModule = {
             if (!this.n4lGraph || !this.n4lGraphNodes) {
                 await this.loadDashboardGraph();
             }
-            return this.n4lGraph && this.n4lGraphNodes;
+            // Attendre que le graphe soit stabilisé
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    resolve(this.n4lGraph && this.n4lGraphNodes);
+                }, 300);
+            });
         };
 
         const graphReady = await waitForGraph();
@@ -971,12 +976,26 @@ const TimelineModule = {
             return;
         }
 
-        // Chercher le nœud de l'événement par son titre
-        // Les nœuds N4L d'événements ont le format: "DD/MM/YYYY HH:MM Titre de l'événement"
         const allNodesData = this.n4lGraphNodes.get();
+        const allEdges = this.n4lGraphEdges.get();
         const eventTitle = event.title;
         const eventTitleLower = eventTitle.toLowerCase();
-        let matchedNodeId = null;
+
+        // Formater la date de l'événement au format DD/MM/YYYY HH:MM
+        const eventDate = new Date(event.timestamp);
+        const eventDateStr = eventDate.toLocaleDateString('fr-FR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+        });
+        const eventTimeStr = eventDate.toLocaleTimeString('fr-FR', {
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        const eventDateTimeStr = `${eventDateStr} ${eventTimeStr}`;
+
+        console.log('[Timeline] showEventOnGraph - Event:', eventTitle);
+        console.log('[Timeline] showEventOnGraph - Event date:', eventDateTimeStr);
 
         // Filtrer les nœuds d'événements (ceux qui commencent par une date DD/MM/YYYY)
         const eventNodes = allNodesData.filter(n => {
@@ -984,88 +1003,102 @@ const TimelineModule = {
             return /^\d{2}\/\d{2}\/\d{4}/.test(label);
         });
 
-        console.log('[Timeline] showEventOnGraph - Searching for event:', eventTitle);
-        console.log('[Timeline] showEventOnGraph - Event nodes:', eventNodes.map(n => n.label || n.id));
+        console.log('[Timeline] Event nodes found:', eventNodes.map(n => n.label || n.id));
 
-        // Chercher le nœud d'événement par son titre
+        // Chercher le nœud d'événement correspondant
+        let matchedEventNodeId = null;
+
         for (const node of eventNodes) {
             const nodeLabel = node.label || '';
             const nodeLabelLower = nodeLabel.toLowerCase();
 
-            // Le label du nœud contient le titre de l'événement
+            // Match 1: La date et l'heure correspondent exactement au début
+            if (nodeLabel.startsWith(eventDateTimeStr)) {
+                matchedEventNodeId = node.id;
+                console.log('[Timeline] MATCH by exact date/time:', node.id);
+                break;
+            }
+
+            // Match 2: La date correspond et le titre est dans le label
+            if (nodeLabel.startsWith(eventDateStr) && nodeLabelLower.includes(eventTitleLower)) {
+                matchedEventNodeId = node.id;
+                console.log('[Timeline] MATCH by date + title:', node.id);
+                break;
+            }
+
+            // Match 3: Le label contient le titre exact de l'événement
             if (nodeLabelLower.includes(eventTitleLower)) {
-                matchedNodeId = node.id;
-                console.log('[Timeline] MATCH event node contains title:', eventTitle, '-> node:', node.id);
+                matchedEventNodeId = node.id;
+                console.log('[Timeline] MATCH by title in label:', node.id);
                 break;
             }
 
-            // Le titre de l'événement contient une partie significative du label (après la date/heure)
-            // Format: "DD/MM/YYYY HH:MM Titre..." - on extrait le titre après la date
-            const titlePart = nodeLabel.replace(/^\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2}\s*/, '').toLowerCase();
-            if (titlePart && eventTitleLower.includes(titlePart)) {
-                matchedNodeId = node.id;
-                console.log('[Timeline] MATCH title contains node title part:', eventTitle, '-> node:', node.id);
+            // Match 4: Extraire le titre après la date/heure et comparer
+            const titlePart = nodeLabel.replace(/^\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2}\s*/, '').toLowerCase().trim();
+            if (titlePart && (eventTitleLower.includes(titlePart) || titlePart.includes(eventTitleLower))) {
+                matchedEventNodeId = node.id;
+                console.log('[Timeline] MATCH by extracted title part:', node.id, 'titlePart:', titlePart);
                 break;
             }
 
-            // Recherche par mots-clés significatifs du titre
+            // Match 5: Correspondance par mots-clés significatifs (au moins 2 mots de 4+ lettres)
             const titleWords = eventTitleLower.split(/\s+/).filter(w => w.length >= 4);
             const matchCount = titleWords.filter(w => nodeLabelLower.includes(w)).length;
             if (matchCount >= 2 || (matchCount === 1 && titleWords.length === 1)) {
-                matchedNodeId = node.id;
-                console.log('[Timeline] MATCH by keywords:', eventTitle, '-> node:', node.id, 'matched:', matchCount, '/', titleWords.length);
+                matchedEventNodeId = node.id;
+                console.log('[Timeline] MATCH by keywords:', node.id, 'matched:', matchCount, '/', titleWords.length);
                 break;
             }
         }
 
-        if (!matchedNodeId) {
+        if (!matchedEventNodeId) {
             this.showToast('Événement non trouvé sur le graphe');
+            console.warn('[Timeline] No matching event node found for:', eventTitle, eventDateTimeStr);
             return;
         }
 
-        console.log('[Timeline] Matched event node ID:', matchedNodeId);
+        console.log('[Timeline] Final matched node ID:', matchedEventNodeId);
 
         // Trouver tous les nœuds connectés à l'événement via les arêtes
-        const allEdges = this.n4lGraphEdges.get();
         const connectedNodeIds = new Set();
-        connectedNodeIds.add(matchedNodeId); // L'événement lui-même
+        connectedNodeIds.add(matchedEventNodeId);
 
         allEdges.forEach(edge => {
-            if (edge.from === matchedNodeId) {
+            if (edge.from === matchedEventNodeId) {
                 connectedNodeIds.add(edge.to);
-            } else if (edge.to === matchedNodeId) {
+            } else if (edge.to === matchedEventNodeId) {
                 connectedNodeIds.add(edge.from);
             }
         });
 
         console.log('[Timeline] Connected nodes:', Array.from(connectedNodeIds));
 
-        // Mettre en évidence le nœud de l'événement ET les nœuds connectés
+        // Mettre en évidence les nœuds
         const nodeUpdates = allNodesData.map(node => {
-            const isEventNode = node.id === matchedNodeId;
+            const isEventNode = node.id === matchedEventNodeId;
             const isConnected = connectedNodeIds.has(node.id);
 
             if (isEventNode) {
-                // Nœud de l'événement - mise en évidence principale (orange)
+                // Nœud de l'événement - orange vif, plus grand
                 return {
                     id: node.id,
                     hidden: false,
-                    borderWidth: 5,
-                    size: 40,
+                    borderWidth: 6,
+                    size: 50,
                     color: {
                         border: '#f59e0b',
                         background: '#fef3c7'
                     },
-                    font: { color: '#92400e', size: 14 },
+                    font: { color: '#92400e', size: 14, bold: true },
                     opacity: 1
                 };
             } else if (isConnected) {
-                // Nœuds connectés - mise en évidence secondaire (bleu)
+                // Nœuds connectés - bleu
                 return {
                     id: node.id,
                     hidden: false,
                     borderWidth: 3,
-                    size: node.size || 30,
+                    size: 35,
                     color: {
                         border: '#3b82f6',
                         background: '#dbeafe'
@@ -1082,28 +1115,28 @@ const TimelineModule = {
                     size: node.size || 25,
                     color: node.originalColor || { background: '#e2e8f0', border: '#cbd5e0' },
                     font: { color: '#1a1a2e', size: 12 },
-                    opacity: 0.3
+                    opacity: 0.2
                 };
             }
         });
         this.n4lGraphNodes.update(nodeUpdates);
 
-        // Mettre en évidence les arêtes connectées au nœud de l'événement
+        // Mettre en évidence les arêtes
         const edgeUpdates = allEdges.map(edge => {
-            const isConnected = edge.from === matchedNodeId || edge.to === matchedNodeId;
+            const isConnected = edge.from === matchedEventNodeId || edge.to === matchedEventNodeId;
             return {
                 id: edge.id,
                 hidden: false,
-                color: isConnected ? { color: '#f59e0b' } : { color: 'rgba(200,200,200,0.2)' },
-                width: isConnected ? 3 : 1
+                color: isConnected ? { color: '#f59e0b' } : { color: 'rgba(200,200,200,0.15)' },
+                width: isConnected ? 4 : 1
             };
         });
         this.n4lGraphEdges.update(edgeUpdates);
 
-        // Centrer la vue sur le nœud de l'événement et le sélectionner visuellement
-        this.n4lGraph.selectNodes([matchedNodeId]);
+        // Centrer la vue sur le nœud de l'événement
+        this.n4lGraph.selectNodes([matchedEventNodeId]);
         this.n4lGraph.fit({
-            nodes: [matchedNodeId],
+            nodes: [matchedEventNodeId],
             animation: { duration: 500, easingFunction: 'easeInOutQuad' }
         });
 

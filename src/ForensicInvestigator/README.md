@@ -10,6 +10,41 @@
 
 Forensic Investigator est une plateforme d'aide à l'investigation qui centralise la gestion des enquêtes, l'analyse de preuves et le raisonnement déductif assisté par l'intelligence artificielle. Elle s'appuie sur plusieurs technologies : **SSTorytime** (moteur d'analyse de graphes), **N4L** (langage de description narrative) **HRM** (moteur de raisonnement à deux niveaux) et les graphe de connaissances
 
+### **Limites des Méthodes Traditionnelles**
+
+Les investigations classiques reposent sur :
+
+* Des dossiers papier ou fichiers dispersés difficiles à croiser
+* La mémoire et l'intuition des enquêteurs pour identifier les connexions
+* Des tableaux et organigrammes statiques qui deviennent inexploitables au-delà de quelques dizaines d'entités
+* Un travail manuel de comparaison entre dossiers chronophage et incomplet
+* L'absence d'outil pour tester des hypothèses sans contaminer l'enquête
+
+### **Apports de la Plateforme**
+
+| Technologie                       | Problème Résolu                               | Bénéfice Opérationnel                                                                                                                 |
+| --------------------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| **Graphe de connaissances** | Données dispersées et non structurées        | Centralisation de toutes les entités, relations et preuves dans une structure interrogeable et visualisable                             |
+| **SSTorytime**              | Connexions cachées invisibles à l'œil humain | Algorithmes de détection de chemins, clusters, nœuds-ponts et patterns dans des réseaux de centaines d'entités                       |
+| **N4L**                     | Saisie longue et ambiguïté des descriptions   | Langage formel permettant de décrire précisément les relations et de générer automatiquement des graphes depuis des documents texte |
+| **HRM**                     | Raisonnement limité par la charge cognitive    | Moteur de déduction qui analyse l'ensemble des preuves, génère des hypothèses alternatives et identifie les contradictions           |
+| **Analyse inter-dossiers**  | Cloisonnement des enquêtes                     | Détection automatique de correspondances entre affaires distinctes (entités, modus operandi, lieux)                                    |
+| **Simulation What-If**      | Impossibilité de tester sans risque            | Exploration d'hypothèses sans modifier les données réelles, avec calcul des implications                                              |
+| **Détection d'anomalies**  | Valeurs aberrantes noyées dans la masse        | Identification statistique des incohérences temporelles, comportementales ou relationnelles                                             |
+| **Recherche sémantique**   | Recherche par mots-clés trop restrictive       | Compréhension du sens des requêtes, pas seulement des termes exacts                                                                    |
+
+### **Résultat**
+
+L'enquêteur dispose d'un assistant qui :
+
+* Mémorise et structure l'intégralité du dossier
+* Identifie des connexions que l'analyse manuelle ne peut pas détecter
+* Propose des pistes de raisonnement traçables et vérifiables
+* Permet de tester des scénarios avant de les poursuivre sur le terrain
+* Alerte sur les incohérences et les correspondances avec d'autres affaires
+
+La plateforme ne remplace pas l'enquêteur. Elle amplifie sa capacité d'analyse sur des dossiers complexes comportant de nombreuses entités et relations.
+
 ---
 
 ## **2. Gestion des Enquêtes**
@@ -152,7 +187,6 @@ Cette fonctionnalité permet de transformer rapidement des documents d'investiga
 | Recherche contrawave           | Propagation de contradictions                         |
 
 ---
-
 
 ## **5. HRM - Module de Raisonnement Hiérarchique**
 
