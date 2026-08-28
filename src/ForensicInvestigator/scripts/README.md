@@ -11,7 +11,8 @@ Scripts pour installer, déployer et gérer ForensicInvestigator sur un serveur 
 - 10 GB espace disque
 
 ### Services externes
-- **vLLM** : Serveur d'inférence LLM (par défaut: `http://86.204.69.30:8001`)
+- **vLLM** (SPARK, port 8001) : inférence LLM. Serveur partagé, utilisé tel quel.
+- **Embeddings** (SPARK, port 8002) : `multilingual-e5-base`, recherche sémantique.
 - **Ollama** (optionnel) : Pour la conversion N4L (`http://localhost:11434`)
 
 ## Installation
@@ -42,12 +43,21 @@ sudo nano /opt/forensicinvestigator/config/environment
 
 Variables importantes:
 ```bash
-# URL du serveur vLLM
+# URL du serveur vLLM (SPARK GB10)
+# Poids réellement chargés : Qwen/Qwen3.8-27B-FP8 (128k ctx, MTP self-speculation,
+# prefix caching), exposés sous l'alias "Qwen3.5-9B" (--served-model-name).
+# C'est cet alias qu'il faut envoyer dans le champ "model" : "Qwen3.8-27B-FP8" -> 404.
+# Le SPARK est partagé avec d'autres applications qui dépendent de cet alias :
+# ne pas le renommer. L'app Go le découvre de toute façon via /v1/models.
 VLLM_URL=http://86.204.69.30:8001
-VLLM_MODEL=Qwen/Qwen2.5-7B-Instruct
+VLLM_MODEL=Qwen3.5-9B
 
 # URL Ollama (pour conversion N4L)
 OLLAMA_URL=http://localhost:11434
+
+# Service d'embeddings (SPARK) — recherche hybride
+EMBEDDING_BASE_URL=http://86.204.69.30:8002/v1
+EMBEDDING_MODEL=multilingual-e5-base
 ```
 
 ### 3. Démarrer l'application
@@ -76,7 +86,6 @@ sudo forensic status
 # Voir les logs en temps réel
 sudo forensic logs           # Logs application
 sudo forensic logs-hrm       # Logs serveur HRM
-sudo forensic logs-embedding # Logs service embedding
 sudo forensic logs-all       # Tous les logs
 
 # Sauvegarder les données
@@ -125,10 +134,7 @@ Après installation:
 │   └── prompts.json            # Configuration des prompts IA
 ├── data/
 │   └── notebooks/              # Données persistantes
-├── embedding_service/
-│   ├── venv/                   # Environnement Python
-│   ├── main.py                 # Service d'embedding Model2vec
-│   └── requirements.txt        # Dépendances Python
+├── embedding_service/          # Obsolète — repli hors-ligne, non démarré
 ├── hrm_server/
 │   ├── venv/                   # Environnement Python
 │   └── *.py                    # Code serveur HRM
@@ -136,9 +142,7 @@ Après installation:
 │   ├── forensic.log
 │   ├── forensic-error.log
 │   ├── hrm.log
-│   ├── hrm-error.log
-│   ├── embedding.log
-│   └── embedding-error.log
+│   └── hrm-error.log
 └── static/
     ├── css/
     ├── js/
@@ -147,19 +151,19 @@ Après installation:
 
 ## Services systemd
 
-Trois services sont créés:
+Deux services sont créés:
 
 | Service | Port | Description |
 |---------|------|-------------|
 | `forensicinvestigator` | 8082 | Application principale (Go) |
 | `forensicinvestigator-hrm` | 8081 | Serveur HRM - Hypothetical Reasoning Model (Python) |
-| `forensicinvestigator-embedding` | 8085 | Service d'embedding Model2vec (Python) |
+
+Le LLM (8001) et les embeddings (8002) sont fournis par le SPARK, hors de ce serveur.
 
 ```bash
 # Gérer les services directement
 sudo systemctl status forensicinvestigator
 sudo systemctl restart forensicinvestigator-hrm
-sudo systemctl restart forensicinvestigator-embedding
 sudo journalctl -u forensicinvestigator -f
 ```
 
@@ -215,7 +219,7 @@ sudo -u forensic ./bin/forensicinvestigator
 # Tester la connexion vLLM
 curl -X POST http://86.204.69.30:8001/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -d '{"model":"Qwen/Qwen2.5-7B-Instruct","messages":[{"role":"user","content":"test"}]}'
+  -d '{"model":"Qwen3.5-9B","messages":[{"role":"user","content":"test"}]}'
 ```
 
 ### Serveur HRM ne répond pas
@@ -231,17 +235,16 @@ sudo forensic logs-hrm
 curl http://localhost:8081/health
 ```
 
-### Service Embedding ne répond pas
+### Recherche sémantique dégradée (BM25 seul)
+
+L'application se replie silencieusement sur BM25 si les embeddings sont injoignables.
 
 ```bash
-# Vérifier le statut
-sudo systemctl status forensicinvestigator-embedding
+# Tester le service d'embeddings du SPARK
+curl http://86.204.69.30:8002/v1/models
 
-# Vérifier les logs
-sudo forensic logs-embedding
-
-# Tester manuellement
-curl http://localhost:8085/health
+# Vérifier l'indexation au démarrage
+sudo forensic logs | grep REINDEX
 ```
 
 ### Problèmes de permissions
@@ -294,11 +297,5 @@ sudo tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz
 cd /opt/forensicinvestigator/hrm_server
 source venv/bin/activate
 pip install --upgrade fastapi uvicorn
-deactivate
-
-# Mettre à jour les dépendances Python Embedding
-cd /opt/forensicinvestigator/embedding_service
-source venv/bin/activate
-pip install --upgrade model2vec fastapi uvicorn
 deactivate
 ```

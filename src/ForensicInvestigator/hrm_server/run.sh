@@ -9,9 +9,13 @@ cd "$SCRIPT_DIR"
 # - USE_SAPIENT=true: vLLM-powered reasoning (slower but more sophisticated)
 export USE_SAPIENT="${USE_SAPIENT:-true}"
 
-# Configuration vLLM (only used if USE_SAPIENT=true)
-export VLLM_URL="${VLLM_URL:-http://86.204.69.30:8000}"
-export VLLM_MODEL="${VLLM_MODEL:-openai/gpt-oss-20b}"
+# Configuration LLM (only used if USE_SAPIENT=true) - vLLM backend on SPARK GB10.
+# Weights: Qwen/Qwen3.8-27B-FP8 (128k ctx, MTP self-speculation, prefix caching),
+# served under the alias "Qwen3.5-9B" (--served-model-name). Only that alias is
+# accepted by the API; "Qwen3.8-27B-FP8" returns a 404. The SPARK is shared with
+# other applications: use its configuration as-is, do not rename the alias.
+export VLLM_URL="${VLLM_URL:-http://86.204.69.30:8001/v1}"
+export VLLM_MODEL="${VLLM_MODEL:-Qwen3.5-9B}"
 
 # Check for virtual environment
 if [ ! -d "venv" ]; then

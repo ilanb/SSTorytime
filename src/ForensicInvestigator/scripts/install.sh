@@ -22,14 +22,19 @@ GO_VERSION="1.21.5"
 PYTHON_VERSION="3.11"
 
 # URLs des serveurs (à modifier selon votre configuration)
+# vLLM sur SPARK GB10 (serveur partagé) : Qwen/Qwen3.8-27B-FP8 (128k ctx)
+# servi sous l'alias "Qwen3.5-9B", identifiant attendu par l'API.
 VLLM_URL="${VLLM_URL:-http://86.204.69.30:8001}"
-VLLM_MODEL="${VLLM_MODEL:-Qwen/Qwen2.5-7B-Instruct}"
+VLLM_MODEL="${VLLM_MODEL:-Qwen3.5-9B}"
 OLLAMA_URL="${OLLAMA_URL:-http://localhost:11434}"
+
+# Embeddings sur SPARK GB10 : multilingual-e5-base (768 dimensions)
+EMBEDDING_BASE_URL="${EMBEDDING_BASE_URL:-http://86.204.69.30:8002/v1}"
+EMBEDDING_MODEL="${EMBEDDING_MODEL:-multilingual-e5-base}"
 
 # Ports des services
 FORENSIC_PORT=8082
 HRM_PORT=8081
-EMBEDDING_PORT=8085
 
 log_info() {
     echo -e "${BLUE}[INFO]${NC} $1"
@@ -214,7 +219,7 @@ create_env_file() {
 # ForensicInvestigator - Configuration
 # Modifiez ces valeurs selon votre environnement
 
-# Serveur vLLM (modèle principal)
+# Serveur LLM distant (llama.cpp, modèle principal)
 VLLM_URL=${VLLM_URL}
 VLLM_MODEL=${VLLM_MODEL}
 
@@ -222,10 +227,13 @@ VLLM_MODEL=${VLLM_MODEL}
 OLLAMA_URL=${OLLAMA_URL}
 OLLAMA_MODEL=n4l-qwen:latest
 
+# Service d'embeddings (recherche hybride)
+EMBEDDING_BASE_URL=${EMBEDDING_BASE_URL}
+EMBEDDING_MODEL=${EMBEDDING_MODEL}
+
 # Ports
 FORENSIC_PORT=8082
 HRM_PORT=8081
-EMBEDDING_PORT=8085
 
 # Logging
 LOG_LEVEL=info

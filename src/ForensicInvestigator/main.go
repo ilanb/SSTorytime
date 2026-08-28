@@ -11,11 +11,65 @@ import (
 	"forensicinvestigator/internal/services"
 )
 
+// Configuration des services distants (SPARK GB10).
+//
+// Le port 8001 sert le LLM via vLLM (Qwen3.8-27B-FP8, contexte 128k, MTP
+// self-speculation, prefix caching), le port 8002 les embeddings
+// (multilingual-e5-base, 768 dimensions).
+//
+// Le SPARK est un serveur partagé: d'autres applications consomment les mêmes
+// endpoints. Sa configuration est donc prise telle quelle, sans rien exiger de lui.
+//
+// Concrètement, vLLM n'accepte que la valeur de son --served-model-name. Ici c'est
+// "Qwen3.5-9B", un nom hérité qui désigne en réalité Qwen/Qwen3.8-27B-FP8; d'autres
+// clients s'appuient dessus, il ne doit pas être renommé. Plutôt que de coder cet
+// identifiant en dur, on le découvre au démarrage via /v1/models: l'application
+// suit le SPARK quelle que soit sa configuration. LLM_MODEL permet de le forcer,
+// LLM_BASE_URL de changer de serveur.
+const (
+	defaultLLMBaseURL = "http://86.204.69.30:8001"
+
+	// Utilisé uniquement si la découverte échoue ET que LLM_MODEL n'est pas défini:
+	// l'application démarre alors en mode dégradé plutôt que sans modèle du tout.
+	fallbackLLMModel = "Qwen3.5-9B"
+)
+
+// getenv retourne la variable d'environnement key ou fallback si elle est vide.
+func getenv(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
+// resolveLLMModel détermine l'identifiant de modèle à envoyer au serveur.
+//
+// LLM_MODEL est prioritaire; sinon le modèle servi est découvert via /v1/models.
+func resolveLLMModel(baseURL string) string {
+	if forced := os.Getenv("LLM_MODEL"); forced != "" {
+		log.Printf("LLM: modèle forcé par LLM_MODEL: %s", forced)
+		return forced
+	}
+
+	served, err := services.DiscoverServedModel(baseURL)
+	if err != nil {
+		log.Printf("LLM: découverte impossible (%v), repli sur %q", err, fallbackLLMModel)
+		return fallbackLLMModel
+	}
+
+	log.Printf("LLM: modèle découvert: %s", served)
+	return served.ID
+}
+
 func main() {
 	log.Println("ForensicInvestigator - Démarrage du serveur...")
 
-	// Initialiser les services (vLLM sur serveur distant)
-	ollamaService := services.NewOllamaService("http://86.204.69.30:8001", "Qwen/Qwen2.5-7B-Instruct")
+	// Initialiser les services (LLM distant - vLLM sur SPARK)
+	llmBaseURL := getenv("LLM_BASE_URL", defaultLLMBaseURL)
+	llmModel := resolveLLMModel(llmBaseURL)
+	log.Printf("LLM: %s (modèle: %s)", llmBaseURL, llmModel)
+
+	ollamaService := services.NewOllamaService(llmBaseURL, llmModel)
 	caseService := services.NewCaseService()
 	n4lService := services.NewN4LService()
 
@@ -26,6 +80,10 @@ func main() {
 
 	// Créer le handler principal
 	handler := handlers.NewHandler(ollamaService, caseService, n4lService)
+
+	// Indexer les affaires en arrière-plan: le serveur accepte les requêtes
+	// immédiatement, la recherche se replie sur BM25 tant que l'index n'est pas prêt.
+	go handler.ReindexAllCases()
 
 	// Routes API
 	http.HandleFunc("/api/cases", handler.HandleCases)
@@ -79,7 +137,7 @@ func main() {
 	http.HandleFunc("/api/hrm/contradictions", handler.HandleHRMContradictions)
 	http.HandleFunc("/api/hrm/cross-case", handler.HandleHRMCrossCase)
 
-	// Routes Recherche Hybride (BM25 + Model2vec Semantic)
+	// Routes Recherche Hybride (BM25 + sémantique via embeddings SPARK)
 	http.HandleFunc("/api/search/hybrid", handler.HandleHybridSearch)
 	http.HandleFunc("/api/search/quick", handler.HandleQuickSearch)
 

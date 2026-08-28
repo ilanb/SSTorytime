@@ -23,8 +23,39 @@ from dataclasses import dataclass
 from enum import Enum
 import hashlib
 import os
+import re
 
 logger = logging.getLogger(__name__)
+
+# Remote LLM served by vLLM on the SPARK GB10 (port 8001), a shared server also
+# used by other applications: its configuration is taken as-is.
+# Backing weights: Qwen/Qwen3.8-27B-FP8 — exposed under the served-model-name
+# "Qwen3.5-9B", which is the identifier the API expects in the "model" field and
+# which other clients depend on. Override with VLLM_URL / VLLM_MODEL if needed.
+DEFAULT_VLLM_URL = os.environ.get("VLLM_URL", "http://86.204.69.30:8001/v1")
+DEFAULT_VLLM_MODEL = os.environ.get("VLLM_MODEL", "Qwen3.5-9B")
+
+# Qwen3.8 is a reasoning model. On the raw /v1/completions endpoint there is no chat
+# template and no reasoning parser, so the chain of thought is emitted inline as a
+# <think>...</think> block instead of a separate "reasoning" field. Downstream HRM
+# parsing (JSON extraction, synthesis) expects the answer only, so it is stripped here.
+_THINK_BLOCK_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
+_UNCLOSED_THINK_RE = re.compile(r"<think>.*\Z", re.DOTALL | re.IGNORECASE)
+
+
+def strip_reasoning(text: str) -> str:
+    """Remove <think> reasoning blocks from a raw completion.
+
+    Handles the truncation case too: when max_tokens cuts the response mid-thought
+    the closing </think> never arrives, and everything after the opening tag is
+    reasoning rather than answer.
+    """
+    if not text:
+        return ""
+    cleaned = _THINK_BLOCK_RE.sub("", text)
+    cleaned = _UNCLOSED_THINK_RE.sub("", cleaned)
+    return cleaned.strip()
+
 
 # Try to import HuggingFace Hub for model loading
 try:
@@ -48,9 +79,13 @@ class HRMConfig:
     hrm_model_id: str = "sapientinc/HRM-checkpoint-ARC-2"
     use_gpu: bool = True
 
-    # vLLM settings (OpenAI-compatible API)
-    vllm_url: str = "http://86.204.69.30:8001/v1"
-    vllm_model: str = "Qwen/Qwen2.5-7B-Instruct"
+    # LLM settings (OpenAI-compatible API - vLLM backend on SPARK GB10).
+    # vLLM serves Qwen/Qwen3.8-27B-FP8 (128k context, MTP self-speculation, prefix
+    # caching) under the alias "Qwen3.5-9B" (--served-model-name). That alias is the
+    # only accepted value for the "model" field: sending "Qwen3.8-27B-FP8" or
+    # "Qwen/Qwen3.8-27B-FP8" returns a 404 NotFoundError.
+    vllm_url: str = DEFAULT_VLLM_URL
+    vllm_model: str = DEFAULT_VLLM_MODEL
 
     # Reasoning settings
     max_reasoning_depth: int = 5
@@ -64,7 +99,7 @@ class HRMConfig:
 class VLLMClient:
     """Client for vLLM API (OpenAI-compatible)."""
 
-    def __init__(self, base_url: str = "http://86.204.69.30:8001/v1", model: str = "Qwen/Qwen2.5-7B-Instruct"):
+    def __init__(self, base_url: str = DEFAULT_VLLM_URL, model: str = DEFAULT_VLLM_MODEL):
         self.base_url = base_url
         self.model = model
 
@@ -94,8 +129,12 @@ class VLLMClient:
             if resp.status_code == 200:
                 data = resp.json()
                 if data.get("choices") and len(data["choices"]) > 0:
-                    text = data["choices"][0].get("text", "")
-                    logger.info(f"vLLM response length: {len(text)} chars")
+                    raw = data["choices"][0].get("text", "")
+                    text = strip_reasoning(raw)
+                    logger.info(
+                        f"vLLM response length: {len(text)} chars "
+                        f"({len(raw) - len(text)} chars of reasoning stripped)"
+                    )
                     return text
                 logger.warning("vLLM returned empty choices")
                 return ""

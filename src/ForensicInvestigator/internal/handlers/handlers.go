@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"forensicinvestigator/internal/models"
 	"forensicinvestigator/internal/services"
@@ -34,7 +35,7 @@ func NewHandler(ollama *services.OllamaService, cases *services.CaseService, n4l
 		n4l:           n4l,
 		n4lGenerator:  services.NewN4LGeneratorService(n4l),
 		hrm:           services.NewHRMService("http://localhost:8081"),
-		search:        services.NewSearchService("http://localhost:11434", "nomic-embed-text"),
+		search:        services.NewSearchService("", ""), // embeddings SPARK, cf. EMBEDDING_BASE_URL
 		graphAnalyzer: services.NewGraphAnalyzerService(),
 		notebook:      services.NewNotebookService(),
 	}
@@ -42,6 +43,39 @@ func NewHandler(ollama *services.OllamaService, cases *services.CaseService, n4l
 	h.scenario = services.NewScenarioService(cases, ollama)
 	h.anomaly = services.NewAnomalyService(cases, ollama)
 	return h
+}
+
+// ReindexAllCases pré-calcule les vecteurs d'embedding de toutes les affaires
+// chargées, pour que la première recherche n'ait pas à encoder tout le corpus.
+//
+// Prévu pour être lancé dans une goroutine au démarrage: un échec du service
+// d'embeddings est journalisé sans empêcher l'application de servir (la recherche
+// se replie alors sur BM25 seul).
+func (h *Handler) ReindexAllCases() {
+	allCases := h.cases.GetAllCases()
+	if len(allCases) == 0 {
+		return
+	}
+
+	if !h.search.Embeddings().IsAvailable() {
+		log.Printf("[REINDEX] Service d'embeddings injoignable (%s), indexation reportée",
+			h.search.Embeddings().BaseURL())
+		return
+	}
+
+	start := time.Now()
+	total := 0
+	for _, c := range allCases {
+		added, err := h.search.ReindexCase(c)
+		if err != nil {
+			log.Printf("[REINDEX] Affaire %s: %v", c.ID, err)
+			continue
+		}
+		total += added
+	}
+
+	log.Printf("[REINDEX] %d vecteurs indexés pour %d affaires en %s (modèle: %s)",
+		total, len(allCases), time.Since(start).Round(time.Millisecond), h.search.Embeddings().Model())
 }
 
 // HandleCases gère les opérations sur les affaires

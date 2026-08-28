@@ -75,13 +75,13 @@ echo "========================================"
 echo "  [REMOTE] Arrêt de tous les services  "
 echo "========================================"
 
-echo "[1/3] Arrêt du service Embedding..."
+# Le service Model2vec local (8085) est obsolète: on l'arrête s'il subsiste.
 sudo systemctl stop forensicinvestigator-embedding 2>/dev/null || true
 
-echo "[2/3] Arrêt du service HRM..."
+echo "[1/2] Arrêt du service HRM..."
 sudo systemctl stop forensicinvestigator-hrm 2>/dev/null || true
 
-echo "[3/3] Arrêt du service Go..."
+echo "[2/2] Arrêt du service Go..."
 sudo systemctl stop forensicinvestigator 2>/dev/null || true
 
 echo ""
@@ -108,8 +108,10 @@ echo "[REMOTE] Configuration de l'environnement HRM..."
 # Activer le mode vLLM (Sapient) pour HRM
 sudo mkdir -p ${APP_DIR}/config
 echo 'USE_SAPIENT=true' | sudo tee ${APP_DIR}/config/hrm.env > /dev/null
+# vLLM sur SPARK GB10 (serveur partagé, configuration prise telle quelle) :
+# Qwen/Qwen3.8-27B-FP8 servi sous l'alias "Qwen3.5-9B", identifiant attendu par l'API.
 echo 'VLLM_URL=http://86.204.69.30:8001/v1' | sudo tee -a ${APP_DIR}/config/hrm.env > /dev/null
-echo 'VLLM_MODEL=Qwen/Qwen2.5-7B-Instruct' | sudo tee -a ${APP_DIR}/config/hrm.env > /dev/null
+echo 'VLLM_MODEL=Qwen3.5-9B' | sudo tee -a ${APP_DIR}/config/hrm.env > /dev/null
 
 echo "[REMOTE] Correction des permissions..."
 sudo chown -R forensic:forensic ${APP_DIR}
@@ -125,15 +127,15 @@ echo "========================================"
 echo "  [REMOTE] Redémarrage des services    "
 echo "========================================"
 
-echo "[1/3] Démarrage du service Embedding (Model2vec)..."
-sudo systemctl start forensicinvestigator-embedding 2>/dev/null || echo "  → Service Embedding non configuré"
-sleep 2
+# Le service Model2vec local (8085) n'est plus utilisé: les embeddings viennent
+# du SPARK (port 8002). On s'assure qu'une instance héritée ne tourne plus.
+sudo systemctl stop forensicinvestigator-embedding 2>/dev/null || true
 
-echo "[2/3] Démarrage du service HRM..."
+echo "[1/2] Démarrage du service HRM..."
 sudo systemctl start forensicinvestigator-hrm 2>/dev/null || echo "  → Service HRM non configuré"
 sleep 2
 
-echo "[3/3] Démarrage du service Go..."
+echo "[2/2] Démarrage du service Go..."
 sudo systemctl start forensicinvestigator
 sleep 2
 
@@ -157,11 +159,11 @@ else
     echo "  - HRM Server (Python)          : non configuré ou inactif"
 fi
 
-# Vérifier le service Embedding
-if sudo systemctl is-active --quiet forensicinvestigator-embedding 2>/dev/null; then
-    echo "  ✓ Embedding Service (Model2vec): actif sur port 8085"
+# Vérifier le service d'embeddings distant (SPARK)
+if curl -sf -m 5 "${EMBEDDING_BASE_URL:-http://86.204.69.30:8002/v1}/models" > /dev/null 2>&1; then
+    echo "  ✓ Embeddings (SPARK)           : joignables (multilingual-e5-base)"
 else
-    echo "  - Embedding Service (Model2vec): non configuré ou inactif"
+    echo "  - Embeddings (SPARK)           : injoignables, repli sur BM25 seul"
 fi
 
 echo ""
@@ -187,5 +189,5 @@ echo -e "${GREEN}========================================${NC}"
 echo ""
 echo -e "  📊 Application:     ${BLUE}http://51.75.240.95:8082${NC}"
 echo -e "  🧠 HRM Server:      ${BLUE}http://51.75.240.95:8081${NC}"
-echo -e "  🔍 Embedding:       ${BLUE}http://51.75.240.95:8085${NC}"
+echo -e "  🔍 Embeddings:      ${BLUE}http://86.204.69.30:8002/v1${NC} (multilingual-e5-base)"
 echo ""

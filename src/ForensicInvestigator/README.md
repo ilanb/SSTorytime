@@ -195,7 +195,7 @@ Cette fonctionnalité permet de transformer rapidement des documents d'investiga
 Le HRM (Hierarchical Reasoning Model) est un moteur de raisonnement à deux niveaux :
 
 * **Niveau 1** : Modèle HRM spécialisé (sapientinc/HRM-checkpoint) pour la reconnaissance de patterns hiérarchiques
-* **Niveau 2** : Modèle de langage Qwen2.5-7B-Instruct (via vLLM) pour le raisonnement en langage naturel
+* **Niveau 2** : Modèle de langage Qwen3.8-27B-FP8 (via vLLM, MTP self-speculation, 128K contexte) pour le raisonnement en langage naturel
 
 ### **Processus de Raisonnement Déductif**
 
@@ -391,7 +391,7 @@ mobile financier établi, absence d'alibi vérifiable.
 **Recherche hybride**
 
 * Recherche plein texte (BM25)
-* Recherche sémantique (embeddings Model2vec)
+* Recherche sémantique (embeddings multilingual-e5-base sur le SPARK)
 * Classement combiné
 
 ---
@@ -429,8 +429,8 @@ mobile financier établi, absence d'alibi vérifiable.
 
 * Application principale Go (port 8082)
 * Serveur HRM Python (port 8081)
-* Service d'embeddings Model2vec (port 8085)
-* Inférence vLLM distante
+* Service d'embeddings distant (SPARK, multilingual-e5-base, port 8002)
+* Inférence LLM distante (vLLM sur SPARK GB10, Qwen3.8-27B-FP8, contexte 128K)
 
 **Déploiement**
 

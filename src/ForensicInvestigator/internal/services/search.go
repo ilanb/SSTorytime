@@ -1,12 +1,9 @@
 package services
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"io"
+	"log"
 	"math"
-	"net/http"
 	"sort"
 	"strings"
 	"unicode"
@@ -14,17 +11,27 @@ import (
 	"forensicinvestigator/internal/models"
 )
 
-// SearchService gère la recherche hybride (BM25 + Sémantique via Model2vec)
+// SearchService gère la recherche hybride (BM25 + sémantique).
+//
+// Le volet sémantique s'appuie sur le service d'embeddings du SPARK
+// (multilingual-e5-base, 768 dimensions), avec cache de vecteurs.
 type SearchService struct {
-	model2vecURL string
+	embeddings *EmbeddingClient
 }
 
-// NewSearchService crée une nouvelle instance du service de recherche
-func NewSearchService(ollamaURL, embeddingModel string) *SearchService {
-	// On ignore les paramètres Ollama, on utilise Model2vec sur le port 8085
+// NewSearchService crée une nouvelle instance du service de recherche.
+//
+// baseURL et model peuvent être vides: les valeurs sont alors lues dans
+// EMBEDDING_BASE_URL / EMBEDDING_MODEL, puis dans les défauts SPARK.
+func NewSearchService(baseURL, model string) *SearchService {
 	return &SearchService{
-		model2vecURL: "http://localhost:8085",
+		embeddings: NewEmbeddingClient(baseURL, model),
 	}
+}
+
+// Embeddings expose le client d'embeddings (préchauffage du cache, diagnostics).
+func (s *SearchService) Embeddings() *EmbeddingClient {
+	return s.embeddings
 }
 
 // SearchResult représente un résultat de recherche
@@ -46,36 +53,6 @@ type SearchRequest struct {
 	Types      []string `json:"types,omitempty"` // entity, evidence, event
 	Limit      int      `json:"limit,omitempty"`
 	BM25Weight float64  `json:"bm25_weight,omitempty"` // Poids de BM25 (0-1), semantic = 1 - bm25_weight
-}
-
-// Model2vecEmbedRequest représente une requête d'embedding à Model2vec
-type Model2vecEmbedRequest struct {
-	Text string `json:"text"`
-}
-
-// Model2vecEmbedResponse représente la réponse d'embedding de Model2vec
-type Model2vecEmbedResponse struct {
-	Embedding []float64 `json:"embedding"`
-	Dimension int       `json:"dimension"`
-}
-
-// Model2vecSimilarityRequest représente une requête de similarité à Model2vec
-type Model2vecSimilarityRequest struct {
-	Query     string   `json:"query"`
-	Documents []string `json:"documents"`
-	TopK      int      `json:"top_k"`
-}
-
-// Model2vecSimilarityResult représente un résultat de similarité
-type Model2vecSimilarityResult struct {
-	Index int     `json:"index"`
-	Text  string  `json:"text"`
-	Score float64 `json:"score"`
-}
-
-// Model2vecSimilarityResponse représente la réponse de similarité de Model2vec
-type Model2vecSimilarityResponse struct {
-	Results []Model2vecSimilarityResult `json:"results"`
 }
 
 // Document représente un document indexable pour BM25
@@ -178,94 +155,31 @@ func computeBM25Score(queryTokens []string, doc Document, documents []Document, 
 	return score
 }
 
-// getSemanticScores obtient les scores sémantiques via Model2vec
-func (s *SearchService) getSemanticScores(query string, documents []Document) (map[string]float64, error) {
-	scores := make(map[string]float64)
-
-	// Préparer les contenus des documents
-	var docContents []string
-	for _, doc := range documents {
-		docContents = append(docContents, doc.Content)
+// buildDocuments construit le corpus indexable d'une affaire.
+//
+// types restreint les catégories retenues ("entity", "evidence", "event"); vide,
+// les trois sont incluses. Cette fonction est le point unique de composition du
+// champ Content: la recherche et le préchauffage du cache d'embeddings doivent
+// produire des textes identiques, sinon les vecteurs mémorisés ne sont jamais
+// retrouvés et chaque recherche ré-encode tout le corpus.
+func buildDocuments(caseData *models.Case, types []string) []Document {
+	if caseData == nil {
+		return nil
 	}
 
-	// Appeler le service Model2vec
-	reqBody := Model2vecSimilarityRequest{
-		Query:     query,
-		Documents: docContents,
-		TopK:      len(documents),
-	}
-
-	jsonBody, err := json.Marshal(reqBody)
-	if err != nil {
-		return nil, fmt.Errorf("erreur marshalling similarity request: %w", err)
-	}
-
-	resp, err := http.Post(s.model2vecURL+"/similarity", "application/json", bytes.NewBuffer(jsonBody))
-	if err != nil {
-		return nil, fmt.Errorf("erreur appel Model2vec: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("Model2vec erreur %d: %s", resp.StatusCode, string(body))
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("erreur lecture réponse: %w", err)
-	}
-
-	var simResp Model2vecSimilarityResponse
-	if err := json.Unmarshal(body, &simResp); err != nil {
-		return nil, fmt.Errorf("erreur parsing similarity response: %w", err)
-	}
-
-	// Mapper les scores aux IDs des documents
-	for _, result := range simResp.Results {
-		if result.Index >= 0 && result.Index < len(documents) {
-			scores[documents[result.Index].ID] = result.Score
-		}
-	}
-
-	return scores, nil
-}
-
-// isModel2vecAvailable vérifie si le service Model2vec est disponible
-func (s *SearchService) isModel2vecAvailable() bool {
-	resp, err := http.Get(s.model2vecURL + "/health")
-	if err != nil {
-		return false
-	}
-	defer resp.Body.Close()
-	return resp.StatusCode == http.StatusOK
-}
-
-// HybridSearch effectue une recherche hybride sur les données d'une affaire
-func (s *SearchService) HybridSearch(caseData *models.Case, req SearchRequest) ([]SearchResult, error) {
-	if req.Limit == 0 {
-		req.Limit = 20
-	}
-	if req.BM25Weight == 0 {
-		req.BM25Weight = 0.5 // 50% BM25, 50% Sémantique par défaut
-	}
-
-	// Construire les documents à partir des données de l'affaire
-	var documents []Document
-
-	// Types à inclure
-	includeTypes := make(map[string]bool)
-	if len(req.Types) == 0 {
+	includeTypes := make(map[string]bool, 3)
+	if len(types) == 0 {
 		includeTypes["entity"] = true
 		includeTypes["evidence"] = true
 		includeTypes["event"] = true
 	} else {
-		for _, t := range req.Types {
+		for _, t := range types {
 			includeTypes[t] = true
 		}
 	}
 
-	// Indexer les entités
+	var documents []Document
+
 	if includeTypes["entity"] {
 		for _, entity := range caseData.Entities {
 			content := entity.Name + " " + entity.Description + " " + string(entity.Type) + " " + string(entity.Role)
@@ -280,7 +194,6 @@ func (s *SearchService) HybridSearch(caseData *models.Case, req SearchRequest) (
 		}
 	}
 
-	// Indexer les preuves
 	if includeTypes["evidence"] {
 		for _, evidence := range caseData.Evidence {
 			content := evidence.Name + " " + evidence.Description + " " + string(evidence.Type) + " " + evidence.Location
@@ -295,7 +208,6 @@ func (s *SearchService) HybridSearch(caseData *models.Case, req SearchRequest) (
 		}
 	}
 
-	// Indexer les événements de la timeline
 	if includeTypes["event"] {
 		for _, event := range caseData.Timeline {
 			content := event.Title + " " + event.Description + " " + event.Location
@@ -309,6 +221,118 @@ func (s *SearchService) HybridSearch(caseData *models.Case, req SearchRequest) (
 			})
 		}
 	}
+
+	return documents
+}
+
+// ReindexCase pré-calcule les vecteurs d'une affaire et les met en cache.
+//
+// Sans cet appel, la première recherche sur l'affaire paie l'encodage de tout son
+// corpus. Retourne le nombre de vecteurs ajoutés au cache.
+func (s *SearchService) ReindexCase(caseData *models.Case) (int, error) {
+	documents := buildDocuments(caseData, nil)
+	if len(documents) == 0 {
+		return 0, nil
+	}
+
+	contents := make([]string, len(documents))
+	for i, doc := range documents {
+		contents[i] = doc.Content
+	}
+
+	return s.embeddings.WarmUp(contents)
+}
+
+// normalizeScores ramène des scores dans [0,1] par normalisation min-max.
+//
+// Indispensable pour les scores e5: leur similarité cosinus se concentre dans une
+// plage étroite et élevée (mesuré 0.74-0.81 sur corpus forensique FR), y compris
+// pour des documents hors sujet. Combinés bruts à un score BM25 déjà ramené à
+// [0,1], ils n'apporteraient qu'un décalage constant à tous les documents: le
+// classement sémantique serait dilué et le seuil de pertinence rendu inopérant.
+//
+// La normalisation est monotone: elle préserve l'ordre et ne fait qu'étaler
+// l'échelle sur l'ensemble des candidats de la requête courante.
+func normalizeScores(scores map[string]float64) map[string]float64 {
+	normalized := make(map[string]float64, len(scores))
+	if len(scores) == 0 {
+		return normalized
+	}
+
+	first := true
+	var min, max float64
+	for _, v := range scores {
+		if first {
+			min, max = v, v
+			first = false
+			continue
+		}
+		if v < min {
+			min = v
+		}
+		if v > max {
+			max = v
+		}
+	}
+
+	// Tous les documents à égalité: aucune information discriminante à extraire.
+	span := max - min
+	if span <= 0 {
+		for id := range scores {
+			normalized[id] = 0
+		}
+		return normalized
+	}
+
+	for id, v := range scores {
+		normalized[id] = (v - min) / span
+	}
+	return normalized
+}
+
+// getSemanticScores obtient les scores sémantiques via le service d'embeddings.
+//
+// Les scores retournés sont normalisés dans [0,1] sur l'ensemble des candidats,
+// afin d'être combinables avec les scores BM25.
+func (s *SearchService) getSemanticScores(query string, documents []Document) (map[string]float64, error) {
+	contents := make([]string, len(documents))
+	for i, doc := range documents {
+		contents[i] = doc.Content
+	}
+
+	raw, err := s.embeddings.SimilarityScores(query, contents)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(raw) != len(documents) {
+		return nil, fmt.Errorf("recherche sémantique: %d scores reçus pour %d documents", len(raw), len(documents))
+	}
+
+	scores := make(map[string]float64, len(documents))
+	for i, doc := range documents {
+		scores[doc.ID] = raw[i]
+	}
+
+	return normalizeScores(scores), nil
+}
+
+// isSemanticSearchAvailable vérifie si le service d'embeddings est disponible.
+func (s *SearchService) isSemanticSearchAvailable() bool {
+	return s.embeddings.IsAvailable()
+}
+
+// HybridSearch effectue une recherche hybride sur les données d'une affaire
+func (s *SearchService) HybridSearch(caseData *models.Case, req SearchRequest) ([]SearchResult, error) {
+	if req.Limit == 0 {
+		req.Limit = 20
+	}
+	if req.BM25Weight == 0 {
+		req.BM25Weight = 0.5 // 50% BM25, 50% Sémantique par défaut
+	}
+
+	// Construire les documents à partir des données de l'affaire
+	documents := buildDocuments(caseData, req.Types)
 
 	if len(documents) == 0 {
 		return []SearchResult{}, nil
@@ -344,22 +368,23 @@ func (s *SearchService) HybridSearch(caseData *models.Case, req SearchRequest) (
 		}
 	}
 
-	// Calculer les scores sémantiques via Model2vec
+	// Calculer les scores sémantiques via le service d'embeddings
 	semanticScores := make(map[string]float64)
 	semanticWeight := 1 - req.BM25Weight
 
 	// Essayer d'obtenir les scores sémantiques
-	if s.isModel2vecAvailable() {
+	if s.isSemanticSearchAvailable() {
 		scores, err := s.getSemanticScores(req.Query, documents)
 		if err == nil {
 			semanticScores = scores
 		} else {
-			// Si Model2vec échoue, utiliser uniquement BM25
+			// Service d'embeddings en échec: repli sur BM25 seul
+			log.Printf("[SEARCH] Scores sémantiques indisponibles, repli sur BM25 seul: %v", err)
 			semanticWeight = 0
 			req.BM25Weight = 1
 		}
 	} else {
-		// Model2vec non disponible, utiliser uniquement BM25
+		// Service d'embeddings injoignable: repli sur BM25 seul
 		semanticWeight = 0
 		req.BM25Weight = 1
 	}

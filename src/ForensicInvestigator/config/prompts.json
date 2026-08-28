@@ -67,7 +67,7 @@
     }
   },
   "models": {
-    "default": "Qwen/Qwen2.5-7B-Instruct",
+    "default": "Qwen3.5-9B",
     "n4l_conversion": "n4l-qwen:latest"
   }
 }

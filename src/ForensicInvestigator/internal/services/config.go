@@ -249,7 +249,9 @@ BASE TA RÉPONSE SUR LES FAITS fournis, pas sur des suppositions.`,
 			},
 		},
 		Models: ModelsConfig{
-			Default:       "Qwen/Qwen2.5-7B-Instruct",
+			// Alias servi par vLLM sur le SPARK -> Qwen/Qwen3.8-27B-FP8 (contexte 128k).
+			// Valeur de repli: l'app découvre normalement ce nom via /v1/models.
+			Default:       "Qwen3.5-9B",
 			N4LConversion: "n4l-qwen:latest",
 		},
 	}

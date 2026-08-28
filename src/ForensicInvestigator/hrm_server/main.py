@@ -58,12 +58,14 @@ async def lifespan(app: FastAPI):
 
     if USE_SAPIENT:
         logger.info("Initializing HRM Sapient Engine (hierarchical reasoning + vLLM)...")
-        config = HRMConfig(
-            vllm_url=os.environ.get("VLLM_URL", "http://86.204.69.30:8001/v1"),
-            vllm_model=os.environ.get("VLLM_MODEL", "Qwen/Qwen2.5-7B-Instruct")
-        )
+        # Defaults come from hrm_sapient (VLLM_URL / VLLM_MODEL env vars):
+        # SPARK vLLM serving Qwen/Qwen3.8-27B-FP8 under the alias "Qwen3.5-9B".
+        config = HRMConfig()
         hrm_engine = HRMSapientEngine(config)
-        logger.info("HRM Sapient Engine initialized successfully")
+        logger.info(
+            "HRM Sapient Engine initialized (LLM: %s, model: %s)",
+            config.vllm_url, config.vllm_model,
+        )
     else:
         logger.info("Initializing basic HRM Engine (rule-based)...")
         from hrm_engine import HRMEngine

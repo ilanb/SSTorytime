@@ -45,7 +45,9 @@ stop_service() {
 # Arrêter les services
 stop_service "Application Go" "go" 8082
 stop_service "Service HRM" "hrm" 8081
-stop_service "Service Embedding" "embedding" 8085
+# Le service Model2vec local (8085) n'est plus démarré, mais on l'arrête au cas où
+# une instance héritée d'une version antérieure tournerait encore.
+stop_service "Service Embedding (obsolète)" "embedding" 8085
 
 echo -e "\n${GREEN}========================================${NC}"
 echo -e "${GREEN}  Tous les services sont arrêtés       ${NC}"

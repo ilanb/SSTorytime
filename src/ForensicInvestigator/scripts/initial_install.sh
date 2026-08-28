@@ -212,13 +212,17 @@ log_success "Service Embedding configuré"
 log_info "Création de la configuration..."
 $SUDO tee ${APP_DIR}/config/environment > /dev/null << 'EOF'
 # ForensicInvestigator - Configuration
+# vLLM sur SPARK GB10 (serveur partagé) : Qwen/Qwen3.8-27B-FP8 (128k ctx)
+# servi sous l'alias "Qwen3.5-9B", identifiant attendu par l'API.
 VLLM_URL=http://86.204.69.30:8001
-VLLM_MODEL=Qwen/Qwen2.5-7B-Instruct
+VLLM_MODEL=Qwen3.5-9B
 OLLAMA_URL=http://localhost:11434
 OLLAMA_MODEL=n4l-qwen:latest
+# Embeddings sur SPARK GB10 : multilingual-e5-base (768 dimensions)
+EMBEDDING_BASE_URL=http://86.204.69.30:8002/v1
+EMBEDDING_MODEL=multilingual-e5-base
 FORENSIC_PORT=8082
 HRM_PORT=8081
-EMBEDDING_PORT=8085
 LOG_LEVEL=info
 EOF
 
