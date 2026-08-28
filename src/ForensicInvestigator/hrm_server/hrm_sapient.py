@@ -13,8 +13,6 @@ The combination provides:
 2. Ollama's natural language capabilities for forensic context
 """
 
-import torch
-import numpy as np
 import requests
 import json
 import logging
@@ -57,6 +55,18 @@ def strip_reasoning(text: str) -> str:
     return cleaned.strip()
 
 
+# torch is only needed to load the optional sapientinc HRM checkpoint. The LLM
+# reasoning path — which is what production actually uses — does not need it, so a
+# missing torch must not take the whole engine down: importing it unconditionally
+# made this module unimportable on hosts without torch, and main.py then fell back
+# to the rule-based engine silently.
+try:
+    import torch
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
+    logger.info("torch not available - HRM checkpoint disabled, LLM reasoning unaffected")
+
 # Try to import HuggingFace Hub for model loading
 try:
     from huggingface_hub import hf_hub_download, snapshot_download
@@ -64,6 +74,13 @@ try:
 except ImportError:
     HF_AVAILABLE = False
     logger.warning("huggingface_hub not available - HRM model loading disabled")
+
+
+def _detect_device(use_gpu: bool) -> str:
+    """Return the compute device label for the optional HRM checkpoint."""
+    if not TORCH_AVAILABLE:
+        return "cpu"
+    return "cuda" if torch.cuda.is_available() and use_gpu else "cpu"
 
 
 class ReasoningLevel(Enum):
@@ -159,7 +176,7 @@ class HRMSapientEngine:
 
     def __init__(self, config: HRMConfig = None):
         self.config = config or HRMConfig()
-        self.device = torch.device("cuda" if torch.cuda.is_available() and self.config.use_gpu else "cpu")
+        self.device = _detect_device(self.config.use_gpu)
 
         # Initialize vLLM client
         self.vllm = VLLMClient(self.config.vllm_url, self.config.vllm_model)

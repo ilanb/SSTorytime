@@ -104,20 +104,66 @@ for pyfile in /tmp/*.py; do
     fi
 done
 
-echo "[REMOTE] Configuration de l'environnement HRM..."
-# Activer le mode vLLM (Sapient) pour HRM
+echo "[REMOTE] Vérification des dépendances Python du HRM..."
+# Le moteur Sapient importe requests: sans lui, hrm_sapient est inimportable et le
+# serveur retombe sur le moteur de règles sans jamais solliciter le LLM.
+# torch et huggingface_hub restent optionnels (checkpoint HRM, inutile ici).
+HRM_PY="${APP_DIR}/hrm_server/venv/bin/python"
+if [ -x "$HRM_PY" ]; then
+    if ! sudo "$HRM_PY" -c "import requests" 2>/dev/null; then
+        echo "  → Installation de requests..."
+        sudo "${APP_DIR}/hrm_server/venv/bin/pip" install -q requests
+    fi
+    sudo "$HRM_PY" -c "import requests" 2>/dev/null \
+        && echo "  ✓ requests disponible" \
+        || echo "  ✗ requests INDISPONIBLE - le HRM restera en mode règles"
+else
+    echo "  ⚠ venv HRM introuvable: $HRM_PY"
+fi
+
+echo "[REMOTE] Configuration de l'environnement..."
 sudo mkdir -p ${APP_DIR}/config
-echo 'USE_SAPIENT=true' | sudo tee ${APP_DIR}/config/hrm.env > /dev/null
-# vLLM sur SPARK GB10 (serveur partagé, configuration prise telle quelle) :
+ENV_FILE="${APP_DIR}/config/environment"
+
+# Les deux unités systemd (forensicinvestigator et -hrm) chargent config/environment.
+# C'est donc le seul fichier qui compte: un config/hrm.env séparé n'était lu par
+# personne, ce qui laissait USE_SAPIENT à sa valeur par défaut (false) et faisait
+# tourner le HRM en mode règles sans jamais solliciter le LLM.
+sudo touch "$ENV_FILE"
+sudo cp "$ENV_FILE" "${ENV_FILE}.bak.$(date +%Y%m%d_%H%M%S)"
+
+# set_env_var CLE VALEUR — remplace la ligne existante ou l'ajoute.
+set_env_var() {
+    local key="$1" value="$2"
+    if sudo grep -qE "^${key}=" "$ENV_FILE"; then
+        sudo sed -i "s|^${key}=.*|${key}=${value}|" "$ENV_FILE"
+    else
+        echo "${key}=${value}" | sudo tee -a "$ENV_FILE" > /dev/null
+    fi
+}
+
+# Moteur HRM: raisonnement adossé au LLM plutôt que le moteur de règles.
+set_env_var USE_SAPIENT true
+
+# vLLM sur SPARK GB10 (serveur partagé, configuration prise telle quelle):
 # Qwen/Qwen3.8-27B-FP8 servi sous l'alias "Qwen3.5-9B", identifiant attendu par l'API.
-echo 'VLLM_URL=http://86.204.69.30:8001/v1' | sudo tee -a ${APP_DIR}/config/hrm.env > /dev/null
-echo 'VLLM_MODEL=Qwen3.5-9B' | sudo tee -a ${APP_DIR}/config/hrm.env > /dev/null
+set_env_var VLLM_URL http://86.204.69.30:8001/v1
+set_env_var VLLM_MODEL Qwen3.5-9B
+
+# Embeddings sur le SPARK (multilingual-e5-base, 768 dimensions).
+set_env_var EMBEDDING_BASE_URL http://86.204.69.30:8002/v1
+set_env_var EMBEDDING_MODEL multilingual-e5-base
+
+# Le service Model2vec local (8085) n'existe plus.
+sudo sed -i '/^EMBEDDING_PORT=/d' "$ENV_FILE"
+
+# Fichier orphelin d'une version antérieure: aucune unité systemd ne le charge.
+sudo rm -f ${APP_DIR}/config/hrm.env
 
 echo "[REMOTE] Correction des permissions..."
 sudo chown -R forensic:forensic ${APP_DIR}
 sudo chmod -R 755 ${APP_DIR}/static
 sudo chmod 600 ${APP_DIR}/config/environment 2>/dev/null || true
-sudo chmod 600 ${APP_DIR}/config/hrm.env 2>/dev/null || true
 
 echo "[REMOTE] Nettoyage des fichiers temporaires..."
 rm -rf /tmp/ForensicInvestigator-linux /tmp/forensic_static /tmp/*.py 2>/dev/null || true

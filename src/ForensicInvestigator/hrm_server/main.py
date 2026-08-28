@@ -31,10 +31,16 @@ from models import (
 # - USE_SAPIENT=true: vLLM-powered reasoning (slower but more sophisticated)
 USE_SAPIENT = os.environ.get("USE_SAPIENT", "false").lower() == "true"
 
+_sapient_import_error = None
+
 if USE_SAPIENT:
     try:
         from hrm_sapient import HRMSapientEngine, HRMConfig
-    except ImportError:
+    except ImportError as exc:
+        # Ce repli était muet: USE_SAPIENT=true pouvait être demandé et ignoré sans
+        # la moindre trace, laissant le moteur de règles tourner à la place du LLM.
+        # L'erreur est conservée pour être journalisée une fois le logging configuré.
+        _sapient_import_error = exc
         from hrm_engine import HRMEngine
         USE_SAPIENT = False
 else:
@@ -46,6 +52,14 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+if _sapient_import_error is not None:
+    logger.error(
+        "USE_SAPIENT=true demandé mais le moteur Sapient est inutilisable (%s). "
+        "Repli sur le moteur de règles: le LLM ne sera PAS sollicité. "
+        "Installez les dépendances manquantes dans le venv du serveur HRM.",
+        _sapient_import_error,
+    )
 
 # Global HRM engine instance
 hrm_engine = None
