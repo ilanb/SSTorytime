@@ -33,6 +33,12 @@ logger = logging.getLogger(__name__)
 DEFAULT_VLLM_URL = os.environ.get("VLLM_URL", "http://86.204.69.30:8001/v1")
 DEFAULT_VLLM_MODEL = os.environ.get("VLLM_MODEL", "Qwen3.5-9B")
 
+# Qwen3.8 is a reasoning model: left to itself it produces a long chain of thought
+# before answering. Every HRM prompt asks for structured JSON, where that adds
+# latency without improving the result, so thinking is disabled by default.
+# Set HRM_ENABLE_THINKING=true to restore it globally.
+DEFAULT_ENABLE_THINKING = os.environ.get("HRM_ENABLE_THINKING", "false").lower() == "true"
+
 # Qwen3.8 is a reasoning model. On the raw /v1/completions endpoint there is no chat
 # template and no reasoning parser, so the chain of thought is emitted inline as a
 # <think>...</think> block instead of a separate "reasoning" field. Downstream HRM
@@ -128,36 +134,86 @@ class VLLMClient:
         except:
             return False
 
-    def generate(self, prompt: str, stream: bool = False, max_tokens: int = 8192) -> str:
-        """Generate a response from vLLM."""
+    def _build_payload(self, prompt: str, stream: bool, max_tokens: int,
+                       enable_thinking: bool) -> Dict[str, Any]:
+        """Build the /chat/completions request body."""
+        payload = {
+            "model": self.model,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": max_tokens,
+            "temperature": 0.4,
+            "stream": stream,
+        }
+        if not enable_thinking:
+            payload["chat_template_kwargs"] = {"enable_thinking": False}
+        return payload
+
+    def generate(self, prompt: str, stream: bool = False, max_tokens: int = 8192,
+                 enable_thinking: Optional[bool] = None) -> str:
+        """Generate a response from vLLM.
+
+        Uses /chat/completions rather than the raw /completions endpoint: the latter
+        applies no chat template and no reasoning parser, so a reasoning model emits
+        its chain of thought inline and bills its full generation time for it.
+
+        Every HRM prompt asks for structured JSON, where an internal chain of thought
+        buys nothing — it only adds latency and risks truncating the JSON when
+        max_tokens runs out mid-thought. Measured on the SPARK, planning went from
+        91s to 26s and execution from 174s to 34s, with identical JSON completeness.
+
+        Set enable_thinking=True (or HRM_ENABLE_THINKING=true) for free-form prompts
+        where deliberation genuinely helps.
+        """
+        if enable_thinking is None:
+            enable_thinking = DEFAULT_ENABLE_THINKING
+
+        payload = self._build_payload(prompt, stream, max_tokens, enable_thinking)
+
         try:
-            logger.info(f"vLLM request to {self.base_url}/completions with model {self.model}")
-            resp = requests.post(
-                f"{self.base_url}/completions",
-                json={
-                    "model": self.model,
-                    "prompt": prompt,
-                    "max_tokens": max_tokens,
-                    "temperature": 0.4,
-                    "stream": stream
-                },
-                timeout=600  # 10 minutes per vLLM request
+            logger.info(
+                f"vLLM request to {self.base_url}/chat/completions with model "
+                f"{self.model} (thinking={'on' if enable_thinking else 'off'})"
             )
-            if resp.status_code == 200:
-                data = resp.json()
-                if data.get("choices") and len(data["choices"]) > 0:
-                    raw = data["choices"][0].get("text", "")
-                    text = strip_reasoning(raw)
-                    logger.info(
-                        f"vLLM response length: {len(text)} chars "
-                        f"({len(raw) - len(text)} chars of reasoning stripped)"
-                    )
-                    return text
-                logger.warning("vLLM returned empty choices")
-                return ""
-            else:
+            resp = requests.post(
+                f"{self.base_url}/chat/completions",
+                json=payload,
+                timeout=600,  # 10 minutes per vLLM request
+            )
+
+            # Un serveur qui ignore chat_template_kwargs rejette la requête: on
+            # réessaie sans le paramètre plutôt que de perdre la réponse.
+            if resp.status_code == 400 and "chat_template_kwargs" in payload:
+                logger.warning(
+                    "vLLM a refusé chat_template_kwargs (%s), nouvel essai sans "
+                    "désactivation du raisonnement", resp.text[:150]
+                )
+                payload.pop("chat_template_kwargs")
+                resp = requests.post(
+                    f"{self.base_url}/chat/completions", json=payload, timeout=600
+                )
+
+            if resp.status_code != 200:
                 logger.error(f"vLLM error: {resp.status_code} - {resp.text[:200]}")
                 return ""
+
+            data = resp.json()
+            choices = data.get("choices") or []
+            if not choices:
+                logger.warning("vLLM returned empty choices")
+                return ""
+
+            message = choices[0].get("message") or {}
+            # Le parseur de raisonnement de vLLM isole la réflexion dans "reasoning";
+            # strip_reasoning reste un filet pour les serveurs qui l'inlinent malgré tout.
+            raw = message.get("content") or ""
+            text = strip_reasoning(raw)
+            reasoning_chars = len(message.get("reasoning") or "")
+
+            logger.info(
+                f"vLLM response length: {len(text)} chars "
+                f"({reasoning_chars} chars of reasoning discarded)"
+            )
+            return text
         except Exception as e:
             logger.error(f"vLLM connection error: {e}")
             return ""
